@@ -1,9 +1,31 @@
-node_modules
-.next
-out
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Next.js build output
+.next/
+**/.next/
+out/
+**/out/
+
+# Environment / secrets — NEVER commit real env files (only *.env.local.example)
 .env
 .env.local
+**/.env
+**/.env.local
+**/.env*.local
+
+# Vercel
+.vercel
+**/.vercel
+
+# TypeScript build info / generated
+*.tsbuildinfo
+**/*.tsbuildinfo
+next-env.d.ts
+**/next-env.d.ts
+
+# Logs / OS
 *.log
 .DS_Store
-.vercel
-next-env.d.ts
+**/.DS_Store

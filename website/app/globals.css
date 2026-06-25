@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.99 0.005 240);
+  --foreground: oklch(0.18 0.04 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.04 250);
+  --primary: oklch(0.22 0.07 255);
+  --primary-foreground: oklch(0.98 0.005 240);
+  --secondary: oklch(0.96 0.012 240);
+  --secondary-foreground: oklch(0.22 0.07 255);
+  --muted: oklch(0.96 0.012 240);
+  --muted-foreground: oklch(0.5 0.03 250);
+  --accent: oklch(0.68 0.17 158);
+  --accent-foreground: oklch(0.15 0.04 250);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.984 0.003 247.858);
+  --border: oklch(0.92 0.012 250);
+  --input: oklch(0.92 0.012 250);
+  --ring: oklch(0.68 0.17 158);
+  --brand-navy: oklch(0.18 0.06 255);
+  --brand-emerald: oklch(0.72 0.18 158);
+
+  /* Marketing-only tokens (hero gradients + glow) — shared with the product app's brand. */
+  --brand-navy-deep: oklch(0.12 0.05 255);
+  --brand-emerald-bright: oklch(0.78 0.2 155);
+  --gradient-hero: radial-gradient(ellipse at top, oklch(0.28 0.09 255) 0%, oklch(0.12 0.05 255) 60%, oklch(0.08 0.04 255) 100%);
+  --gradient-accent: linear-gradient(135deg, oklch(0.72 0.18 158), oklch(0.78 0.2 155));
+  --shadow-glow: 0 20px 60px -20px oklch(0.72 0.18 158 / 0.45);
+  --shadow-elegant: 0 30px 80px -30px oklch(0.12 0.05 255 / 0.5);
+
+  /* Elevation — subtle, Apple-like. */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-md: 0 4px 16px -4px rgba(16, 24, 40, 0.12);
+  --shadow-lg: 0 12px 32px -8px rgba(16, 24, 40, 0.18);
+}
+
+/* Staged dark theme — token values ready; not wired to a toggle yet. */
+.dark {
+  --background: oklch(0.2 0.02 255);
+  --foreground: oklch(0.96 0.01 240);
+  --card: oklch(0.24 0.02 255);
+  --card-foreground: oklch(0.96 0.01 240);
+  --primary: oklch(0.72 0.18 158);
+  --primary-foreground: oklch(0.16 0.03 255);
+  --secondary: oklch(0.28 0.02 255);
+  --secondary-foreground: oklch(0.96 0.01 240);
+  --muted: oklch(0.28 0.02 255);
+  --muted-foreground: oklch(0.7 0.02 250);
+  --accent: oklch(0.72 0.18 158);
+  --accent-foreground: oklch(0.16 0.03 255);
+  --border: oklch(0.32 0.02 255);
+  --input: oklch(0.32 0.02 255);
+  --ring: oklch(0.72 0.18 158);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  * {
+    border-color: var(--border);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+@layer components {
+  /* Buttons — consistent height + subtle press feedback + visible focus ring. */
+  .btn {
+    @apply inline-flex h-9 select-none items-center justify-center rounded-md px-4 text-sm font-medium transition active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-[var(--brand-navy)] text-white shadow-[var(--shadow-sm)] hover:opacity-90;
+  }
+  .btn-accent {
+    @apply btn bg-[var(--brand-emerald)] text-[var(--accent-foreground)] shadow-[var(--shadow-sm)] hover:opacity-90;
+  }
+  .btn-outline {
+    @apply btn border border-border bg-card hover:bg-secondary;
+  }
+  .btn-ghost {
+    @apply btn hover:bg-secondary;
+  }
+  .btn-danger {
+    @apply btn bg-destructive text-destructive-foreground shadow-[var(--shadow-sm)] hover:opacity-90;
+  }
+
+  /* Inputs / selects / textareas. */
+  .input {
+    @apply w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  /* Surfaces. */
+  .card {
+    @apply rounded-lg border border-border bg-card p-5 shadow-[var(--shadow-sm)];
+  }
+}

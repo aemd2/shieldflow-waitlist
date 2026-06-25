@@ -1,0 +1,263 @@
+﻿import { z } from "zod";
+
+// Strips ASCII control characters (NUL..US plus DEL) - these break prompts,
+// storage keys, and DB text rendering, and are never legitimate user input.
+const CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
+
+export const onboardingSchema = z.object({
+  companyName: z
+    .string()
+    .transform((s) => s.replace(CONTROL_CHARS, "").trim())
+    .pipe(
+      z
+        .string()
+        .min(2, "Company name is too short")
+        .max(120)
+        .regex(/[\p{L}\p{N}]{2,}/u, "Company name needs at least two letters or digits"),
+    ),
+  frameworkId: z.string().uuid("Pick a framework"),
+});
+
+/** True only for a real calendar date (rejects 2024-02-30) in a sane range. */
+function isRealDate(s: string): boolean {
+  const [y, m, d] = s.split("-").map(Number);
+  if (y < 2000 || y > 2100) return false;
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
+export const controlMetaSchema = z.object({
+  controlId: z.string().uuid(),
+  owner_email: z
+    .string()
+    .trim()
+    .email("Enter a valid email")
+    .max(254)
+    .optional()
+    .or(z.literal("")),
+  due_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+    .refine(isRealDate, "That date doesn't exist - pick a date between 2000 and 2100")
+    .optional()
+    .or(z.literal("")),
+  notes: z.string().trim().max(2000).optional().or(z.literal("")),
+});
+
+export const oktaSchema = z.object({
+  domain: z.string().trim().min(3).max(255),
+  token: z.string().trim().min(20, "That token looks too short.").max(200),
+});
+
+export const gitlabTokenSchema = z.object({
+  token: z
+    .string()
+    .trim()
+    .min(20)
+    .max(300)
+    .regex(/^(glpat-|gloas-)?[A-Za-z0-9_-]+$/, "Paste a GitLab personal access token."),
+});
+
+export const jiraSchema = z.object({
+  site: z.string().trim().min(3).max(255),
+  email: z.string().trim().toLowerCase().email("Enter the email for the API token.").max(254),
+  token: z.string().trim().min(10, "That token looks too short.").max(300),
+});
+
+export const linearTokenSchema = z.object({
+  token: z.string().trim().min(20, "That key looks too short.").max(200),
+});
+
+export const cloudflareTokenSchema = z.object({
+  token: z.string().trim().min(20, "That token looks too short.").max(200),
+});
+
+export const gcpSchema = z.object({
+  serviceAccountJson: z.string().trim().min(50, "Paste the full service-account JSON.").max(8000),
+});
+
+export const awsCredentialsSchema = z.object({
+  accessKeyId: z
+    .string()
+    .trim()
+    .regex(
+      /^(AKIA|ASIA)[A-Z0-9]{16}$/,
+      "That doesn't look like an AWS access key ID (it starts with AKIA…).",
+    ),
+  secretAccessKey: z
+    .string()
+    .trim()
+    .min(40, "The AWS secret access key looks too short.")
+    .max(128),
+});
+
+export const inviteSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Enter a valid email address")
+    .max(254),
+  role: z.enum(["admin", "member", "auditor"]),
+  // Optional time-box (days) for read-only auditor access. 0/undefined = no expiry.
+  expiresInDays: z.coerce.number().int().min(0).max(365).optional(),
+});
+
+export const RISK_LEVELS = ["low", "medium", "high"] as const;
+export const RISK_STATUSES = ["open", "mitigating", "accepted", "closed"] as const;
+
+export const riskSchema = z.object({
+  title: z.string().trim().min(2, "Risk title is too short").max(160),
+  description: z.string().trim().max(2000).optional().or(z.literal("")),
+  category: z.string().trim().max(80).optional().or(z.literal("")),
+  likelihood: z.enum(RISK_LEVELS),
+  impact: z.enum(RISK_LEVELS),
+  status: z.enum(RISK_STATUSES),
+  owner_email: z.string().trim().email("Enter a valid email").max(254).optional().or(z.literal("")),
+  treatment: z.string().trim().max(2000).optional().or(z.literal("")),
+});
+
+export const TRAINING_STATUSES = ["assigned", "in_progress", "completed"] as const;
+
+export const trainingSchema = z.object({
+  person_name: z.string().trim().min(2, "Name is too short").max(120),
+  person_email: z.string().trim().email("Enter a valid email").max(254).optional().or(z.literal("")),
+  course: z.string().trim().min(2, "Course name is too short").max(160),
+  status: z.enum(TRAINING_STATUSES),
+  due_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+    .refine(isRealDate, "That date doesn't exist - pick a date between 2000 and 2100")
+    .optional()
+    .or(z.literal("")),
+});
+
+export const POLICY_TYPES = [
+  "Information Security Policy",
+  "Access Control Policy",
+  "Incident Response Policy",
+  "Data Retention & Disposal Policy",
+  "Acceptable Use Policy",
+  "Business Continuity Policy",
+  "Vendor / Third-Party Risk Policy",
+  "Change Management Policy",
+] as const;
+
+export const policyGenerateSchema = z.object({
+  policyType: z.enum(POLICY_TYPES),
+  frameworkId: z.string().uuid().optional().nullable(),
+});
+
+export const policySaveSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().trim().min(2).max(200),
+  body: z.string().max(100_000),
+  status: z.enum(["draft", "final"]),
+});
+
+export const policyCreateSchema = z.object({
+  title: z.string().trim().min(2).max(200),
+  body: z.string().min(1, "Policy body is empty").max(100_000),
+  frameworkId: z.string().uuid().nullable(),
+});
+
+export const VENDOR_RISKS = ["low", "medium", "high", "critical"] as const;
+export const VENDOR_STATUSES = ["active", "under_review", "offboarded"] as const;
+
+export const vendorSchema = z.object({
+  name: z.string().trim().min(2, "Vendor name is too short").max(120),
+  website: z
+    .string()
+    .trim()
+    .url("Enter a full URL (https://...)")
+    .regex(/^https?:\/\//i, "Only http(s) URLs")
+    .max(300)
+    .optional()
+    .or(z.literal("")),
+  category: z.string().trim().max(80).optional().or(z.literal("")),
+  risk_level: z.enum(VENDOR_RISKS),
+  status: z.enum(VENDOR_STATUSES),
+  notes: z.string().trim().max(2000).optional().or(z.literal("")),
+});
+
+// Trust Center slug: lowercase kebab, no leading/trailing dash. Reserved words
+// blocked so nobody claims /trust/admin or /trust/api as their page.
+const RESERVED_SLUGS = ["admin", "api", "app", "www", "shieldflow", "trust", "login", "signup"];
+export const trustSettingsSchema = z.object({
+  enabled: z.boolean(),
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Use lowercase letters, numbers, and dashes")
+    .min(3, "Slug is too short")
+    .max(60)
+    .refine((s) => !RESERVED_SLUGS.includes(s), "That name is reserved — pick another"),
+});
+
+// GitHub fine-grained PATs start with github_pat_; classic tokens with ghp_.
+// Shape-check before the live GET /user validation so obvious garbage never
+// leaves the server.
+export const githubTokenSchema = z.object({
+  token: z
+    .string()
+    .trim()
+    .min(20, "That doesn't look like a GitHub token")
+    .max(300)
+    .regex(/^(github_pat_|ghp_)[A-Za-z0-9_]+$/, "Paste a GitHub personal access token (github_pat_... or ghp_...)"),
+});
+
+// Slack webhook URL shape — the strict host/path SSRF check lives in
+// lib/slack.ts isValidSlackWebhook and runs on top of this.
+export const slackWebhookSchema = z.object({
+  webhookUrl: z
+    .string()
+    .trim()
+    .url("Paste the full webhook URL")
+    .max(400),
+});
+
+export const copilotSchema = z.object({
+  message: z.string().trim().min(1, "Type a question").max(2000),
+});
+
+// Evidence upload constraints (mirrored from the Storage bucket config).
+export const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024; // 10MB
+export const ALLOWED_EVIDENCE_MIME = [
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "text/csv",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
+] as const;
+
+// Server-side mirror of the client pre-checks: a tampered client can call the
+// recordEvidence action directly, so size/mime/lengths must be re-validated here.
+export const evidenceRecordSchema = z.object({
+  controlId: z.string().uuid(),
+  storagePath: z.string().min(3).max(500),
+  fileName: z.string().trim().min(1).max(255),
+  mimeType: z.enum(ALLOWED_EVIDENCE_MIME),
+  sizeBytes: z.number().int().positive().max(MAX_EVIDENCE_BYTES),
+  note: z.string().trim().max(500).optional(),
+});
+
+/** Strip path separators / control chars so a filename is safe as a storage key segment. */
+export function sanitizeFileName(name: string): string {
+  return name
+    .replace(/[/\\]/g, "_")
+    .replace(/[^\w.\- ]/g, "")
+    .replace(/\s+/g, "_")
+    .slice(0, 120) || "file";
+}
+
+/**
+ * Make a user-controlled value safe to interpolate into an AI prompt: collapse
+ * newlines (so it can't fake new system instructions on its own line), strip
+ * control chars, and cap the length. The system prompt stays authoritative,
+ * but there's no reason to hand untrusted data extra structure.
+ */
+export function sanitizeForPrompt(value: string, maxLen = 120): string {
+  return value.replace(CONTROL_CHARS, " ").replace(/\s+/g, " ").trim().slice(0, maxLen);
+}

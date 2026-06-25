@@ -1,0 +1,55 @@
+import { redirect } from "next/navigation";
+import { createServerSupabase } from "@/lib/supabase/server";
+import {
+  getCompanyForUser,
+  listFrameworks,
+  listSelectedFrameworkIds,
+  listPolicies,
+  getCallerAccess,
+} from "@/lib/db/queries";
+import { isGroqConfigured } from "@/lib/groq";
+import { PolicyWorkspace } from "@/components/policies/PolicyGenerator";
+
+export default async function PoliciesPage() {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const company = await getCompanyForUser(supabase, user.id);
+  if (!company) redirect("/onboarding");
+
+  const [policies, allFrameworks, selectedIds, access] = await Promise.all([
+    listPolicies(supabase, company.id),
+    listFrameworks(supabase),
+    listSelectedFrameworkIds(supabase, company.id),
+    getCallerAccess(supabase, company.id, user.id),
+  ]);
+  const frameworks = allFrameworks.filter((f) => selectedIds.includes(f.id));
+  const canWrite = access?.canWrite ?? false;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Policies</h1>
+        <p className="text-sm text-muted-foreground">
+          Generate audit-ready policy documents with AI, then edit and finalize.
+        </p>
+      </div>
+
+      {!isGroqConfigured() && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          AI is not configured yet. Add a <code>GROQ_API_KEY</code> to{" "}
+          <code>.env.local</code> to enable policy generation. You can still view and edit
+          existing policies.
+        </div>
+      )}
+
+      <PolicyWorkspace
+        frameworks={frameworks}
+        policies={policies}
+        aiEnabled={isGroqConfigured()}
+        canWrite={canWrite}
+      />
+    </div>
+  );
+}
