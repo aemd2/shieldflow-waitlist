@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
+import { BrandMark } from "@/components/BrandMark";
 import { NAV } from "./nav-items";
 
 // The mobile counterpart to the desktop Sidebar: a hamburger button that opens
@@ -52,9 +53,12 @@ export function MobileNav({ companyName }: { companyName: string }) {
           />
           <aside className="relative flex w-64 max-w-[80%] flex-col border-r border-border bg-card p-4">
             <div className="mb-6 flex items-start justify-between">
-              <div className="min-w-0">
-                <div className="text-base font-bold text-foreground">ShieldFlow</div>
-                <div className="truncate text-xs text-muted-foreground">{companyName}</div>
+              <div className="flex min-w-0 items-center gap-2">
+                <BrandMark className="h-7 w-7 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-base font-bold text-foreground">ShieldFlow</div>
+                  <div className="truncate text-xs text-muted-foreground">{companyName}</div>
+                </div>
               </div>
               <button
                 type="button"

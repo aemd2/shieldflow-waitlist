@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { waitlistSchema } from "@/lib/validation";
-import { getServiceSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const supabase = getServiceSupabase();
+    const supabase = createAdminSupabase();
     const { error } = await supabase.from("waitlist_signups").insert({
       email,
       company_name: companyName || null,

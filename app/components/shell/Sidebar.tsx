@@ -2,15 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { BrandMark } from "@/components/BrandMark";
 import { NAV } from "./nav-items";
 
 export function Sidebar({ companyName }: { companyName: string }) {
   const pathname = usePathname();
   return (
     <aside className="hidden w-60 flex-col border-r border-border bg-card p-4 md:flex print:hidden">
-      <div className="mb-6">
-        <div className="text-base font-bold text-foreground">ShieldFlow</div>
-        <div className="truncate text-xs text-muted-foreground">{companyName}</div>
+      <div className="mb-6 flex items-center gap-2">
+        <BrandMark className="h-7 w-7 shrink-0" />
+        <div className="min-w-0">
+          <div className="text-base font-bold text-foreground">ShieldFlow</div>
+          <div className="truncate text-xs text-muted-foreground">{companyName}</div>
+        </div>
       </div>
       <nav className="space-y-1 text-sm">
         {NAV.map(({ href, label, icon: Icon }) => {

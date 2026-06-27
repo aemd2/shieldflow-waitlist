@@ -5,6 +5,8 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, getSubscription, assertCanWrite } from "@/lib/db/queries";
 import { getStripe, isStripeConfigured, PLANS, type PlanKey } from "@/lib/stripe";
 import { checkRateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rate-limit";
+import { foundingTierFor } from "@/lib/founding";
+import { countFoundingMembers, ensureFoundingCoupon } from "@/lib/founding-server";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";
 
@@ -71,17 +73,36 @@ export async function startCheckout(plan: string, interval: "month" | "year" = "
           },
         };
 
+  // Founding-cohort pricing: the tier the NEXT member lands in (100 → 80 → … → 0%),
+  // resolved server-side so the client can't pick its own discount. We attach the
+  // matching lifetime coupon (duration=forever) so the rate sticks for good.
+  const tier = foundingTierFor(await countFoundingMembers());
+  let discount: { discounts: [{ coupon: string }] } | { allow_promotion_codes: true } = {
+    allow_promotion_codes: true,
+  };
+  if (tier.percent > 0) {
+    try {
+      discount = { discounts: [{ coupon: await ensureFoundingCoupon(tier.percent) }] };
+    } catch {
+      discount = { allow_promotion_codes: true };
+    }
+  }
+
+  // company_id on BOTH the session and the subscription, so every webhook event
+  // type can resolve which company it belongs to; founding_percent is kept for the record.
+  const meta = { company_id: company.id, plan: p.key, founding_percent: String(tier.percent) };
+
   try {
     const session = await getStripe().checkout.sessions.create({
       mode: "subscription",
       customer_email: user.email ?? undefined,
       line_items: [lineItem],
-      // Show a discount-code field at checkout so the 40% founder promotion code works.
-      allow_promotion_codes: true,
-      // company_id on BOTH the session and the subscription, so every webhook
-      // event type can resolve which company it belongs to.
-      metadata: { company_id: company.id, plan: p.key },
-      subscription_data: { metadata: { company_id: company.id, plan: p.key } },
+      // 100%-off founders are never charged, so don't force a card; the paying
+      // tiers (80% … 0%) still owe a balance, so Stripe collects one then.
+      payment_method_collection: "if_required",
+      ...discount,
+      metadata: meta,
+      subscription_data: { metadata: meta },
       // session_id lets the billing page reconcile directly with Stripe even if
       // the webhook never arrives (common locally without `stripe listen`).
       success_url: `${appUrl()}/billing?status=success&session_id={CHECKOUT_SESSION_ID}`,

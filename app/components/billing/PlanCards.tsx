@@ -2,17 +2,24 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check } from "lucide-react";
+import { Check, Sparkles, Lock } from "lucide-react";
 import { startCheckout, openBillingPortal } from "@/app/actions/billing";
 import { useToast } from "@/components/ui/Toast";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import {
+  applyFoundingDiscount,
+  foundingTierLabel,
+  FOUNDING_TIER_SIZE,
+  type FoundingTier,
+} from "@/lib/founding";
 
 const PLAN_UI = [
   {
     key: "starter",
     name: "Starter",
-    price: "€249",
-    priceAnnual: "€2,988",
+    monthly: 249,
+    annual: 2988,
+    blurb: "Get your first framework audit-ready.",
     features: [
       "Up to 2 frameworks",
       "Evidence vault",
@@ -24,8 +31,10 @@ const PLAN_UI = [
   {
     key: "growth",
     name: "Growth",
-    price: "€599",
-    priceAnnual: "€7,188",
+    monthly: 599,
+    annual: 7188,
+    popular: true,
+    blurb: "For scaling teams that need integrations.",
     features: [
       "Everything in Starter",
       "Google Workspace integration",
@@ -47,20 +56,32 @@ const STATUS_LABELS: Record<string, string> = {
   canceled: "Canceled",
 };
 
+function eur(n: number): string {
+  return n.toLocaleString("en-IE", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: Number.isInteger(n) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export function PlanCards({
   currentPlan,
   subscriptionStatus,
   stripeEnabled,
+  founding,
 }: {
   currentPlan: "starter" | "growth" | null;
   subscriptionStatus: string | null;
   stripeEnabled: boolean;
+  founding: FoundingTier | null;
 }) {
   const toast = useToast();
   const params = useSearchParams();
   const [busy, setBusy] = useState<string | null>(null);
   const [cycle, setCycle] = useState<"month" | "year">("month");
   const justSucceeded = params.get("status") === "success";
+  const discount = founding && founding.percent > 0 ? founding : null;
 
   async function subscribe(plan: string) {
     setBusy(plan);
@@ -85,7 +106,7 @@ export function PlanCards({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {justSucceeded && (
         <div className="rounded-md border border-[var(--brand-emerald)]/40 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           Payment received — your subscription activates as soon as Stripe confirms it
@@ -103,6 +124,7 @@ export function PlanCards({
           </div>
         )}
 
+      {/* Current plan — the primary thing an existing customer comes here for. */}
       {currentPlan && (
         <div className="card flex items-center justify-between">
           <div>
@@ -123,7 +145,36 @@ export function PlanCards({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
+      {/* Founding-cohort offer — only pitched to companies without a plan yet. */}
+      {discount && (
+        <div className="card border-[var(--brand-emerald)]/45 bg-[var(--brand-emerald)]/[0.07]">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--brand-emerald)]/15 text-[var(--brand-emerald)]">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-foreground">
+                  Founding offer — {discount.percent}% off, locked for life
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-[var(--brand-emerald)]/15 px-2 py-0.5 text-[11px] font-semibold text-[var(--brand-emerald)]">
+                  <Lock className="h-3 w-3" /> Forever
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                You&apos;re in {foundingTierLabel(discount.tierIndex)} companies to join, so you get{" "}
+                <span className="font-medium text-foreground">{discount.percent}% off any plan</span>{" "}
+                for as long as you stay — applied automatically at checkout.{" "}
+                <span className="font-medium text-foreground">
+                  {discount.spotsLeftInTier} of {FOUNDING_TIER_SIZE} spots left at this rate.
+                </span>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <SegmentedControl
           value={cycle}
           onChange={setCycle}
@@ -133,23 +184,24 @@ export function PlanCards({
           ]}
         />
         <p className="text-xs text-muted-foreground">
-          Have a founder code? Enter it at checkout for your discount.
+          {discount
+            ? `Your ${discount.percent}% founding discount is applied automatically.`
+            : "Cancel anytime from the billing portal."}
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-3">
         {PLAN_UI.map((p) => {
           const isCurrent = currentPlan === p.key;
           // When on Starter and clicking Growth, open the portal so Stripe
           // handles the upgrade/proration — no second checkout needed.
           const isUpgrade = currentPlan === "starter" && p.key === "growth";
+          const base = cycle === "year" ? p.annual : p.monthly;
+          const final = discount ? applyFoundingDiscount(base, discount.percent) : base;
 
           function handleClick() {
-            if (isUpgrade) {
-              managePortal();
-            } else {
-              subscribe(p.key);
-            }
+            if (isUpgrade) managePortal();
+            else subscribe(p.key);
           }
 
           function buttonLabel() {
@@ -162,20 +214,37 @@ export function PlanCards({
           return (
             <div
               key={p.key}
-              className={`card space-y-4 ${p.key === "growth" ? "border-[var(--brand-emerald)]" : ""}`}
+              className={`card relative flex flex-col ${
+                "popular" in p && p.popular ? "border-[var(--brand-emerald)] shadow-[var(--shadow-md)]" : ""
+              }`}
             >
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">{p.name}</h2>
-                <div className="mt-1">
-                  <span className="text-3xl font-bold text-foreground">
-                    {cycle === "year" ? p.priceAnnual : p.price}
+              {"popular" in p && p.popular && (
+                <span className="absolute -top-2.5 right-4 rounded-full bg-[var(--brand-emerald)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--accent-foreground)]">
+                  Most popular
+                </span>
+              )}
+
+              <h2 className="text-base font-semibold text-foreground">{p.name}</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">{p.blurb}</p>
+
+              <div className="mt-3 flex items-baseline gap-2">
+                {discount && (
+                  <span className="text-base font-medium text-muted-foreground line-through">
+                    {eur(base)}
                   </span>
-                  <span className="text-sm text-muted-foreground">
-                    {cycle === "year" ? " / year" : " / month"}
-                  </span>
-                </div>
+                )}
+                <span className="text-3xl font-bold text-foreground">{eur(final)}</span>
+                <span className="text-sm text-muted-foreground">
+                  {cycle === "year" ? "/ year" : "/ month"}
+                </span>
               </div>
-              <ul className="space-y-2">
+              {discount && (
+                <div className="mt-1 text-xs font-medium text-[var(--brand-emerald)]">
+                  {discount.percent}% founding discount applied · locked for life
+                </div>
+              )}
+
+              <ul className="mt-4 flex-1 space-y-2">
                 {p.features.map((f) => (
                   <li key={f} className="flex items-center gap-2 text-sm text-foreground">
                     <Check className="h-4 w-4 shrink-0 text-[var(--brand-emerald)]" />
@@ -183,10 +252,13 @@ export function PlanCards({
                   </li>
                 ))}
               </ul>
+
               <button
                 onClick={handleClick}
                 disabled={busy !== null || !stripeEnabled || isCurrent}
-                className={p.key === "growth" ? "btn-accent w-full" : "btn-primary w-full"}
+                className={`mt-5 ${
+                  "popular" in p && p.popular ? "btn-accent" : "btn-primary"
+                } w-full`}
               >
                 {buttonLabel()}
               </button>
@@ -194,15 +266,16 @@ export function PlanCards({
           );
         })}
 
-        {/* Enterprise — custom pricing per the PRD, so it's a contact-sales card, not Stripe. */}
-        <div className="card space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">Enterprise</h2>
-            <div className="mt-1">
-              <span className="text-3xl font-bold text-foreground">Custom</span>
-            </div>
+        {/* Custom — bespoke scope, so it's a talk-to-us card, not Stripe checkout. */}
+        <div className="card flex flex-col">
+          <h2 className="text-base font-semibold text-foreground">Custom</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Tailored to your team, frameworks, and contract.
+          </p>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-3xl font-bold text-foreground">Let&apos;s talk</span>
           </div>
-          <ul className="space-y-2">
+          <ul className="mt-4 flex-1 space-y-2">
             {[
               "Everything in Growth",
               "Unlimited frameworks",
@@ -217,10 +290,10 @@ export function PlanCards({
             ))}
           </ul>
           <a
-            href="mailto:sales@shieldflow.com?subject=ShieldFlow%20Enterprise%20enquiry"
-            className="btn-outline w-full"
+            href="mailto:sales@shieldflow.com?subject=ShieldFlow%20custom%20plan%20enquiry"
+            className="btn-outline mt-5 w-full"
           >
-            Contact sales
+            Contact us
           </a>
         </div>
       </div>

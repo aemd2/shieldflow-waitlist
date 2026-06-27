@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, getSubscription, getCallerAccess } from "@/lib/db/queries";
 import { isStripeConfigured } from "@/lib/stripe";
 import { reconcileCheckout, reconcilePortalReturn } from "@/lib/billing-sync";
+import { currentFoundingTier } from "@/lib/founding-server";
 import { PlanCards } from "@/components/billing/PlanCards";
 
 export default async function BillingPage({
@@ -33,6 +34,9 @@ export default async function BillingPage({
   }
 
   const subscription = await getSubscription(supabase, company.id).catch(() => null);
+  // Only pitch the founding discount to companies that haven't subscribed yet —
+  // existing members already locked in their lifetime rate.
+  const founding = subscription ? null : await currentFoundingTier().catch(() => null);
 
   return (
     <div className="space-y-6">
@@ -54,6 +58,7 @@ export default async function BillingPage({
         currentPlan={subscription?.plan ?? null}
         subscriptionStatus={subscription?.status ?? null}
         stripeEnabled={isStripeConfigured()}
+        founding={founding}
       />
     </div>
   );

@@ -24,6 +24,22 @@
   --brand-navy: oklch(0.18 0.06 255);
   --brand-emerald: oklch(0.72 0.18 158);
 
+  /* Marketing-only tokens (hero gradients + glow) — used by the landing page and /thanks. */
+  --brand-navy-deep: oklch(0.12 0.05 255);
+  --brand-emerald-bright: oklch(0.78 0.2 155);
+  --gradient-hero: radial-gradient(ellipse at top, oklch(0.28 0.09 255) 0%, oklch(0.12 0.05 255) 60%, oklch(0.08 0.04 255) 100%);
+  --gradient-accent: linear-gradient(135deg, oklch(0.72 0.18 158), oklch(0.78 0.2 155));
+  --shadow-glow: 0 20px 60px -20px oklch(0.72 0.18 158 / 0.45);
+  --shadow-elegant: 0 30px 80px -30px oklch(0.12 0.05 255 / 0.5);
+
+  /* Marketing accent indirection — the landing's single loud accent. Swap these
+     two lines to re-skin every CTA / highlight / glow on the marketing page. */
+  --mkt-accent: var(--brand-emerald);
+  --mkt-accent-bright: var(--brand-emerald-bright);
+  --mkt-bg: var(--brand-navy-deep);
+  /* Lighter navy band, for section rhythm against --mkt-bg. */
+  --mkt-band: oklch(0.16 0.055 255);
+
   /* Elevation — subtle, Apple-like. */
   --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
   --shadow-md: 0 4px 16px -4px rgba(16, 24, 40, 0.12);
@@ -50,7 +66,36 @@
   --ring: oklch(0.72 0.18 158);
 }
 
+/* Marketing dark theme — scopes the semantic tokens (background/card/primary/…)
+   to ShieldFlow navy + emerald, so the landing renders dark with a green accent
+   WITHOUT touching the product app (which stays on the light :root theme). The
+   landing wrapper carries .marketing-dark; everything inside resolves to these. */
+.marketing-dark {
+  --background: oklch(0.18 0.055 256);
+  --foreground: oklch(0.98 0.005 250);
+  --card: oklch(0.225 0.05 258);
+  --card-foreground: oklch(0.98 0.005 250);
+  --primary: oklch(0.8 0.2 156);
+  --primary-foreground: oklch(0.14 0.05 257);
+  --secondary: oklch(0.26 0.05 258);
+  --secondary-foreground: oklch(0.98 0.005 250);
+  --muted: oklch(0.26 0.05 258);
+  --muted-foreground: oklch(0.72 0.025 250);
+  --accent: oklch(0.8 0.2 156);
+  --accent-foreground: oklch(0.14 0.05 257);
+  --destructive: oklch(0.65 0.24 25);
+  --destructive-foreground: oklch(0.98 0.005 250);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.8 0.2 156);
+  /* Darker navy band for alternating sections (design-studio's --navy-deep). */
+  --navy-deep: oklch(0.13 0.05 257);
+}
+
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
   * {
     border-color: var(--border);
   }

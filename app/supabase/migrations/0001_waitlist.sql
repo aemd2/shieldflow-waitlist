@@ -1,3 +1,6 @@
+-- Public marketing waitlist. Lives in the same Supabase project as the product.
+-- The /api/waitlist route inserts via the service-role client (bypasses RLS); the
+-- anon insert policy below mirrors the live table so the schema is reproducible.
 create table if not exists public.waitlist_signups (
   id uuid primary key default gen_random_uuid(),
   email text not null unique,

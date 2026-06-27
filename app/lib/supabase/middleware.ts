@@ -5,7 +5,11 @@ type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
 // /reset-password is intentionally NOT public — the recovery link signs the
 // user in first, so anyone landing there without a session gets bounced to login.
+// "/" is the public marketing landing; the root page itself still redirects
+// signed-in users into the app. Matching is exact-or-prefixed ("/" only ever
+// matches the root, never /dashboard), so the rest of the app stays gated.
 const PUBLIC_PATHS = [
+  "/",
   "/login",
   "/signup",
   "/auth",
@@ -13,6 +17,7 @@ const PUBLIC_PATHS = [
   "/trust",
   "/privacy",
   "/terms",
+  "/thanks",
 ];
 
 export async function updateSession(request: NextRequest) {

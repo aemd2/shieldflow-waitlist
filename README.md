@@ -1,50 +1,53 @@
 # ShieldFlow
 
-AI-first GRC (Governance, Risk & Compliance) platform. This is a monorepo holding two independent Next.js apps that share one Supabase project.
+AI-first GRC (Governance, Risk & Compliance) platform. **One Next.js app** serves both
+the public marketing site and the product:
 
 ```
 shieldflow/
-  app/        → the product (dashboard, controls, evidence, integrations, billing…)
-  website/    → the public marketing site + waitlist
+  app/        → the whole thing
+    /           public marketing landing (waitlist) — signed-in users are sent into the app
+    /login      auth → dashboard, controls, evidence, integrations, billing…
+    /thanks     waitlist confirmation
+    /privacy /terms /trust/[slug]   public pages
 ```
+
+The root route (`app/app/page.tsx`) is the hinge: signed-out visitors see the marketing
+landing; signed-in users are redirected straight to `/dashboard` (or `/onboarding`). The
+public marketing paths are allow-listed in `app/lib/supabase/middleware.ts`; everything
+else stays behind auth.
 
 ## Local development
 
-Each app is a standalone Next.js project with its own dependencies.
-
 ```bash
-# The product app  →  http://localhost:3001
 cd app
 npm install
-npm run dev
-
-# The marketing site  →  http://localhost:3000
-cd website
-npm install
-npm run dev
+npm run dev          # → http://localhost:3001
 ```
 
-Both read secrets from their own `.env.local` (gitignored). Copy the template and fill it in:
+Secrets come from `app/.env.local` (gitignored). Copy the template and fill it in:
 
 ```bash
 cp app/.env.local.example app/.env.local
-cp website/.env.local.example website/.env.local
 ```
 
-`app/.env.local` must include `SHIELDFLOW_ENCRYPTION_KEY` — the existing value must be reused, or integration secrets stored as `v1:` ciphertext can no longer be decrypted. See `app/docs/SETUP.md`.
+`app/.env.local` must include `SHIELDFLOW_ENCRYPTION_KEY` — the existing value must be
+reused, or integration secrets stored as `v1:` ciphertext can no longer be decrypted.
+`SUPABASE_SERVICE_ROLE_KEY` is required for the Stripe webhook and the public waitlist
+insert. See `app/docs/SETUP.md`.
 
-## Deploy (Vercel — two projects, one repo)
+## Deploy (Vercel — one project)
 
-Create **two** Vercel projects from this same repository, each with a different **Root Directory**:
+Create **one** Vercel project from this repo with **Root Directory = `app`**, on a single
+domain (e.g. `shieldflow.com`). Marketing and product live on the same origin, so there is
+no cross-domain wiring.
 
-| Project | Root Directory | Domain | Required env |
-|---|---|---|---|
-| Marketing | `website` | `yourdomain.com` (apex / www) | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
-| App | `app` | `app.yourdomain.com` | full set from `app/.env.local.example` (Supabase, `SHIELDFLOW_ENCRYPTION_KEY`, Stripe, Groq, `NEXT_PUBLIC_APP_URL=https://app.yourdomain.com`, Google OAuth, optional Sentry/PostHog) |
+Env: the full set from `app/.env.local.example` — Supabase URL/anon/service-role,
+`SHIELDFLOW_ENCRYPTION_KEY` (reuse the existing value), Stripe, Groq, Google OAuth, and
+optional Sentry/PostHog.
 
-After the app is live, finish wiring (see `app/docs/SETUP.md`):
+After the first deploy (see `app/docs/SETUP.md`):
 
-- Supabase → Auth → URL config: add `https://app.yourdomain.com/**` to redirect URLs + Site URL.
-- Google OAuth: add `https://app.yourdomain.com/api/integrations/google/callback`.
-- Stripe webhook: `WEBHOOK_URL=https://app.yourdomain.com/api/stripe/webhook npm run setup:stripe-webhook`, then set `STRIPE_WEBHOOK_SECRET` in Vercel.
-- Marketing CTAs point to `https://app.yourdomain.com`.
+- Supabase → Auth → URL config: add `https://yourdomain.com/**` to redirect URLs + Site URL.
+- Google OAuth: add `https://yourdomain.com/api/integrations/google/callback`.
+- Stripe webhook: `WEBHOOK_URL=https://yourdomain.com/api/stripe/webhook npm run setup:stripe-webhook`, then set `STRIPE_WEBHOOK_SECRET` in Vercel.
