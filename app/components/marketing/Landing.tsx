@@ -11,7 +11,6 @@ import {
   Star,
 } from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
-import { WaitlistForm } from "@/components/marketing/WaitlistForm";
 import { Faq } from "@/components/marketing/Faq";
 import { LOGIN_URL, testimonials } from "@/lib/site";
 
@@ -32,7 +31,6 @@ export function Landing() {
       <Features />
       <Guarantee />
       <Testimonials />
-      <Waitlist />
       <FAQSection />
       <FinalCTA />
       <Footer />
@@ -400,31 +398,6 @@ function Testimonials() {
               </div>
             </div>
           ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// Lead capture for people not ready to sign in yet — keeps the working waitlist.
-function Waitlist() {
-  return (
-    <section id="waitlist" className="border-b border-border bg-[color:var(--navy-deep)] py-24">
-      <div className="mx-auto max-w-xl px-6">
-        <div className="text-center">
-          <p className="mb-3 text-xs font-bold uppercase tracking-widest text-primary">
-            Not ready to dive in?
-          </p>
-          <h2 className="text-balance text-4xl font-black tracking-tight md:text-5xl">
-            Grab your founding-cohort spot.
-          </h2>
-          <p className="mx-auto mt-4 max-w-md text-muted-foreground">
-            Free to join. We&rsquo;ll email you the moment your early-access spot opens — with
-            founding-member pricing locked in.
-          </p>
-        </div>
-        <div className="mt-8 rounded-2xl border border-border bg-card p-6 sm:p-7">
-          <WaitlistForm />
         </div>
       </div>
     </section>
