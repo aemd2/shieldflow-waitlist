@@ -35,12 +35,14 @@ Cheap, fast, and they unblock everything after them. Do these first.
 
 **Edge cases →** EDGE_CASES §E1 · **Tests →** TESTING §37
 
-### 0.2 Notifications infrastructure (email + in-app) 🔴
+### 0.2 Notifications infrastructure (email + in-app) 🟢 shipped
 **Why it matters.** Today the only outbound signal is an on-demand Slack digest. A premium tool tells the right person "your control just broke" without them opening the app. Everything in Phase 1–3 needs this rail.
 
 **Shape.** `notifications` table (user_id, company_id, type, title, body, link, read_at, created_at). In-app notification center (bell + unread count). Email via Resend with per-user, per-type preferences (`notification_prefs`). A batching layer so a cron run that flips 40 controls sends **one** digest, not 40 emails.
 
 **Acceptance.** Assigning work or breaking a control produces an in-app notification and (if opted in) a batched email; SMTP failure never blocks the underlying action; removed members stop receiving anything.
+
+**Shipped (migration 0017_notifications).** `notifications` + `notification_prefs` tables with RLS (user reads only own rows); `notify_users()` SECURITY DEFINER RPC is the sole writer (validates membership, honors per-category prefs, returns email-opted-in recipients). [lib/notify.ts](../app/lib/notify.ts) writes in-app rows + best-effort email via the Resend HTTP API (no SDK; no-op without `RESEND_API_KEY`). Topbar bell + unread badge, `/notifications` center, per-category prefs in Settings. First trigger live: assigning a control to a teammate notifies them. **Still to wire:** triggers for control-broke/overdue and removed-member silence come with the Phase 1 check engine + cron; set `RESEND_API_KEY` in Vercel to turn on email.
 
 **Edge cases →** EDGE_CASES §E4 · **Tests →** TESTING §40
 
