@@ -147,10 +147,19 @@ Features that directly close deals. Can follow Phase 1–3.
 
 **Shape.** Upload a questionnaire (xlsx/csv) → AI drafts answers **grounded only in this company's data** → human reviews → export in the original format. Answers it can't ground are flagged "needs review," never fabricated.
 
-### 4.2 Vendor questionnaires & SOC 2 collection 🔴
-**Why it matters.** The PRD promised "questionnaire sending"; the vendor module is a register today.
+### 4.2 Vendor risk depth (register → engine) 🟡
+**Why it matters.** Today the vendor module is a **manual register** ([components/vendors/VendorManager.tsx](../app/components/vendors/VendorManager.tsx)): you type the name, hand-pick a `risk_level` from a dropdown, and drop "SOC 2 on file" in a notes box. Vanta/Drata turn this into a **workflow that pulls data in and pushes work out** — that's the "missing something" gap. The PRD itself promised "questionnaire sending"; it's a register today.
 
-**Shape.** Send a token-scoped, expiring, unauthenticated link to a vendor email; vendor answers + uploads their SOC 2 report (mime/size validated, scoped storage). Reminder cadence for non-responders.
+**How Vanta/Drata do it (validated June 2026).** Centralize a vendor inventory, **auto-ingest the vendor's SOC 2 / DPA** (AI extracts findings instead of a notes box), **send security questionnaires** and chase responses, assign a **risk score from evidence** (not a hand-picked level), and feed vendor findings **directly into the risk register** for one unified view.
+
+**Shape.**
+- **Questionnaire sending.** Token-scoped, expiring, unauthenticated link to a vendor email; vendor answers + uploads their SOC 2 report (mime/size validated, scoped storage). Reminder cadence for non-responders.
+- **SOC 2 / DPA auto-parse.** AI reads an uploaded report and extracts structured findings (report type, audit period, exceptions) → attaches to the vendor instead of free-text notes.
+- **Auto-discovery.** Surface candidate vendors from connected integrations (Google/Okta OAuth grants, AWS spend) so the inventory isn't 100% manual entry.
+- **Review cadence.** The existing unused `reviewed_at` field drives a recurring "re-review every N months" obligation with reminders (Phase 0.2 rail) and a dashboard "vendor review overdue" alert.
+- **Findings → risk register.** A high-risk vendor or a questionnaire red flag can spawn a linked entry in the risk register (§4.5) — one unified risk view.
+
+**Acceptance.** Send a questionnaire → vendor responds + uploads SOC 2 → AI surfaces findings on the vendor → risk score reflects the evidence, not a dropdown → an overdue review raises a dashboard alert → a critical finding can open a linked risk.
 
 ### 4.3 Policy lifecycle (versioning + approval) 🔴
 **Why it matters.** Auditors want version history, an approval step, and attestations (4.x ties into 2.3).
@@ -162,7 +171,21 @@ Features that directly close deals. Can follow Phase 1–3.
 
 **Shape.** Gated docs require email/NDA acceptance before a short-lived signed URL is issued; an access-request flow with rate-limiting; a public subprocessor list.
 
-**Edge cases →** EDGE_CASES §E9 (questionnaires) + §E11 (vendor questionnaires) + §E10 (policy lifecycle) + §E12 (trust depth) · **Tests →** TESTING §46–§49
+### 4.5 Risk register depth (register → engine) 🟡
+**Why it matters.** Same shape of gap as vendors (§4.2). The risk register ([components/risks/RiskManager.tsx](../app/components/risks/RiskManager.tsx)) is a clean **manual register** — it auto-computes severity from `likelihood × impact` (good), but every risk is hand-typed from a blank box, floats **disconnected from the controls** that mitigate it, and the `treatment` field is just a paragraph with no tracking. Auditors expect a risk *assessment process*, not a list.
+
+**How the incumbents do it.** A risk **library/templates** so users pick from common framework risks instead of inventing them; **risk → control linking** (the control is the mitigation); **treatment plans as tracked tasks** with owners + due dates; a **risk matrix heat-map** view; and **inherent vs. residual** scoring (severity before mitigation vs. after).
+
+**Shape.**
+- **Risk library.** Seed a catalog of common risks per framework (SOC 2 / ISO / HIPAA …); "add from library" pre-fills title, category, default likelihood/impact.
+- **Control linking.** A join table `risk_controls` maps each risk to the controls that treat it; a risk's residual score reflects how many linked controls are complete.
+- **Inherent vs. residual.** Capture likelihood/impact **before** mitigation (inherent) and **after** (residual); the dashboard alert keys off residual.
+- **Treatment as tasks.** The `treatment` paragraph becomes (or spawns) tracked tasks (§3.3) with assignee + due date, not free text.
+- **Heat-map view.** A likelihood × impact grid (the 3×3 matrix auditors ask for), each cell linking to its risks.
+
+**Acceptance.** Add a risk from the library → link it to 2 controls → set inherent High, residual Medium → completing the linked controls drops the residual badge → the risk shows on a heat-map → its treatment appears in the task inbox with an owner and due date.
+
+**Edge cases →** EDGE_CASES §E9 (questionnaires) + §E11 (vendor questionnaires) + §E10 (policy lifecycle) + §E12 (trust depth) + §E13 (risk depth) · **Tests →** TESTING §46–§50
 
 ---
 
@@ -174,7 +197,7 @@ Features that directly close deals. Can follow Phase 1–3.
 4. **3.1 Auditor role/portal** + **3.3 Tasks** — fast follow, high buyer value.
 5. **2.2 Access reviews** + **2.3 Policy approval + acknowledgement** — the people pillar auditors demand; acknowledgement records are a literal audit ask.
 6. **4.1 Questionnaire automation** — sales accelerant, reuses the AI rail.
-7. **3.2 SSO/SCIM**, **4.2–4.4** — enterprise & growth, can trail.
+7. **3.2 SSO/SCIM**, **4.2–4.5** — enterprise & growth, can trail. (4.2 vendor depth + 4.5 risk depth turn the two manual registers into engines — same "close the loop to controls + pull data in" theme as Phase 1.)
 
 Each item ships only when its EDGE_CASES Part 2 row has a real fix in code (move it up into Part 1 with a file ref) and its TESTING Part C section passes.
 
