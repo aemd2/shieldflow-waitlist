@@ -1,14 +1,17 @@
 import { signOut } from "@/app/actions/auth";
 import { MobileNav } from "./MobileNav";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 export function Topbar({
   email,
   companyName,
   readOnly,
+  unread = 0,
 }: {
   email: string;
   companyName?: string;
   readOnly?: boolean;
+  unread?: number;
 }) {
   return (
     <header className="flex items-center justify-between border-b border-border bg-card px-6 py-3 print:hidden">
@@ -21,9 +24,12 @@ export function Topbar({
           </span>
         )}
       </div>
-      <form action={signOut}>
-        <button type="submit" className="btn-outline text-xs">Sign out</button>
-      </form>
+      <div className="flex items-center gap-2">
+        {companyName && <NotificationBell unread={unread} />}
+        <form action={signOut}>
+          <button type="submit" className="btn-outline text-xs">Sign out</button>
+        </form>
+      </div>
     </header>
   );
 }

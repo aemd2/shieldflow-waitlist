@@ -632,3 +632,74 @@ export async function listAuditEvents(
   if (error) throw error;
   return (data ?? []) as AuditEvent[];
 }
+
+// ---------- Notifications ----------
+
+export interface Notification {
+  id: string;
+  company_id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface NotificationPref {
+  type: string;
+  email_enabled: boolean;
+  in_app_enabled: boolean;
+}
+
+/** Newest-first notifications for the caller in a company. RLS already restricts
+ * rows to the signed-in user; the company filter keeps it scoped to this workspace. */
+export async function listNotifications(
+  supabase: SupabaseClient,
+  userId: string,
+  companyId: string,
+  limit = 50,
+): Promise<Notification[]> {
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as Notification[];
+}
+
+/** Unread count for the bell badge. Best-effort: returns 0 on any error so the
+ * shell never crashes over a notification read. */
+export async function countUnreadNotifications(
+  supabase: SupabaseClient,
+  userId: string,
+  companyId: string,
+): Promise<number> {
+  const { count, error } = await supabase
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .is("read_at", null);
+  if (error) return 0;
+  return count ?? 0;
+}
+
+/** The caller's per-category delivery preferences (missing row = opted in). */
+export async function listNotificationPrefs(
+  supabase: SupabaseClient,
+  userId: string,
+  companyId: string,
+): Promise<NotificationPref[]> {
+  const { data, error } = await supabase
+    .from("notification_prefs")
+    .select("type, email_enabled, in_app_enabled")
+    .eq("user_id", userId)
+    .eq("company_id", companyId);
+  if (error) throw error;
+  return (data ?? []) as NotificationPref[];
+}

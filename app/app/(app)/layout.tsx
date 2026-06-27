@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { getCompanyForUser, getCallerAccess } from "@/lib/db/queries";
+import { getCompanyForUser, getCallerAccess, countUnreadNotifications } from "@/lib/db/queries";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -19,6 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const access = company ? await getCallerAccess(supabase, company.id, user.id) : null;
   const readOnly = access?.role === "auditor";
+  const unread = company ? await countUnreadNotifications(supabase, user.id, company.id) : 0;
 
   return (
     <ToastProvider>
@@ -26,7 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="flex min-h-screen bg-secondary">
           {company && <Sidebar companyName={company.name} />}
           <div className="flex flex-1 flex-col">
-            <Topbar email={user.email ?? ""} companyName={company?.name} readOnly={readOnly} />
+            <Topbar email={user.email ?? ""} companyName={company?.name} readOnly={readOnly} unread={unread} />
             {readOnly && (
               <div className="border-b border-amber-300 bg-amber-50 px-6 py-2 text-xs text-amber-800 print:hidden">
                 You have <strong>read-only auditor access</strong>. You can review controls,

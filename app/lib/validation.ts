@@ -277,3 +277,35 @@ export const waitlistSchema = z.object({
 });
 
 export type WaitlistPayload = z.infer<typeof waitlistSchema>;
+
+// ---------- Notifications ----------
+// Categories double as the `type` column on notifications + notification_prefs.
+// Keep in sync with the check constraint in migration 0017_notifications.sql.
+export const NOTIFICATION_CATEGORIES = [
+  "control",
+  "integration",
+  "policy",
+  "vendor",
+  "risk",
+  "team",
+  "system",
+] as const;
+export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
+
+/** Human labels for the preferences UI. */
+export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> = {
+  control: "Controls",
+  integration: "Integrations",
+  policy: "Policies",
+  vendor: "Vendors",
+  risk: "Risks",
+  team: "Team",
+  system: "System",
+};
+
+/** One category's delivery preference (validated server-side in the prefs action). */
+export const notificationPrefSchema = z.object({
+  type: z.enum(NOTIFICATION_CATEGORIES),
+  email_enabled: z.boolean(),
+  in_app_enabled: z.boolean(),
+});
