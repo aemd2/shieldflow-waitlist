@@ -94,10 +94,18 @@ A third of SOC 2 is about people, and it's currently a blank space.
 
 **Acceptance.** Start a review from Okta data → snapshot frozen even if the token later dies; reviewer attests all rows → evidence PDF generated, control satisfied; re-running creates a new versioned campaign, never overwrites the prior one.
 
-### 2.3 Policy attestation by employees 🔴
-**Why it matters.** Generating a policy isn't enough — auditors want proof each employee read and accepted the current version.
+### 2.3 Policy approval + employee acknowledgement 🟡
+**Why it matters.** This is the #1 gap a real SOC 2 / ISO buyer notices. Generating a policy isn't enough — **a policy only counts as evidence once a named person has approved it and employees have acknowledged it.** Today we have a lightweight `draft → final` toggle ([components/policies/PolicyGenerator.tsx](../app/components/policies/PolicyGenerator.tsx)) but no approver of record and zero acknowledgement tracking. Auditors literally ask for the acknowledgement records.
 
-**Shape.** Publish a policy version → employees get an attestation request (in-app + email) → they acknowledge a specific version. Bumping the version flags everyone "needs re-attestation." Removed employees keep their historical attestation snapshot.
+**How Vanta/Drata do it (validated June 2026).** Each policy is tied to **two tests**: (1) is it *approved* by a designated approver — the person who'd answer the auditor's questions, and (2) have *all relevant employees accepted* the current version. The linked control stays **failing** until both tests pass. Policies also **expire annually** and re-prompt approval + re-acknowledgement.
+
+**Shape.**
+- **Approval.** A policy is submitted for approval to a named approver (owner/admin). Approval stamps `approved_by`, `approved_at`, and the version. Only an *approved* policy can be published for acknowledgement. (Optional later: multi-step approval, up to a few approvers per step — Drata's Pro/Enterprise model.)
+- **Acknowledgement.** Publishing an approved version creates an attestation request (in-app + email) for each active person on the roster (§2.1). They acknowledge a **specific version**. We track who has / hasn't, with a live "N of M acknowledged" count.
+- **Renewal.** Each policy has a review cadence (default annual). On expiry it flips to "needs re-approval"; a new version flags everyone "needs re-attestation." Removed employees keep their historical attestation snapshot.
+- **Control mapping.** A control linked to a policy is **not satisfied** until the policy is both approved and fully acknowledged — mirrors the integration→control loop in Phase 1.
+
+**Acceptance.** Generate a policy → submit → approver approves (stamped + versioned) → publish → every active employee gets an acknowledgement request → dashboard shows "N of M acknowledged" → linked control only goes green when approved **and** 100% acknowledged. Bumping the version resets acknowledgement and re-prompts. An expired policy surfaces a "needs review" alert.
 
 **Edge cases →** EDGE_CASES §E5 (access reviews) + §E10 (policy lifecycle) · **Tests →** TESTING §41 + §44
 
@@ -164,7 +172,7 @@ Features that directly close deals. Can follow Phase 1–3.
 2. **0.2 Notifications rail** — prerequisite for everything reactive.
 3. **1.1–1.4 Continuous control testing** — *the* premium feature; delivers the actual PRD promise.
 4. **3.1 Auditor role/portal** + **3.3 Tasks** — fast follow, high buyer value.
-5. **2.2 Access reviews** + **2.3 Policy attestation** — the people pillar auditors demand.
+5. **2.2 Access reviews** + **2.3 Policy approval + acknowledgement** — the people pillar auditors demand; acknowledgement records are a literal audit ask.
 6. **4.1 Questionnaire automation** — sales accelerant, reuses the AI rail.
 7. **3.2 SSO/SCIM**, **4.2–4.4** — enterprise & growth, can trail.
 
