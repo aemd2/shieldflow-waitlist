@@ -174,6 +174,12 @@ export function AuthForm({ mode }: { mode: Mode }) {
           setError(friendlyAuthError(error));
           return;
         }
+        // Supabase silently swallows duplicate-email signups when confirmation is
+        // ON — it returns no error but identities is empty. Detect it here.
+        if (!data.session && data.user?.identities?.length === 0) {
+          setError("An account with this email already exists. Sign in instead — or use Forgot password if you can't get in.");
+          return;
+        }
         // If email confirmation is on, there's no session yet — guide the user.
         if (!data.session) {
           persistRememberedEmail(cleanEmail, rememberMe);
