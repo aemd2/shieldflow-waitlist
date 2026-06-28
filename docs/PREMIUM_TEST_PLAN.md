@@ -148,6 +148,22 @@ Sign in as **C (auditor)**:
 
 ---
 
+## 12 · SSO (Phase A) — app side
+
+The SAML connection itself must be registered in Supabase Auth (Pro) + an IdP first
+(see `docs/SSO_SCIM_PLAN.md`). The app side:
+
+- [ ] Settings (owner) → **Single sign-on**: add your own email domain (e.g. the
+      owner's `@acme.com`) → it saves as **Verified** (auto-verifies because it matches
+      the owner's email). Add an unrelated domain → saves **Unverified**. ✅
+- [ ] A domain already claimed by another workspace → "already claimed" error. ✅
+- [ ] Login page → enter a work email → **Sign in with SSO**. Before an IdP is
+      registered: a friendly "SSO isn't set up for this domain yet" message (no crash). ✅
+- [ ] **After** registering a SAML IdP in Supabase for that domain: "Sign in with SSO"
+      redirects to the IdP; on return, a brand-new SSO user whose domain is **verified**
+      lands straight on the **dashboard** (auto-joined as a member), not onboarding. ✅
+- [ ] Break-glass: the owner can still sign in with **email + password**. ✅
+
 ## Tenant isolation (do once, critical)
 
 - [ ] As an unrelated **second company**, confirm you see **none** of company A's
