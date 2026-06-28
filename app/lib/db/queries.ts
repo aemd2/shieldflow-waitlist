@@ -57,6 +57,12 @@ export interface Policy {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  // Approval + acknowledgement lifecycle (migration 0020).
+  approved_by: string | null;
+  approved_at: string | null;
+  version: number;
+  published_at: string | null;
+  review_cadence_months: number | null;
 }
 
 export interface CopilotMessage {
@@ -406,6 +412,39 @@ export async function listPolicies(
     .limit(200);
   if (error) throw error;
   return (data ?? []) as Policy[];
+}
+
+export interface PolicyAck {
+  policy_id: string;
+  version: number;
+  user_id: string;
+}
+
+/** Every acknowledgement row for a company (the policies page derives per-policy
+ * "N of M acknowledged" + whether the current user has acknowledged). */
+export async function listPolicyAcknowledgements(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<PolicyAck[]> {
+  const { data, error } = await supabase
+    .from("policy_acknowledgements")
+    .select("policy_id, version, user_id")
+    .eq("company_id", companyId);
+  if (error) throw error;
+  return (data ?? []) as PolicyAck[];
+}
+
+/** Number of people on the team — the denominator for policy acknowledgement. */
+export async function getCompanyMemberCount(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<number> {
+  const { count, error } = await supabase
+    .from("company_members")
+    .select("user_id", { count: "exact", head: true })
+    .eq("company_id", companyId);
+  if (error) return 0;
+  return count ?? 0;
 }
 
 export async function getPolicy(

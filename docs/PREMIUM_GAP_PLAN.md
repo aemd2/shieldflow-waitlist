@@ -104,7 +104,7 @@ A third of SOC 2 is about people, and it's currently a blank space.
 
 **Acceptance.** Start a review from Okta data → snapshot frozen even if the token later dies; reviewer attests all rows → evidence PDF generated, control satisfied; re-running creates a new versioned campaign, never overwrites the prior one.
 
-### 2.3 Policy approval + employee acknowledgement 🟡
+### 2.3 Policy approval + employee acknowledgement 🟢 shipped (v1)
 **Why it matters.** This is the #1 gap a real SOC 2 / ISO buyer notices. Generating a policy isn't enough — **a policy only counts as evidence once a named person has approved it and employees have acknowledged it.** Today we have a lightweight `draft → final` toggle ([components/policies/PolicyGenerator.tsx](../app/components/policies/PolicyGenerator.tsx)) but no approver of record and zero acknowledgement tracking. Auditors literally ask for the acknowledgement records.
 
 **How Vanta/Drata do it (validated June 2026).** Each policy is tied to **two tests**: (1) is it *approved* by a designated approver — the person who'd answer the auditor's questions, and (2) have *all relevant employees accepted* the current version. The linked control stays **failing** until both tests pass. Policies also **expire annually** and re-prompt approval + re-acknowledgement.
@@ -116,6 +116,8 @@ A third of SOC 2 is about people, and it's currently a blank space.
 - **Control mapping.** A control linked to a policy is **not satisfied** until the policy is both approved and fully acknowledged — mirrors the integration→control loop in Phase 1.
 
 **Acceptance.** Generate a policy → submit → approver approves (stamped + versioned) → publish → every active employee gets an acknowledgement request → dashboard shows "N of M acknowledged" → linked control only goes green when approved **and** 100% acknowledged. Bumping the version resets acknowledgement and re-prompts. An expired policy surfaces a "needs review" alert.
+
+**Shipped (migration 0020).** `policies` gained `approved_by/approved_at/version/published_at/review_cadence_months`; new `policy_acknowledgements` table (one immutable row per policy+version+person; member-read, acknowledge-own RLS). Acknowledgers = team members (people with logins). Owner/admin **Approve** → **Publish for acknowledgement** (notifies all members via the `policy` category) → each member sees an **"I acknowledge"** button; the editor + list show live **"N of M acknowledged"**. Editing an approved/published policy **bumps the version and resets approval + acks** (old acks are version-scoped, so they no longer count). Dashboard alerts: "policy awaiting acknowledgement" and "policy due for review" (cadence). [app/actions/policies.ts](../app/app/actions/policies.ts), [components/policies/PolicyGenerator.tsx](../app/components/policies/PolicyGenerator.tsx). **Deferred:** email acknowledgement requests (needs `RESEND_API_KEY`), a non-user personnel roster (§2.1), control↔policy gating, multi-step approval. This also delivers the core of **§4.3** (policy versioning).
 
 **Edge cases →** EDGE_CASES §E5 (access reviews) + §E10 (policy lifecycle) · **Tests →** TESTING §41 + §44
 

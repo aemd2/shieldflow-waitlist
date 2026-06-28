@@ -1,4 +1,13 @@
-import type { ControlWithStatus, Vendor, Risk, TrainingRecord, ControlCheck, Task } from "@/lib/db/queries";
+import type {
+  ControlWithStatus,
+  Vendor,
+  Risk,
+  TrainingRecord,
+  ControlCheck,
+  Task,
+  Policy,
+  PolicyAck,
+} from "@/lib/db/queries";
 
 export type AlertSeverity = "high" | "warning" | "info";
 
@@ -24,6 +33,9 @@ export function computeAlerts(
   training: TrainingRecord[] = [],
   checks: ControlCheck[] = [],
   tasks: Task[] = [],
+  policies: Policy[] = [],
+  policyAcks: PolicyAck[] = [],
+  memberCount = 0,
 ): Alert[] {
   const alerts: Alert[] = [];
   const today = new Date();
@@ -150,6 +162,32 @@ export function computeAlerts(
       title: "Tasks overdue",
       detail: `${overdueTasks.length} task${overdueTasks.length > 1 ? "s are" : " is"} past due.`,
     });
+  }
+
+  // Published policies awaiting full acknowledgement, and policies due for review.
+  for (const p of policies) {
+    if (!p.published_at) continue;
+    const acked = policyAcks.filter((a) => a.policy_id === p.id && a.version === p.version).length;
+    if (memberCount > 0 && acked < memberCount) {
+      alerts.push({
+        id: `policy-ack-${p.id}`,
+        severity: "info",
+        title: "Policy awaiting acknowledgement",
+        detail: `${acked} of ${memberCount} acknowledged "${p.title}".`,
+      });
+    }
+    if (p.review_cadence_months) {
+      const due = new Date(p.published_at);
+      due.setMonth(due.getMonth() + p.review_cadence_months);
+      if (due < today) {
+        alerts.push({
+          id: `policy-review-${p.id}`,
+          severity: "warning",
+          title: "Policy due for review",
+          detail: `"${p.title}" has passed its ${p.review_cadence_months}-month review cadence.`,
+        });
+      }
+    }
   }
 
   // Predictive: controls due in the next 14 days (not complete).
