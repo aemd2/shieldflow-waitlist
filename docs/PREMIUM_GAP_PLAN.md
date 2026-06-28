@@ -186,10 +186,12 @@ Features that directly close deals. Can follow Phase 1–3.
 
 **Shape.** Editing a final policy creates an immutable new version; publish requires approval; export any version.
 
-### 4.4 Trust Center depth 🔴
+### 4.4 Trust Center depth 🟡 partial (subprocessors + lead capture shipped; gated-doc signed URLs remain)
 **Why it matters.** Today it's public read-only aggregates. Premium gates documents behind NDA/email request, lists subprocessors, and captures leads.
 
 **Shape.** Gated docs require email/NDA acceptance before a short-lived signed URL is issued; an access-request flow with rate-limiting; a public subprocessor list.
+
+**Shipped (migration 0025).** `subprocessors` (member/can_write RLS) + an anon `get_trust_subprocessors(slug)` RPC gated on `trust_enabled` → a public **Subprocessors** section on `/trust/[slug]`. `trust_access_requests` (member-read; **no insert policy** — written only by the service-role route) + a public **"Request our security package"** lead-capture form posting to [/api/trust-request](<../app/app/api/trust-request/route.ts>) (IP rate-limited + honeypot, like the waitlist). Owners manage subprocessors and triage requests (approve/decline) in Settings. [app/actions/trust.ts](../app/app/actions/trust.ts). **Remaining for 4.4:** gated documents — email/NDA acceptance → short-lived signed URL delivery (the request flow + subprocessor list are the v1 here).
 
 ### 4.5 Risk register depth (register → engine) 🟢 shipped (treatment→tasks deferred)
 **Why it matters.** Same shape of gap as vendors (§4.2). The risk register ([components/risks/RiskManager.tsx](../app/components/risks/RiskManager.tsx)) is a clean **manual register** — it auto-computes severity from `likelihood × impact` (good), but every risk is hand-typed from a blank box, floats **disconnected from the controls** that mitigate it, and the `treatment` field is just a paragraph with no tracking. Auditors expect a risk *assessment process*, not a list.

@@ -1,9 +1,17 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { getCompanyForUser, getCompanyTeam, listNotificationPrefs } from "@/lib/db/queries";
+import {
+  getCompanyForUser,
+  getCompanyTeam,
+  listNotificationPrefs,
+  listSubprocessors,
+  listTrustAccessRequests,
+} from "@/lib/db/queries";
 import { TrustSettings } from "@/components/settings/TrustSettings";
 import { TeamSettings } from "@/components/settings/TeamSettings";
 import { NotificationPrefs } from "@/components/notifications/NotificationPrefs";
+import { SubprocessorManager } from "@/components/settings/SubprocessorManager";
+import { TrustRequests } from "@/components/settings/TrustRequests";
 
 export default async function SettingsPage() {
   const supabase = await createServerSupabase();
@@ -26,6 +34,8 @@ export default async function SettingsPage() {
   }));
   const notificationPrefs = await listNotificationPrefs(supabase, user.id, company.id).catch(() => []);
   const isOwner = company.owner_user_id === user.id;
+  const subprocessors = isOwner ? await listSubprocessors(supabase, company.id).catch(() => []) : [];
+  const trustRequests = isOwner ? await listTrustAccessRequests(supabase, company.id).catch(() => []) : [];
 
   return (
     <div className="space-y-6">
@@ -46,11 +56,15 @@ export default async function SettingsPage() {
 
       {/* Trust Center is an owner-only workspace setting (RLS enforces it too). */}
       {isOwner && (
-        <TrustSettings
-          companyName={company.name}
-          initialSlug={(data?.trust_slug as string | null) ?? ""}
-          initialEnabled={Boolean(data?.trust_enabled)}
-        />
+        <>
+          <TrustSettings
+            companyName={company.name}
+            initialSlug={(data?.trust_slug as string | null) ?? ""}
+            initialEnabled={Boolean(data?.trust_enabled)}
+          />
+          <SubprocessorManager subprocessors={subprocessors} />
+          <TrustRequests requests={trustRequests} />
+        </>
       )}
     </div>
   );

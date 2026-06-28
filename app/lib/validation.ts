@@ -340,6 +340,26 @@ export const accessReviewDecisionSchema = z.object({
   note: z.string().trim().max(500).optional().or(z.literal("")),
 });
 
+// ---------- Trust Center depth ----------
+export const TRUST_REQUEST_STATUSES = ["new", "approved", "declined"] as const;
+
+export const subprocessorSchema = z.object({
+  name: z.string().trim().min(2, "Name is too short").max(120),
+  purpose: z.string().trim().max(200).optional().or(z.literal("")),
+  location: z.string().trim().max(120).optional().or(z.literal("")),
+  url: z.string().trim().url("Enter a full URL (https://...)").max(300).optional().or(z.literal("")),
+});
+
+// Public access-request form (anonymous; submitted through the rate-limited route).
+export const trustAccessRequestSchema = z.object({
+  slug: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{3,60}$/, "Invalid page"),
+  email: z.string().trim().toLowerCase().email("Enter a valid email").max(254),
+  name: z.string().trim().max(160).optional().or(z.literal("")),
+  company: z.string().trim().max(160).optional().or(z.literal("")),
+  message: z.string().trim().max(2000).optional().or(z.literal("")),
+  website: z.string().max(0).optional(), // honeypot — must be empty
+});
+
 // ---------- Notifications ----------
 // Categories double as the `type` column on notifications + notification_prefs.
 // Keep in sync with the check constraint in migration 0017_notifications.sql.

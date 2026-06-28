@@ -943,6 +943,58 @@ export async function listAccessReviewItems(
   return (data ?? []) as AccessReviewItem[];
 }
 
+// ---------- Trust Center depth ----------
+
+export interface Subprocessor {
+  id: string;
+  company_id: string;
+  name: string;
+  purpose: string | null;
+  location: string | null;
+  url: string | null;
+  created_at: string;
+}
+
+export type TrustRequestStatus = "new" | "approved" | "declined";
+
+export interface TrustAccessRequest {
+  id: string;
+  company_id: string;
+  email: string;
+  name: string | null;
+  requester_company: string | null;
+  message: string | null;
+  status: TrustRequestStatus;
+  created_at: string;
+}
+
+export async function listSubprocessors(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<Subprocessor[]> {
+  const { data, error } = await supabase
+    .from("subprocessors")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as Subprocessor[];
+}
+
+export async function listTrustAccessRequests(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<TrustAccessRequest[]> {
+  const { data, error } = await supabase
+    .from("trust_access_requests")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  return (data ?? []) as TrustAccessRequest[];
+}
+
 // ---------- Tasks ----------
 
 export type TaskStatus = "todo" | "in_progress" | "done";

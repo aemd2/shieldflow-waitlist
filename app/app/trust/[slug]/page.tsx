@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
+import { TrustAccessForm } from "@/components/trust/TrustAccessForm";
 
 // Cached for 60s per slug: the page is public and anonymous, so a plain
 // (cookie-free) anon client lets Next cache it — one DB hit per slug per
@@ -30,10 +31,19 @@ export default async function TrustCenterPage({
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
-  const { data, error } = await supabase.rpc("get_trust_center", { p_slug: slug });
+  const [{ data, error }, { data: subData }] = await Promise.all([
+    supabase.rpc("get_trust_center", { p_slug: slug }),
+    supabase.rpc("get_trust_subprocessors", { p_slug: slug }),
+  ]);
   if (error || !data) notFound();
 
   const trust = data as unknown as TrustData;
+  const subprocessors = (subData ?? []) as {
+    name: string;
+    purpose: string | null;
+    location: string | null;
+    url: string | null;
+  }[];
 
   return (
     <main className="mx-auto max-w-3xl space-y-8 px-6 py-12">
@@ -97,6 +107,40 @@ export default async function TrustCenterPage({
           </div>
         </section>
       )}
+
+      {subprocessors.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-foreground">Subprocessors</h2>
+          <div className="card p-0">
+            <ul className="divide-y divide-border">
+              {subprocessors.map((s) => (
+                <li key={s.name} className="flex items-center justify-between gap-3 px-6 py-3 text-sm">
+                  <div className="min-w-0">
+                    <div className="font-medium text-foreground">
+                      {s.url ? (
+                        <a href={s.url} target="_blank" rel="noopener noreferrer" className="underline">{s.name}</a>
+                      ) : (
+                        s.name
+                      )}
+                    </div>
+                    {s.purpose && <div className="text-xs text-muted-foreground">{s.purpose}</div>}
+                  </div>
+                  {s.location && <span className="shrink-0 text-xs text-muted-foreground">{s.location}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-foreground">Request our security package</h2>
+        <p className="text-sm text-muted-foreground">
+          Need our SOC 2 report, DPA, or a security review? Send a request and {trust.name}&apos;s team
+          will follow up.
+        </p>
+        <TrustAccessForm slug={slug} />
+      </section>
 
       <footer className="pt-4 text-center text-xs text-muted-foreground">
         This page is published by {trust.name} and updates automatically from their live
