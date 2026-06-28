@@ -116,6 +116,30 @@ export function computeAlerts(
         detail: `${v.name} is active with ${v.risk_level} risk — consider mitigations or review.`,
       });
     }
+
+    // Review cadence + SOC 2 freshness (offboarded vendors don't need either).
+    if (v.status !== "offboarded") {
+      if (v.reviewed_at && v.review_cadence_months) {
+        const next = new Date(v.reviewed_at);
+        next.setMonth(next.getMonth() + v.review_cadence_months);
+        if (next < today) {
+          alerts.push({
+            id: `vendor-cadence-${v.id}`,
+            severity: "warning",
+            title: "Vendor review overdue",
+            detail: `${v.name} was last reviewed ${v.reviewed_at}, past its ${v.review_cadence_months}-month cadence.`,
+          });
+        }
+      }
+      if (v.soc2_status === "on_file" && v.soc2_expires_at && new Date(v.soc2_expires_at) < today) {
+        alerts.push({
+          id: `vendor-soc2-${v.id}`,
+          severity: "warning",
+          title: "Vendor SOC 2 expired",
+          detail: `${v.name}'s SOC 2 report expired ${v.soc2_expires_at} — request a current report.`,
+        });
+      }
+    }
   }
 
   // Risks needing attention. Use the residual (post-mitigation) score when it's

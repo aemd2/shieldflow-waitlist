@@ -467,6 +467,9 @@ export async function getPolicy(
 export type VendorRisk = "low" | "medium" | "high" | "critical";
 export type VendorStatus = "active" | "under_review" | "offboarded";
 
+export type VendorSoc2Status = "none" | "requested" | "on_file";
+export type VendorDataSensitivity = "none" | "internal" | "pii" | "phi";
+
 export interface Vendor {
   id: string;
   company_id: string;
@@ -478,6 +481,11 @@ export interface Vendor {
   notes: string | null;
   reviewed_at: string | null;
   created_at: string;
+  contact_email: string | null;
+  review_cadence_months: number | null;
+  soc2_status: VendorSoc2Status;
+  soc2_expires_at: string | null;
+  data_sensitivity: VendorDataSensitivity;
 }
 
 export async function listVendors(

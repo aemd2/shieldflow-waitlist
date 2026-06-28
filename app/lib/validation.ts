@@ -169,6 +169,8 @@ export const policyCreateSchema = z.object({
 
 export const VENDOR_RISKS = ["low", "medium", "high", "critical"] as const;
 export const VENDOR_STATUSES = ["active", "under_review", "offboarded"] as const;
+export const VENDOR_SOC2_STATUSES = ["none", "requested", "on_file"] as const;
+export const VENDOR_DATA_SENSITIVITY = ["none", "internal", "pii", "phi"] as const;
 
 export const vendorSchema = z.object({
   name: z.string().trim().min(2, "Vendor name is too short").max(120),
@@ -184,6 +186,19 @@ export const vendorSchema = z.object({
   risk_level: z.enum(VENDOR_RISKS),
   status: z.enum(VENDOR_STATUSES),
   notes: z.string().trim().max(2000).optional().or(z.literal("")),
+  contact_email: z.string().trim().email("Enter a valid email").max(254).optional().or(z.literal("")),
+  review_cadence_months: z.preprocess(
+    (v) => (v === "" || v === undefined || v === null ? undefined : v),
+    z.coerce.number().int().min(1).max(60).optional(),
+  ),
+  soc2_status: z.enum(VENDOR_SOC2_STATUSES),
+  soc2_expires_at: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+    .refine(isRealDate, "That date doesn't exist - pick a date between 2000 and 2100")
+    .optional()
+    .or(z.literal("")),
+  data_sensitivity: z.enum(VENDOR_DATA_SENSITIVITY),
 });
 
 // Trust Center slug: lowercase kebab, no leading/trailing dash. Reserved words

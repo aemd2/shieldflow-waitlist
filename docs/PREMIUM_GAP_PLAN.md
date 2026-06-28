@@ -161,7 +161,7 @@ Features that directly close deals. Can follow Phase 1–3.
 
 **Shape.** Upload a questionnaire (xlsx/csv) → AI drafts answers **grounded only in this company's data** → human reviews → export in the original format. Answers it can't ground are flagged "needs review," never fabricated.
 
-### 4.2 Vendor risk depth (register → engine) 🟡
+### 4.2 Vendor risk depth (register → engine) 🟡 partial (assessment + cadence shipped; questionnaire + AI parse remain)
 **Why it matters.** Today the vendor module is a **manual register** ([components/vendors/VendorManager.tsx](../app/components/vendors/VendorManager.tsx)): you type the name, hand-pick a `risk_level` from a dropdown, and drop "SOC 2 on file" in a notes box. Vanta/Drata turn this into a **workflow that pulls data in and pushes work out** — that's the "missing something" gap. The PRD itself promised "questionnaire sending"; it's a register today.
 
 **How Vanta/Drata do it (validated June 2026).** Centralize a vendor inventory, **auto-ingest the vendor's SOC 2 / DPA** (AI extracts findings instead of a notes box), **send security questionnaires** and chase responses, assign a **risk score from evidence** (not a hand-picked level), and feed vendor findings **directly into the risk register** for one unified view.
@@ -172,6 +172,8 @@ Features that directly close deals. Can follow Phase 1–3.
 - **Auto-discovery.** Surface candidate vendors from connected integrations (Google/Okta OAuth grants, AWS spend) so the inventory isn't 100% manual entry.
 - **Review cadence.** The existing unused `reviewed_at` field drives a recurring "re-review every N months" obligation with reminders (Phase 0.2 rail) and a dashboard "vendor review overdue" alert.
 - **Findings → risk register.** A high-risk vendor or a questionnaire red flag can spawn a linked entry in the risk register (§4.5) — one unified risk view.
+
+**Shipped (migration 0022).** Vendors gained `review_cadence_months`, `contact_email`, `soc2_status` (none/requested/on_file), `soc2_expires_at`, `data_sensitivity` (none/internal/pii/phi). The register is now a reviewable assessment: a **Mark reviewed** action stamps `reviewed_at` (editing other fields no longer does), the cadence drives a **"vendor review overdue"** dashboard alert, and an expired SOC 2 raises **"vendor SOC 2 expired."** The list shows SOC 2 / PII / review-overdue badges. [app/actions/vendors.ts](../app/app/actions/vendors.ts), [components/vendors/VendorManager.tsx](../app/components/vendors/VendorManager.tsx). **Remaining for 4.2:** the public token-scoped vendor questionnaire + SOC 2 upload, AI SOC 2 parsing, auto-discovery from integrations, and vendor-finding → risk spawn.
 
 **Acceptance.** Send a questionnaire → vendor responds + uploads SOC 2 → AI surfaces findings on the vendor → risk score reflects the evidence, not a dropdown → an overdue review raises a dashboard alert → a critical finding can open a linked risk.
 
