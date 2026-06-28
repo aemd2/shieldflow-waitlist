@@ -299,6 +299,23 @@ export const waitlistSchema = z.object({
 
 export type WaitlistPayload = z.infer<typeof waitlistSchema>;
 
+// ---------- Security questionnaires ----------
+export const QUESTIONNAIRE_ITEM_STATUSES = ["draft", "needs_review", "approved"] as const;
+
+export const questionnaireCreateSchema = z.object({
+  name: z.string().trim().min(2, "Give the questionnaire a name").max(160),
+  questions: z
+    .array(z.string().trim().min(3).max(2000))
+    .min(1, "Add at least one question")
+    .max(200, "That's a lot of questions — split it into two."),
+});
+
+export const questionnaireItemSchema = z.object({
+  id: z.string().uuid(),
+  answer: z.string().trim().max(5000).optional().or(z.literal("")),
+  status: z.enum(QUESTIONNAIRE_ITEM_STATUSES),
+});
+
 // ---------- Notifications ----------
 // Categories double as the `type` column on notifications + notification_prefs.
 // Keep in sync with the check constraint in migration 0017_notifications.sql.

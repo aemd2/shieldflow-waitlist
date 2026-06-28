@@ -156,10 +156,12 @@ You charge €1,299 for "Enterprise." These are what that tier actually means.
 
 Features that directly close deals. Can follow Phase 1–3.
 
-### 4.1 Security questionnaire / RFP automation 🔴
+### 4.1 Security questionnaire / RFP automation 🟢 shipped (v1)
 **Why it matters.** A top buying trigger — "answer security questionnaires for us." You already have the AI rail (Groq).
 
 **Shape.** Upload a questionnaire (xlsx/csv) → AI drafts answers **grounded only in this company's data** → human reviews → export in the original format. Answers it can't ground are flagged "needs review," never fabricated.
+
+**Shipped (migration 0023).** `questionnaires` + `questionnaire_items` (member-read / can_write RLS). `/questionnaires` workspace: paste a question list → **Draft with AI** ([app/api/questionnaire/route.ts](<../app/app/api/questionnaire/route.ts>)) builds a compact company context (frameworks, control completion, approved/published policies, connected integrations, vendor count) and asks Groq to answer **grounded only in that context** — ungroundable answers come back flagged **needs review**, never fabricated. Per-item review/edit/status, progress + needs-review counts, and **CSV export**. [components/questionnaires/QuestionnaireWorkspace.tsx](../app/components/questionnaires/QuestionnaireWorkspace.tsx). **Deferred:** xlsx import/export in the original format (v1 is paste-in / CSV-out), batching past 25 questions per AI call.
 
 ### 4.2 Vendor risk depth (register → engine) 🟡 partial (assessment + cadence shipped; questionnaire + AI parse remain)
 **Why it matters.** Today the vendor module is a **manual register** ([components/vendors/VendorManager.tsx](../app/components/vendors/VendorManager.tsx)): you type the name, hand-pick a `risk_level` from a dropdown, and drop "SOC 2 on file" in a notes box. Vanta/Drata turn this into a **workflow that pulls data in and pushes work out** — that's the "missing something" gap. The PRD itself promised "questionnaire sending"; it's a register today.

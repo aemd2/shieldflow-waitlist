@@ -834,6 +834,58 @@ export async function listNotificationPrefs(
   return (data ?? []) as NotificationPref[];
 }
 
+// ---------- Security questionnaires ----------
+
+export type QuestionnaireItemStatus = "draft" | "needs_review" | "approved";
+
+export interface Questionnaire {
+  id: string;
+  company_id: string;
+  name: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface QuestionnaireItem {
+  id: string;
+  questionnaire_id: string;
+  company_id: string;
+  position: number;
+  question: string;
+  answer: string | null;
+  status: QuestionnaireItemStatus;
+  created_at: string;
+}
+
+export async function listQuestionnaires(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<Questionnaire[]> {
+  const { data, error } = await supabase
+    .from("questionnaires")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return (data ?? []) as Questionnaire[];
+}
+
+/** All items across a company's questionnaires (the workspace groups by questionnaire). */
+export async function listQuestionnaireItems(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<QuestionnaireItem[]> {
+  const { data, error } = await supabase
+    .from("questionnaire_items")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("position", { ascending: true })
+    .limit(2000);
+  if (error) throw error;
+  return (data ?? []) as QuestionnaireItem[];
+}
+
 // ---------- Tasks ----------
 
 export type TaskStatus = "todo" | "in_progress" | "done";

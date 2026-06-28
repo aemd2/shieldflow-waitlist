@@ -12,6 +12,7 @@ import {
   GraduationCap,
   History,
   ListChecks,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,6 +24,7 @@ export const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/evidence", label: "Evidence", icon: FolderArchive },
   { href: "/policies", label: "Policies", icon: FileText },
+  { href: "/questionnaires", label: "Questionnaires", icon: ClipboardList },
   { href: "/copilot", label: "Co-Pilot", icon: MessageSquare },
   { href: "/vendors", label: "Vendors", icon: Building2 },
   { href: "/risks", label: "Risk Register", icon: ShieldAlert },
