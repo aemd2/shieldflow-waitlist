@@ -139,10 +139,12 @@ You charge €1,299 for "Enterprise." These are what that tier actually means.
 
 **Acceptance.** Forged/unsigned/replayed/wrong-audience assertions are rejected; SCIM deprovision revokes access immediately; SSO-enforced orgs still have a documented break-glass path.
 
-### 3.3 Tasks, remediation & compliance calendar 🔴
+### 3.3 Tasks, remediation & compliance calendar 🟢 shipped (v1)
 **Why it matters.** Controls have an owner/due-date but there's no task inbox and no recurring obligations (annual access review, quarterly pen test, yearly policy review).
 
 **Shape.** `tasks` (assignee, due, status, linked control/risk/vendor). Recurring tasks spawn the next instance on completion. Calendar view of upcoming obligations. Drives notifications (Phase 0.2).
+
+**Shipped (migration 0019).** `tasks` table (member-read / can_write_company RLS), `/tasks` inbox ([components/tasks/TaskManager.tsx](../app/components/tasks/TaskManager.tsx)) with priority/status/due/recurrence, sidebar nav, and full CRUD ([app/actions/tasks.ts](../app/app/actions/tasks.ts)). Completing a recurring task (weekly/monthly/quarterly/annually) **spawns the next instance** with the due date advanced. Assigning a task to a teammate fires a `task` notification (new notification category); overdue tasks raise a dashboard alert via `computeAlerts`. **Deferred:** the link-to-control/risk/vendor/policy picker (columns exist, no UI yet) and a month-grid calendar (the due-sorted list + overdue highlighting is the v1 "calendar").
 
 **Edge cases →** EDGE_CASES §E7 (RBAC/auditor) + §E8 (SSO/SCIM) + §E6 (tasks) · **Tests →** TESTING §43 + §45 + §42
 

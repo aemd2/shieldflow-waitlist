@@ -289,6 +289,7 @@ export const NOTIFICATION_CATEGORIES = [
   "risk",
   "team",
   "system",
+  "task",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -301,7 +302,35 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   risk: "Risks",
   team: "Team",
   system: "System",
+  task: "Tasks",
 };
+
+// ---------- Tasks ----------
+export const TASK_STATUSES = ["todo", "in_progress", "done"] as const;
+export const TASK_PRIORITIES = ["low", "medium", "high"] as const;
+export const TASK_RECURRENCE = ["none", "weekly", "monthly", "quarterly", "annually"] as const;
+
+export const taskSchema = z.object({
+  title: z.string().trim().min(2, "Task title is too short").max(200),
+  description: z.string().trim().max(2000).optional().or(z.literal("")),
+  assignee_email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Enter a valid email")
+    .max(254)
+    .optional()
+    .or(z.literal("")),
+  priority: z.enum(TASK_PRIORITIES),
+  status: z.enum(TASK_STATUSES),
+  due_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+    .refine(isRealDate, "That date doesn't exist - pick a date between 2000 and 2100")
+    .optional()
+    .or(z.literal("")),
+  recurrence: z.enum(TASK_RECURRENCE),
+});
 
 /** One category's delivery preference (validated server-side in the prefs action). */
 export const notificationPrefSchema = z.object({

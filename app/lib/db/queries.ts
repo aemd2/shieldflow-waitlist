@@ -766,3 +766,39 @@ export async function listNotificationPrefs(
   if (error) throw error;
   return (data ?? []) as NotificationPref[];
 }
+
+// ---------- Tasks ----------
+
+export type TaskStatus = "todo" | "in_progress" | "done";
+export type TaskPriority = "low" | "medium" | "high";
+export type TaskRecurrence = "none" | "weekly" | "monthly" | "quarterly" | "annually";
+
+export interface Task {
+  id: string;
+  company_id: string;
+  title: string;
+  description: string | null;
+  assignee_email: string | null;
+  priority: TaskPriority;
+  status: TaskStatus;
+  due_date: string | null;
+  recurrence: TaskRecurrence;
+  linked_type: string | null;
+  linked_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+/** Company tasks, soonest due first (no due date last), newest as tiebreaker. The
+ * UI separates done from active. */
+export async function listTasks(supabase: SupabaseClient, companyId: string): Promise<Task[]> {
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("due_date", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Task[];
+}

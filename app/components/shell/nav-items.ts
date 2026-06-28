@@ -11,6 +11,7 @@ import {
   ShieldAlert,
   GraduationCap,
   History,
+  ListChecks,
   type LucideIcon,
 } from "lucide-react";
 
@@ -25,6 +26,7 @@ export const NAV: NavItem[] = [
   { href: "/copilot", label: "Co-Pilot", icon: MessageSquare },
   { href: "/vendors", label: "Vendors", icon: Building2 },
   { href: "/risks", label: "Risk Register", icon: ShieldAlert },
+  { href: "/tasks", label: "Tasks", icon: ListChecks },
   { href: "/training", label: "Training", icon: GraduationCap },
   { href: "/reports", label: "Reports", icon: FileBarChart },
   { href: "/activity", label: "Activity", icon: History },

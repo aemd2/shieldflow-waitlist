@@ -1,4 +1,4 @@
-import type { ControlWithStatus, Vendor, Risk, TrainingRecord, ControlCheck } from "@/lib/db/queries";
+import type { ControlWithStatus, Vendor, Risk, TrainingRecord, ControlCheck, Task } from "@/lib/db/queries";
 
 export type AlertSeverity = "high" | "warning" | "info";
 
@@ -23,6 +23,7 @@ export function computeAlerts(
   risks: Risk[] = [],
   training: TrainingRecord[] = [],
   checks: ControlCheck[] = [],
+  tasks: Task[] = [],
 ): Alert[] {
   const alerts: Alert[] = [];
   const today = new Date();
@@ -135,6 +136,19 @@ export function computeAlerts(
       severity: "warning",
       title: "Training overdue",
       detail: `${overdueTraining.length} training assignment${overdueTraining.length > 1 ? "s are" : " is"} past due.`,
+    });
+  }
+
+  // Tasks overdue (aggregated, like training, so a stale backlog isn't a wall).
+  const overdueTasks = tasks.filter(
+    (t) => t.status !== "done" && t.due_date && new Date(t.due_date) < today,
+  );
+  if (overdueTasks.length > 0) {
+    alerts.push({
+      id: "tasks-overdue",
+      severity: "warning",
+      title: "Tasks overdue",
+      detail: `${overdueTasks.length} task${overdueTasks.length > 1 ? "s are" : " is"} past due.`,
     });
   }
 
