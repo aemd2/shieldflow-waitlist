@@ -13,6 +13,7 @@ import {
   History,
   ListChecks,
   ClipboardList,
+  UserCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -30,6 +31,7 @@ export const NAV: NavItem[] = [
   { href: "/risks", label: "Risk Register", icon: ShieldAlert },
   { href: "/tasks", label: "Tasks", icon: ListChecks },
   { href: "/training", label: "Training", icon: GraduationCap },
+  { href: "/access-reviews", label: "Access reviews", icon: UserCheck },
   { href: "/reports", label: "Reports", icon: FileBarChart },
   { href: "/activity", label: "Activity", icon: History },
   { href: "/integrations", label: "Integrations", icon: Plug },

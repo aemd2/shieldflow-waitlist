@@ -316,6 +316,30 @@ export const questionnaireItemSchema = z.object({
   status: z.enum(QUESTIONNAIRE_ITEM_STATUSES),
 });
 
+// ---------- Access reviews ----------
+export const ACCESS_DECISIONS = ["pending", "keep", "revoke"] as const;
+
+export const accessReviewCreateSchema = z.object({
+  name: z.string().trim().min(2, "Give the review a name").max(160),
+  source: z.string().trim().max(80).optional().or(z.literal("")),
+  reviewer_email: z.string().trim().email("Enter a valid email").max(254).optional().or(z.literal("")),
+  subjects: z
+    .array(
+      z.object({
+        subject: z.string().trim().min(1).max(300),
+        access: z.string().trim().max(300).optional().or(z.literal("")),
+      }),
+    )
+    .min(1, "Add at least one person or account")
+    .max(500, "That's a lot — split it into two reviews."),
+});
+
+export const accessReviewDecisionSchema = z.object({
+  id: z.string().uuid(),
+  decision: z.enum(ACCESS_DECISIONS),
+  note: z.string().trim().max(500).optional().or(z.literal("")),
+});
+
 // ---------- Notifications ----------
 // Categories double as the `type` column on notifications + notification_prefs.
 // Keep in sync with the check constraint in migration 0017_notifications.sql.

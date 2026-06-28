@@ -97,12 +97,14 @@ A third of SOC 2 is about people, and it's currently a blank space.
 
 **Shape.** `personnel` table (can seed from Okta/Google directory or HRIS later). Links to training records and policy attestations. Onboarding/offboarding checklist per person.
 
-### 2.2 Access reviews 🔴
+### 2.2 Access reviews 🟢 shipped (v1)
 **Why it matters.** "Periodic access review" is a named control in every framework. Today there's no way to run one.
 
 **Shape.** A review *campaign* snapshots user/access lists from connected identity systems (Okta/Google/GitHub) **at start**, assigns a reviewer, who attests keep/revoke per row; completion generates a signed evidence record and satisfies the control. We record the attestation — we do **not** actually revoke access (read-only; revocation is a liability we don't own).
 
 **Acceptance.** Start a review from Okta data → snapshot frozen even if the token later dies; reviewer attests all rows → evidence PDF generated, control satisfied; re-running creates a new versioned campaign, never overwrites the prior one.
+
+**Shipped (migration 0024).** `access_reviews` + `access_review_items` (member-read / can_write RLS). `/access-reviews` workspace: create a review (name, source, reviewer) from a **pasted subject list** ("email — access" per line); the rows are a **frozen snapshot**. The reviewer marks **keep / revoke** per row; completing a fully-decided review **generates a CSV evidence record** in the vault (linked via `access_reviews.evidence_id`) and stamps it completed — and explicitly **never revokes access** itself. [app/actions/access-reviews.ts](../app/app/actions/access-reviews.ts), [components/access/AccessReviewWorkspace.tsx](../app/components/access/AccessReviewWorkspace.tsx). **Deferred:** auto-snapshot from a connected identity integration (paste-in for now), and auto-satisfying a specific linked control.
 
 ### 2.3 Policy approval + employee acknowledgement 🟢 shipped (v1)
 **Why it matters.** This is the #1 gap a real SOC 2 / ISO buyer notices. Generating a policy isn't enough — **a policy only counts as evidence once a named person has approved it and employees have acknowledged it.** Today we have a lightweight `draft → final` toggle ([components/policies/PolicyGenerator.tsx](../app/components/policies/PolicyGenerator.tsx)) but no approver of record and zero acknowledgement tracking. Auditors literally ask for the acknowledgement records.

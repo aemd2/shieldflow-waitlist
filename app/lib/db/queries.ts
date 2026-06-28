@@ -886,6 +886,63 @@ export async function listQuestionnaireItems(
   return (data ?? []) as QuestionnaireItem[];
 }
 
+// ---------- Access reviews ----------
+
+export type AccessReviewStatus = "open" | "completed";
+export type AccessDecision = "pending" | "keep" | "revoke";
+
+export interface AccessReview {
+  id: string;
+  company_id: string;
+  name: string;
+  source: string | null;
+  reviewer_email: string | null;
+  status: AccessReviewStatus;
+  started_at: string;
+  completed_at: string | null;
+  evidence_id: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface AccessReviewItem {
+  id: string;
+  review_id: string;
+  company_id: string;
+  subject: string;
+  access: string | null;
+  decision: AccessDecision;
+  note: string | null;
+  decided_at: string | null;
+}
+
+export async function listAccessReviews(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<AccessReview[]> {
+  const { data, error } = await supabase
+    .from("access_reviews")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return (data ?? []) as AccessReview[];
+}
+
+export async function listAccessReviewItems(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<AccessReviewItem[]> {
+  const { data, error } = await supabase
+    .from("access_review_items")
+    .select("*")
+    .eq("company_id", companyId)
+    .limit(5000);
+  if (error) throw error;
+  return (data ?? []) as AccessReviewItem[];
+}
+
 // ---------- Tasks ----------
 
 export type TaskStatus = "todo" | "in_progress" | "done";
