@@ -11,6 +11,12 @@ export default async function OnboardingPage() {
   const existing = await getCompanyForUser(supabase, user.id);
   if (existing) redirect("/dashboard");
 
+  // SSO just-in-time: if this user's verified email domain maps to a company with
+  // SSO enabled, auto-join it instead of forcing onboarding. Returns null for
+  // normal signups (no matching verified domain), so they see the form as usual.
+  const { data: joinedCompanyId } = await supabase.rpc("join_company_via_sso");
+  if (joinedCompanyId) redirect("/dashboard");
+
   const frameworks = await listFrameworks(supabase);
 
   return (

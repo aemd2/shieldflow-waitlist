@@ -6,12 +6,14 @@ import {
   listNotificationPrefs,
   listSubprocessors,
   listTrustAccessRequests,
+  listSsoDomains,
 } from "@/lib/db/queries";
 import { TrustSettings } from "@/components/settings/TrustSettings";
 import { TeamSettings } from "@/components/settings/TeamSettings";
 import { NotificationPrefs } from "@/components/notifications/NotificationPrefs";
 import { SubprocessorManager } from "@/components/settings/SubprocessorManager";
 import { TrustRequests } from "@/components/settings/TrustRequests";
+import { SsoSettings } from "@/components/settings/SsoSettings";
 
 export default async function SettingsPage() {
   const supabase = await createServerSupabase();
@@ -36,6 +38,7 @@ export default async function SettingsPage() {
   const isOwner = company.owner_user_id === user.id;
   const subprocessors = isOwner ? await listSubprocessors(supabase, company.id).catch(() => []) : [];
   const trustRequests = isOwner ? await listTrustAccessRequests(supabase, company.id).catch(() => []) : [];
+  const ssoDomains = isOwner ? await listSsoDomains(supabase, company.id).catch(() => []) : [];
 
   return (
     <div className="space-y-6">
@@ -64,6 +67,7 @@ export default async function SettingsPage() {
           />
           <SubprocessorManager subprocessors={subprocessors} />
           <TrustRequests requests={trustRequests} />
+          <SsoSettings domains={ssoDomains} />
         </>
       )}
     </div>

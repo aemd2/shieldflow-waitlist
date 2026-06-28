@@ -350,6 +350,16 @@ export const subprocessorSchema = z.object({
   url: z.string().trim().url("Enter a full URL (https://...)").max(300).optional().or(z.literal("")),
 });
 
+// ---------- SSO (Phase A) ----------
+export const ssoDomainSchema = z.object({
+  domain: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9.-]+\.[a-z]{2,}$/, "Enter a domain like acme.com")
+    .max(253),
+});
+
 // ---------- Personnel roster ----------
 export const PERSONNEL_STATUSES = ["active", "offboarded"] as const;
 

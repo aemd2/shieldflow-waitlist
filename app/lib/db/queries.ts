@@ -1025,6 +1025,29 @@ export async function listPersonnel(
   return (data ?? []) as Person[];
 }
 
+// ---------- SSO domains ----------
+
+export interface SsoDomain {
+  id: string;
+  company_id: string;
+  domain: string;
+  verified: boolean;
+  created_at: string;
+}
+
+export async function listSsoDomains(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<SsoDomain[]> {
+  const { data, error } = await supabase
+    .from("company_sso_domains")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as SsoDomain[];
+}
+
 // ---------- Tasks ----------
 
 export type TaskStatus = "todo" | "in_progress" | "done";

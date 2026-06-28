@@ -140,12 +140,16 @@ You charge €1,299 for "Enterprise." These are what that tier actually means.
 
 **Shipped / verified.** Roles are owner/admin/member/**auditor** with `expires_at`; `getCallerAccess`/`assertCanWrite`/`canWrite` + a read-only banner. **Verified against the live DB this pass:** every company-scoped table's write policies use `can_write_company` (which excludes auditors + expired members) — so auditor writes are RLS-blocked everywhere, including `integrations`; `remove_member` is owner-only and **refuses to remove the company owner** (last-owner protection); auditor expiry already cuts all access. **Added this pass:** the friendly `assertCanWrite` gate on **every integration connect/sync/disconnect** (10 providers + the shared `disconnectProvider`) so auditors get a clean "read-only" message instead of a raw RLS error — defense-in-depth backing the RLS. **Deferred:** finer admin/contributor/viewer tiers beyond the 4 roles, and a dedicated branded auditor portal (auditors use the normal read-only app today).
 
-### 3.2 SSO / SAML + SCIM 🔴
+### 3.2 SSO / SAML + SCIM 🟡 Phase A (SSO) shipped · Phase B (SCIM) roadmapped
 **Why it matters.** Table-stakes for enterprise procurement; you only have consumer Google login.
 
 **Shape.** SAML via Supabase Auth SSO (or WorkOS). JIT provisioning on first login; SCIM for deprovisioning (removing a user in the IdP removes app access and invalidates sessions). Domain-ownership verification so one tenant can't capture another's email domain. A break-glass owner login for when the IdP is down.
 
 **Acceptance.** Forged/unsigned/replayed/wrong-audience assertions are rejected; SCIM deprovision revokes access immediately; SSO-enforced orgs still have a documented break-glass path.
+
+**Phase A — SSO — shipped (app side; migration 0027).** `company_sso_domains` (member-read / can_write RLS; owner-gated actions) + a **"Sign in with SSO"** button ([components/auth/AuthForm.tsx](../app/components/auth/AuthForm.tsx)) calling `supabase.auth.signInWithSSO({ domain })` (graceful "not set up for this domain" until an IdP is registered). **JIT membership:** the `join_company_via_sso()` SECURITY DEFINER RPC (derives email/domain from `auth.uid()`) auto-joins an SSO user to the company owning their **verified** domain — wired into [onboarding](<../app/app/(app)/onboarding/page.tsx>). Owner manages domains in Settings (a domain auto-verifies when it matches the owner's email; cross-domain claims stay unverified and never auto-join; `domain` is globally unique so one tenant can't capture another's). Break-glass: password login is never disabled. **Needs you (to fully light up):** Supabase **Pro** + register a SAML IdP for the domain (see [SSO_SCIM_PLAN.md](./SSO_SCIM_PLAN.md)).
+
+**Phase B — SCIM — roadmapped (not built).** WorkOS Directory Sync (Supabase Auth has no SCIM endpoint): a signature-verified `app/api/scim/webhook` maps `user.deactivated` → `remove_member` + session invalidation, and `user.created` → pre-provision membership; WorkOS org → ShieldFlow company mapping. Full plan + security tests (forged/replayed/wrong-audience assertions, domain capture, immediate deprovision) in [SSO_SCIM_PLAN.md](./SSO_SCIM_PLAN.md). Do it when the first enterprise deal needs auto-deprovision; SAML SSO (Phase A) unblocks most procurement.
 
 ### 3.3 Tasks, remediation & compliance calendar 🟢 shipped (v1)
 **Why it matters.** Controls have an owner/due-date but there's no task inbox and no recurring obligations (annual access review, quarterly pen test, yearly policy review).
