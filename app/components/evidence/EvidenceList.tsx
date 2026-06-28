@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FileText, Download, Trash2 } from "lucide-react";
 import { getEvidenceUrl, deleteEvidence } from "@/app/actions/evidence";
 import { useToast } from "@/components/ui/Toast";
+import { Badge } from "@/components/ui/Badge";
 import type { Evidence } from "@/lib/db/queries";
 
 function formatSize(bytes: number | null): string {
@@ -62,8 +63,14 @@ export function EvidenceList({
           <div className="flex min-w-0 items-center gap-3">
             <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0">
-              <div className="truncate text-sm font-medium text-foreground">{ev.file_name}</div>
+              <div className="flex items-center gap-2">
+                <span className="truncate text-sm font-medium text-foreground">{ev.file_name}</span>
+                {ev.source === "integration" && (
+                  <Badge variant="info" className="shrink-0">Auto</Badge>
+                )}
+              </div>
               <div className="text-xs text-muted-foreground">
+                {ev.source === "integration" ? "From an integration sync · " : ""}
                 {formatSize(ev.size_bytes)} · {new Date(ev.created_at).toLocaleDateString()}
               </div>
             </div>
@@ -77,7 +84,9 @@ export function EvidenceList({
             >
               <Download className="h-4 w-4" />
             </button>
-            {canWrite && (
+            {/* Integration reports are auto-managed (and FK-referenced by checks),
+                so they can't be deleted by hand here — only manual uploads can. */}
+            {canWrite && ev.source !== "integration" && (
               <button
                 onClick={() => remove(ev.id)}
                 disabled={pending}

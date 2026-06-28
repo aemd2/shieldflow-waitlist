@@ -57,17 +57,21 @@ This is the product. It makes the existing 10 integrations 10× more valuable.
 
 **Shape.** Each sync writes rows to `integration_findings` (company_id, provider, check_key, value, observed_at, raw jsonb) — e.g. `aws / root_mfa_enabled / false`. The CSV stays as human evidence; the findings drive the engine.
 
-### 1.2 Check engine: finding → control test → pass/fail 🔴
+### 1.2 Check engine: finding → control test → pass/fail 🟢 shipped
 **Why it matters.** This is the closed loop. A "check" maps one or more findings to one or more controls and evaluates pass / fail / inconclusive.
 
 **Shape.** `checks` catalog (check_key, title, framework control codes it satisfies, severity, evaluator). `control_check_results` (company_id, control_id, check_key, result, detail, evaluated_at). A control's automated status = aggregate of its checks. **Disconnected/partial/permission-denied data is `inconclusive`, never `pass`** — we never show green from absent data.
 
 **Acceptance.** Connect AWS with root MFA off → the mapped control auto-fails with a finding; enable MFA + re-sync → flips to pass; the report is auto-attached as evidence. Manual status and automated status are both visible; a conflict (human says "complete," check says "fail") is surfaced, never silently overwritten.
 
-### 1.3 Auto-attach evidence to controls 🔴
-**Why it matters.** The PRD's headline promise ("automated evidence collection") is only half-built — evidence lands in the vault unattached ([lib/integration-evidence.ts:52](../lib/integration-evidence.ts#L52)).
+**Shipped.** [lib/checks.ts](../app/lib/checks.ts) has 8 provider evaluators → `record_control_checks` RPC writes `control_checks` (pass/fail/inconclusive, absent data = inconclusive). The control page renders the automated checks and **flags the complete-but-failing conflict** ([app/(app)/controls/[id]/page.tsx](<../app/app/(app)/controls/[id]/page.tsx>)); the dashboard shows the passing/failing summary. **Remaining for 1.1:** the raw `integration_findings` layer (checks currently read posture directly from the sync handler).
 
-**Shape.** When a check runs, link its report to every control the check satisfies (`evidence.control_id` set, or a join table for many-to-many). Re-runs **replace** the prior auto-evidence for that check (no pileup); manual uploads are never touched.
+### 1.3 Auto-attach evidence to controls 🟢 shipped
+**Why it matters.** The PRD's headline promise ("automated evidence collection") is only half-built — evidence lands in the vault unattached ([lib/integration-evidence.ts:57](../app/lib/integration-evidence.ts#L57)).
+
+**Shape.** A synced CSV maps to many controls, so rather than set the single `evidence.control_id`, surface a control's auto-evidence through the existing `control_checks.evidence_id` link (read-side). Re-runs replace prior auto-evidence per check; manual uploads are never touched.
+
+**Shipped.** `listEvidence` now merges the integration reports linked via `control_checks.evidence_id` into a control's evidence list (tagged `source:"integration"`), and both `evidenceCounts` (dashboard badge + "completed without evidence" alert) and the control-detail count include them, de-duped per control. The control page shows these reports with an **Auto** badge and no manual delete (they're FK-referenced and auto-managed); download reuses the existing signed-URL action. [lib/db/queries.ts](../app/lib/db/queries.ts), [components/evidence/EvidenceList.tsx](../app/components/evidence/EvidenceList.tsx).
 
 ### 1.4 Scheduled / continuous syncs 🔴
 **Why it matters.** "Continuous monitoring" is in the tagline but every sync is a manual button today. Premium = daily background re-sync + drift detection.

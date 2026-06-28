@@ -42,6 +42,9 @@ export interface Evidence {
   note: string | null;
   uploaded_by: string | null;
   created_at: string;
+  /** Set by listEvidence: "manual" = user-uploaded (control_id matches), "integration"
+   * = auto-collected report linked to this control via a control_checks row. */
+  source?: "manual" | "integration";
 }
 
 export interface Policy {
@@ -186,21 +189,44 @@ function mapControlRow(row: any, evidenceCount: number): ControlWithStatus {
   };
 }
 
-/** Map of control_id -> evidence count for a company (single query). */
+/**
+ * Map of control_id -> evidence count for a company. Counts both manually
+ * uploaded evidence (evidence.control_id) and the auto-collected integration
+ * reports linked to a control through its automated checks
+ * (control_checks.evidence_id) — one CSV can back several checks, so those are
+ * de-duplicated per control.
+ */
 async function evidenceCounts(
   supabase: SupabaseClient,
   companyId: string,
 ): Promise<Record<string, number>> {
-  const { data, error } = await supabase
-    .from("evidence")
-    .select("control_id")
-    .eq("company_id", companyId)
-    .not("control_id", "is", null);
+  const [{ data: manual, error }, { data: checkRows }] = await Promise.all([
+    supabase
+      .from("evidence")
+      .select("control_id")
+      .eq("company_id", companyId)
+      .not("control_id", "is", null),
+    supabase
+      .from("control_checks")
+      .select("control_id, evidence_id")
+      .eq("company_id", companyId)
+      .not("evidence_id", "is", null),
+  ]);
   if (error) throw error;
+
   const counts: Record<string, number> = {};
-  for (const row of data ?? []) {
+  for (const row of manual ?? []) {
     const cid = (row as any).control_id as string;
     counts[cid] = (counts[cid] ?? 0) + 1;
+  }
+
+  const seen: Record<string, Set<string>> = {};
+  for (const row of checkRows ?? []) {
+    const cid = (row as any).control_id as string;
+    (seen[cid] ??= new Set<string>()).add((row as any).evidence_id as string);
+  }
+  for (const [cid, set] of Object.entries(seen)) {
+    counts[cid] = (counts[cid] ?? 0) + set.size;
   }
   return counts;
 }
@@ -234,13 +260,23 @@ export async function getControlWithStatus(
   if (error) throw error;
   if (!data) return null;
 
-  const { count } = await supabase
-    .from("evidence")
-    .select("id", { count: "exact", head: true })
-    .eq("company_id", companyId)
-    .eq("control_id", controlId);
+  const [{ count }, { data: checkRows }] = await Promise.all([
+    supabase
+      .from("evidence")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .eq("control_id", controlId),
+    supabase
+      .from("control_checks")
+      .select("evidence_id")
+      .eq("company_id", companyId)
+      .eq("control_id", controlId)
+      .not("evidence_id", "is", null),
+  ]);
+  // Distinct integration reports backing this control's checks count as evidence too.
+  const integrationCount = new Set((checkRows ?? []).map((r: any) => r.evidence_id as string)).size;
 
-  return mapControlRow(data, count ?? 0);
+  return mapControlRow(data, (count ?? 0) + integrationCount);
 }
 
 export async function setControlStatus(
@@ -304,6 +340,7 @@ export async function listEvidence(
   companyId: string,
   controlId: string,
 ): Promise<Evidence[]> {
+  // Manually uploaded evidence attached directly to this control.
   const { data, error } = await supabase
     .from("evidence")
     .select("*")
@@ -312,7 +349,33 @@ export async function listEvidence(
     .order("created_at", { ascending: false })
     .limit(200); // sanity cap — keeps a runaway control page renderable
   if (error) throw error;
-  return (data ?? []) as Evidence[];
+
+  // Auto-collected integration reports linked to this control through its
+  // automated checks. The CSV is filed with control_id=null, so the link lives in
+  // control_checks.evidence_id; one report can back several checks → dedupe.
+  const { data: checkRows } = await supabase
+    .from("control_checks")
+    .select("evidence_id")
+    .eq("company_id", companyId)
+    .eq("control_id", controlId)
+    .not("evidence_id", "is", null);
+  const ids = [...new Set((checkRows ?? []).map((r: any) => r.evidence_id as string))];
+
+  let integration: Evidence[] = [];
+  if (ids.length > 0) {
+    const { data: ev } = await supabase
+      .from("evidence")
+      .select("*")
+      .eq("company_id", companyId)
+      .in("id", ids);
+    integration = (ev ?? []) as Evidence[];
+  }
+
+  const manualList = ((data ?? []) as Evidence[]).map((e) => ({ ...e, source: "manual" as const }));
+  const integrationList = integration.map((e) => ({ ...e, source: "integration" as const }));
+  return [...manualList, ...integrationList].sort((a, b) =>
+    a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0,
+  );
 }
 
 export async function listAllEvidence(
