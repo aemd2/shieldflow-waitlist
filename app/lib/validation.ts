@@ -110,11 +110,17 @@ export const riskSchema = z.object({
   title: z.string().trim().min(2, "Risk title is too short").max(160),
   description: z.string().trim().max(2000).optional().or(z.literal("")),
   category: z.string().trim().max(80).optional().or(z.literal("")),
+  // likelihood/impact are the INHERENT (pre-mitigation) assessment.
   likelihood: z.enum(RISK_LEVELS),
   impact: z.enum(RISK_LEVELS),
+  // residual_* are optional (post-mitigation). "" = not yet assessed.
+  residual_likelihood: z.enum(RISK_LEVELS).optional().or(z.literal("")),
+  residual_impact: z.enum(RISK_LEVELS).optional().or(z.literal("")),
   status: z.enum(RISK_STATUSES),
   owner_email: z.string().trim().email("Enter a valid email").max(254).optional().or(z.literal("")),
   treatment: z.string().trim().max(2000).optional().or(z.literal("")),
+  // Controls that mitigate this risk (the link that grounds residual exposure).
+  controlIds: z.array(z.string().uuid()).max(200).optional().default([]),
 });
 
 export const TRAINING_STATUSES = ["assigned", "in_progress", "completed"] as const;

@@ -185,7 +185,7 @@ Features that directly close deals. Can follow Phase 1–3.
 
 **Shape.** Gated docs require email/NDA acceptance before a short-lived signed URL is issued; an access-request flow with rate-limiting; a public subprocessor list.
 
-### 4.5 Risk register depth (register → engine) 🟡
+### 4.5 Risk register depth (register → engine) 🟢 shipped (treatment→tasks deferred)
 **Why it matters.** Same shape of gap as vendors (§4.2). The risk register ([components/risks/RiskManager.tsx](../app/components/risks/RiskManager.tsx)) is a clean **manual register** — it auto-computes severity from `likelihood × impact` (good), but every risk is hand-typed from a blank box, floats **disconnected from the controls** that mitigate it, and the `treatment` field is just a paragraph with no tracking. Auditors expect a risk *assessment process*, not a list.
 
 **How the incumbents do it.** A risk **library/templates** so users pick from common framework risks instead of inventing them; **risk → control linking** (the control is the mitigation); **treatment plans as tracked tasks** with owners + due dates; a **risk matrix heat-map** view; and **inherent vs. residual** scoring (severity before mitigation vs. after).
@@ -198,6 +198,8 @@ Features that directly close deals. Can follow Phase 1–3.
 - **Heat-map view.** A likelihood × impact grid (the 3×3 matrix auditors ask for), each cell linking to its risks.
 
 **Acceptance.** Add a risk from the library → link it to 2 controls → set inherent High, residual Medium → completing the linked controls drops the residual badge → the risk shows on a heat-map → its treatment appears in the task inbox with an owner and due date.
+
+**Shipped (migration 0021).** `risks` gained `residual_likelihood/residual_impact` (existing fields = inherent); new `risk_controls` join (member-read / can_write RLS). The form has separate **Inherent** and **Residual** scoring blocks, a **control multi-select** (link the mitigating controls), and an **"add from library"** picker ([lib/risk-library.ts](../app/lib/risk-library.ts), 14 common risks). The list shows **inherent → residual** badges + linked-control count, a **3×3 heat-map** ([components/risks/RiskHeatmap.tsx](../app/components/risks/RiskHeatmap.tsx)) sits above it, and the dashboard risk alerts key off **residual** when set. [app/actions/risks.ts](../app/app/actions/risks.ts) replaces the link set on save. **Deferred:** treatment → spawned tracked task, and auto-deriving residual from linked-control completion (residual is set manually for now).
 
 **Edge cases →** EDGE_CASES §E9 (questionnaires) + §E11 (vendor questionnaires) + §E10 (policy lifecycle) + §E12 (trust depth) + §E13 (risk depth) · **Tests →** TESTING §46–§50
 

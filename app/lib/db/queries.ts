@@ -505,8 +505,10 @@ export interface Risk {
   title: string;
   description: string | null;
   category: string | null;
-  likelihood: RiskLevel;
-  impact: RiskLevel;
+  likelihood: RiskLevel; // inherent (pre-mitigation)
+  impact: RiskLevel; // inherent (pre-mitigation)
+  residual_likelihood: RiskLevel | null; // post-mitigation (optional)
+  residual_impact: RiskLevel | null; // post-mitigation (optional)
   status: RiskStatus;
   owner_email: string | null;
   treatment: string | null;
@@ -523,6 +525,24 @@ export async function listRisks(supabase: SupabaseClient, companyId: string): Pr
     .limit(300);
   if (error) throw error;
   return (data ?? []) as Risk[];
+}
+
+export interface RiskControlLink {
+  risk_id: string;
+  control_id: string;
+}
+
+/** All risk→control links for a company (the risk page maps these to control codes). */
+export async function listRiskControlLinks(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<RiskControlLink[]> {
+  const { data, error } = await supabase
+    .from("risk_controls")
+    .select("risk_id, control_id")
+    .eq("company_id", companyId);
+  if (error) throw error;
+  return (data ?? []) as RiskControlLink[];
 }
 
 // ---------- Training ----------

@@ -118,17 +118,21 @@ export function computeAlerts(
     }
   }
 
-  // Risks needing attention.
+  // Risks needing attention. Use the residual (post-mitigation) score when it's
+  // been assessed, otherwise the inherent score — so linked, mitigated controls
+  // actually lower the alerting level.
   for (const r of risks) {
     if (r.status === "closed" || r.status === "accepted") continue;
-    if (r.likelihood === "high" && r.impact === "high") {
+    const lk = r.residual_likelihood ?? r.likelihood;
+    const im = r.residual_impact ?? r.impact;
+    if (lk === "high" && im === "high") {
       alerts.push({
         id: `risk-critical-${r.id}`,
         severity: "high",
         title: "Critical risk open",
         detail: `"${r.title}" is high likelihood and high impact — prioritise treatment.`,
       });
-    } else if (r.status === "open" && (r.likelihood === "high" || r.impact === "high")) {
+    } else if (r.status === "open" && (lk === "high" || im === "high")) {
       alerts.push({
         id: `risk-elevated-${r.id}`,
         severity: "warning",
