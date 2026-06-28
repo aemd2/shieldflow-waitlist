@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { getCompanyForUser } from "@/lib/db/queries";
+import { getCompanyForUser, assertCanWrite } from "@/lib/db/queries";
 import { validateServiceAccount, fetchProjectSecurity, GcpError } from "@/lib/gcp";
 import { gcpSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -29,6 +29,8 @@ export async function connectGcp(input: { serviceAccountJson: string }) {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
   if (!isEncryptionConfigured()) return { error: ENCRYPTION_NOT_CONFIGURED };
 
   let projectId: string;
@@ -74,6 +76,8 @@ export async function syncGcp() {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
 
   if (!checkRateLimit(`gcp-sync:${company.id}`, 1, 60_000)) {
     return { error: "Already synced recently — try again in a minute." };

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { getCompanyForUser } from "@/lib/db/queries";
+import { getCompanyForUser, assertCanWrite } from "@/lib/db/queries";
 import { normalizeOktaHost, validateToken, fetchUserSecurity, OktaError } from "@/lib/okta";
 import { oktaSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -33,6 +33,8 @@ export async function connectOkta(input: { domain: string; token: string }) {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
   if (!isEncryptionConfigured()) return { error: ENCRYPTION_NOT_CONFIGURED };
 
   let org: string;
@@ -78,6 +80,8 @@ export async function syncOkta() {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
 
   if (!checkRateLimit(`okta-sync:${company.id}`, 1, 60_000)) {
     return { error: "Already synced recently — try again in a minute." };

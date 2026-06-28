@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { getCompanyForUser } from "@/lib/db/queries";
+import { getCompanyForUser, assertCanWrite } from "@/lib/db/queries";
 import { validateCredentials, fetchAccountSecurity, AwsError } from "@/lib/aws";
 import { awsCredentialsSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -39,6 +39,8 @@ export async function connectAWS(input: { accessKeyId: string; secretAccessKey: 
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
   if (!isEncryptionConfigured()) return { error: ENCRYPTION_NOT_CONFIGURED };
 
   let accountId: string;
@@ -90,6 +92,8 @@ export async function syncAWS() {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
 
   if (!checkRateLimit(`aws-sync:${company.id}`, 1, 60_000)) {
     return { error: "Already synced recently — try again in a minute." };
@@ -212,6 +216,8 @@ export async function disconnectAWS() {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
 
   const { error } = await supabase
     .from("integrations")

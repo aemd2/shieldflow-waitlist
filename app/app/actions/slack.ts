@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import {
   getCompanyForUser,
+  assertCanWrite,
   getControlsWithStatus,
   listFrameworks,
   listSelectedFrameworkIds,
@@ -49,6 +50,8 @@ export async function connectSlack(input: { webhookUrl: string }) {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
   if (!isEncryptionConfigured()) return { error: ENCRYPTION_NOT_CONFIGURED };
 
   try {
@@ -99,6 +102,8 @@ export async function sendComplianceDigest() {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
 
   if (!checkRateLimit(`slack-digest:${company.id}`, 1, 60_000)) {
     return { error: "A digest was just sent — try again in a minute." };
@@ -196,6 +201,8 @@ export async function disconnectSlack() {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
 
   const { error } = await supabase
     .from("integrations")

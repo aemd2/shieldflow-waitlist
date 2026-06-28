@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { getCompanyForUser } from "@/lib/db/queries";
+import { getCompanyForUser, assertCanWrite } from "@/lib/db/queries";
 import { validateToken, fetchZoneSecurity, CloudflareError } from "@/lib/cloudflare";
 import { cloudflareTokenSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -30,6 +30,8 @@ export async function connectCloudflare(input: { token: string }) {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
   if (!isEncryptionConfigured()) return { error: ENCRYPTION_NOT_CONFIGURED };
 
   try {
@@ -72,6 +74,8 @@ export async function syncCloudflare() {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
 
   if (!checkRateLimit(`cloudflare-sync:${company.id}`, 1, 60_000)) {
     return { error: "Already synced recently — try again in a minute." };

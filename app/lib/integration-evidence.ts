@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { getCompanyForUser } from "@/lib/db/queries";
+import { getCompanyForUser, assertCanWrite } from "@/lib/db/queries";
 import { logEvent } from "@/lib/audit";
 import { clearChecksForProvider } from "@/lib/checks";
 import { newUuid } from "@/lib/uuid";
@@ -94,6 +94,8 @@ export async function disconnectProvider(
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
 
   const { error } = await supabase
     .from("integrations")

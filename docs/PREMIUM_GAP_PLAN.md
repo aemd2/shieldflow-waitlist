@@ -131,12 +131,14 @@ A third of SOC 2 is about people, and it's currently a blank space.
 
 You charge €1,299 for "Enterprise." These are what that tier actually means.
 
-### 3.1 Granular RBAC + Auditor role & portal 🔴
+### 3.1 Granular RBAC + Auditor role & portal 🟢 shipped (core)
 **Why it matters.** Roles are owner/member only ([app/actions/team.ts](../app/actions/team.ts)). Enterprises need admin / contributor / viewer, and — the big one — a **read-only, time-boxed auditor** who can review evidence without seeing billing, secrets, or team management. Kills the screenshot-emailing dance.
 
 **Shape.** Extend the role enum; RLS policies per role; an auditor is read-only across controls/evidence/policies and **blocked server-side** (not just UI-hidden) from every write, plus billing/settings/team/integration-secrets. Auditor invites are time-boxed and auto-expire. The last owner can never be removed/downgraded.
 
 **Acceptance.** An auditor session can read finalized evidence and nothing else; every write and every admin surface is rejected at the server; access expires on schedule.
+
+**Shipped / verified.** Roles are owner/admin/member/**auditor** with `expires_at`; `getCallerAccess`/`assertCanWrite`/`canWrite` + a read-only banner. **Verified against the live DB this pass:** every company-scoped table's write policies use `can_write_company` (which excludes auditors + expired members) — so auditor writes are RLS-blocked everywhere, including `integrations`; `remove_member` is owner-only and **refuses to remove the company owner** (last-owner protection); auditor expiry already cuts all access. **Added this pass:** the friendly `assertCanWrite` gate on **every integration connect/sync/disconnect** (10 providers + the shared `disconnectProvider`) so auditors get a clean "read-only" message instead of a raw RLS error — defense-in-depth backing the RLS. **Deferred:** finer admin/contributor/viewer tiers beyond the 4 roles, and a dedicated branded auditor portal (auditors use the normal read-only app today).
 
 ### 3.2 SSO / SAML + SCIM 🔴
 **Why it matters.** Table-stakes for enterprise procurement; you only have consumer Google login.
