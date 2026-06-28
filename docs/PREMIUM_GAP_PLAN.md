@@ -48,14 +48,16 @@ Cheap, fast, and they unblock everything after them. Do these first.
 
 ---
 
-## Phase 1 — Continuous Control Testing (the core differentiator) 🔴
+## Phase 1 — Continuous Control Testing (the core differentiator) 🟢 shipped (Google sync + run-lock/scale deferred)
 
 This is the product. It makes the existing 10 integrations 10× more valuable.
 
-### 1.1 Structured findings from integrations 🔴
+### 1.1 Structured findings from integrations 🟢 shipped
 **Why it matters.** Right now a sync emits a human-readable CSV and stops. We need machine-readable findings the engine can reason over.
 
 **Shape.** Each sync writes rows to `integration_findings` (company_id, provider, check_key, value, observed_at, raw jsonb) — e.g. `aws / root_mfa_enabled / false`. The CSV stays as human evidence; the findings drive the engine.
+
+**Shipped (migration 0018).** `integration_findings` table (member-read RLS) + `record_integration_findings` SECURITY DEFINER RPC (replace-per-provider). `recordChecksForSync` now writes findings alongside checks on every manual sync, and the cron (1.4) writes them via the admin client. [lib/checks.ts](../app/lib/checks.ts).
 
 ### 1.2 Check engine: finding → control test → pass/fail 🟢 shipped
 **Why it matters.** This is the closed loop. A "check" maps one or more findings to one or more controls and evaluates pass / fail / inconclusive.
@@ -73,12 +75,14 @@ This is the product. It makes the existing 10 integrations 10× more valuable.
 
 **Shipped.** `listEvidence` now merges the integration reports linked via `control_checks.evidence_id` into a control's evidence list (tagged `source:"integration"`), and both `evidenceCounts` (dashboard badge + "completed without evidence" alert) and the control-detail count include them, de-duped per control. The control page shows these reports with an **Auto** badge and no manual delete (they're FK-referenced and auto-managed); download reuses the existing signed-URL action. [lib/db/queries.ts](../app/lib/db/queries.ts), [components/evidence/EvidenceList.tsx](../app/components/evidence/EvidenceList.tsx).
 
-### 1.4 Scheduled / continuous syncs 🔴
+### 1.4 Scheduled / continuous syncs 🟢 shipped (v1)
 **Why it matters.** "Continuous monitoring" is in the tagline but every sync is a manual button today. Premium = daily background re-sync + drift detection.
 
 **Shape.** A protected cron endpoint (Vercel Cron / Supabase scheduled function) authenticated by a secret header. Per-company, per-integration isolation so one bad token doesn't abort the batch; exponential backoff on permanently-erroring integrations; a run lock so overlapping invocations don't stack; skips churned/canceled accounts.
 
 **Acceptance.** The cron re-syncs all connected integrations, re-runs checks, and emits drift notifications; the endpoint 401s without the secret; a single revoked token flags that one company and the rest still sync.
+
+**Shipped (v1).** `GET|POST /api/cron/sync` ([app/api/cron/sync/route.ts](<../app/app/api/cron/sync/route.ts>)), `CRON_SECRET`-gated (401 without it), service-role admin client. Re-fetches posture for the 6 token-based providers (`aws/github/okta/gcp/cloudflare/gitlab` — Google OAuth is manual-only), re-evaluates checks via `recordChecksForSyncAdmin` (preserves the evidence link, writes findings), and emits **one drift digest per company** when a check crosses into/out of `fail` (in-app via `notifyCompanyViaAdmin`). Per-integration isolation; auth-errors flip that integration to `needs reconnect`. Scheduled by `app/vercel.json` (daily) — see [CRON_SETUP.md](./CRON_SETUP.md). **Deferred:** run-lock, backoff, pagination/queue at scale, and email drift digests (needs `RESEND_API_KEY`); a sub-daily `pg_cron` recipe is in CRON_SETUP.
 
 **Edge cases →** EDGE_CASES §E2 (engine) + §E3 (scheduler) · **Tests →** TESTING §38 (engine) + §39 (scheduler)
 

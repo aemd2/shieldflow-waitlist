@@ -85,3 +85,50 @@ function escapeHtml(s: string): string {
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string),
   );
 }
+
+/**
+ * Service-role notification fan-out for sessionless paths (the sync cron). The
+ * notify_users() RPC can't be used here because it derives membership from
+ * auth.uid(), which a service-role client doesn't have — so we insert in-app rows
+ * directly (the admin client bypasses RLS), honoring each member's in-app pref.
+ * In-app only and best-effort; never throws.
+ */
+export async function notifyCompanyViaAdmin(
+  admin: SupabaseClient,
+  companyId: string,
+  payload: NotifyPayload,
+): Promise<void> {
+  try {
+    const { data: members } = await admin
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", companyId);
+    const ids = (members ?? []).map((m: { user_id: string }) => m.user_id);
+    if (ids.length === 0) return;
+
+    const { data: prefs } = await admin
+      .from("notification_prefs")
+      .select("user_id, in_app_enabled")
+      .eq("company_id", companyId)
+      .eq("type", payload.type);
+    const optedOut = new Set(
+      (prefs ?? [])
+        .filter((p: { in_app_enabled: boolean }) => p.in_app_enabled === false)
+        .map((p: { user_id: string }) => p.user_id),
+    );
+
+    const rows = ids
+      .filter((id) => !optedOut.has(id))
+      .map((id) => ({
+        company_id: companyId,
+        user_id: id,
+        type: payload.type,
+        title: payload.title,
+        body: payload.body ?? null,
+        link: payload.link ?? null,
+      }));
+    if (rows.length > 0) await admin.from("notifications").insert(rows);
+  } catch {
+    // best-effort
+  }
+}
