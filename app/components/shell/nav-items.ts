@@ -14,6 +14,7 @@ import {
   ListChecks,
   ClipboardList,
   UserCheck,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -31,6 +32,7 @@ export const NAV: NavItem[] = [
   { href: "/risks", label: "Risk Register", icon: ShieldAlert },
   { href: "/tasks", label: "Tasks", icon: ListChecks },
   { href: "/training", label: "Training", icon: GraduationCap },
+  { href: "/personnel", label: "Personnel", icon: Users },
   { href: "/access-reviews", label: "Access reviews", icon: UserCheck },
   { href: "/reports", label: "Reports", icon: FileBarChart },
   { href: "/activity", label: "Activity", icon: History },

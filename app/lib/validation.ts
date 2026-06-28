@@ -350,6 +350,21 @@ export const subprocessorSchema = z.object({
   url: z.string().trim().url("Enter a full URL (https://...)").max(300).optional().or(z.literal("")),
 });
 
+// ---------- Personnel roster ----------
+export const PERSONNEL_STATUSES = ["active", "offboarded"] as const;
+
+export const personnelSchema = z.object({
+  name: z.string().trim().min(2, "Name is too short").max(120),
+  email: z.string().trim().toLowerCase().email("Enter a valid email").max(254).optional().or(z.literal("")),
+  role_title: z.string().trim().max(120).optional().or(z.literal("")),
+  started_at: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+    .refine(isRealDate, "That date doesn't exist - pick a date between 2000 and 2100")
+    .optional()
+    .or(z.literal("")),
+});
+
 // Public access-request form (anonymous; submitted through the rate-limited route).
 export const trustAccessRequestSchema = z.object({
   slug: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{3,60}$/, "Invalid page"),

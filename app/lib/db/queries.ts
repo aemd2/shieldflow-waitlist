@@ -995,6 +995,36 @@ export async function listTrustAccessRequests(
   return (data ?? []) as TrustAccessRequest[];
 }
 
+// ---------- Personnel roster ----------
+
+export type PersonnelStatus = "active" | "offboarded";
+
+export interface Person {
+  id: string;
+  company_id: string;
+  name: string;
+  email: string | null;
+  role_title: string | null;
+  status: PersonnelStatus;
+  started_at: string | null;
+  ended_at: string | null;
+  created_at: string;
+}
+
+export async function listPersonnel(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<Person[]> {
+  const { data, error } = await supabase
+    .from("personnel")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("name", { ascending: true })
+    .limit(2000);
+  if (error) throw error;
+  return (data ?? []) as Person[];
+}
+
 // ---------- Tasks ----------
 
 export type TaskStatus = "todo" | "in_progress" | "done";

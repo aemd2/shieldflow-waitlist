@@ -92,10 +92,12 @@ This is the product. It makes the existing 10 integrations 10× more valuable.
 
 A third of SOC 2 is about people, and it's currently a blank space.
 
-### 2.1 HRIS / personnel roster 🟡
+### 2.1 HRIS / personnel roster 🟢 shipped (v1)
 **Why it matters.** Auditors want a roster: who works here, when they joined/left, did they finish security training, did they accept the policies. Training exists; the roster and the rest don't.
 
 **Shape.** `personnel` table (can seed from Okta/Google directory or HRIS later). Links to training records and policy attestations. Onboarding/offboarding checklist per person.
+
+**Shipped (migration 0026).** `personnel` table (member/can_write RLS). `/personnel` roster ([components/personnel/PersonnelManager.tsx](../app/components/personnel/PersonnelManager.tsx)) with name/email/role/start-date, an **offboard** action (sets status + end date) and reactivate, active vs offboarded grouping, and **per-person security-training status** matched to `training_records` by email. Nav entry. [app/actions/personnel.ts](../app/app/actions/personnel.ts). **Deferred:** auto-seed from Okta/Google directory, per-person onboarding/offboarding checklist, and linking policy acknowledgements to roster people (acks are by app-user today).
 
 ### 2.2 Access reviews 🟢 shipped (v1)
 **Why it matters.** "Periodic access review" is a named control in every framework. Today there's no way to run one.
