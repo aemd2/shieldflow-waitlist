@@ -232,6 +232,68 @@ interface ResultRow {
   evidence_id: string | null;
 }
 
+interface FindingRow {
+  check_key: string;
+  result: CheckResultValue;
+  detail: string;
+  raw: { control_codes: string[] };
+}
+
+/** Evaluate a provider's posture into raw checks (null if the provider has no evaluator). */
+function rawChecksFor(provider: string, posture: unknown): RawCheck[] | null {
+  const evaluator = EVALUATORS[provider];
+  if (!evaluator) return null;
+  return evaluator(posture);
+}
+
+/** Map every control code in the company's selected frameworks to its control id. */
+async function loadCodeToId(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<Map<string, string>> {
+  const frameworkIds = await listSelectedFrameworkIds(supabase, companyId);
+  const codeToId = new Map<string, string>();
+  if (frameworkIds.length === 0) return codeToId;
+  const { data: controls } = await supabase
+    .from("controls")
+    .select("id, code")
+    .in("framework_id", frameworkIds);
+  for (const c of controls ?? []) codeToId.set((c as any).code, (c as any).id);
+  return codeToId;
+}
+
+/** Fan each raw check out to every selected-framework control it satisfies. */
+function buildResults(
+  raw: RawCheck[],
+  codeToId: Map<string, string>,
+  evidenceId: string | null,
+): ResultRow[] {
+  const results: ResultRow[] = [];
+  for (const rc of raw) {
+    for (const code of rc.controlCodes) {
+      const controlId = codeToId.get(code);
+      if (!controlId) continue;
+      results.push({
+        control_id: controlId,
+        check_key: rc.checkKey,
+        result: rc.result,
+        detail: rc.detail,
+        evidence_id: evidenceId,
+      });
+    }
+  }
+  return results;
+}
+
+function buildFindings(raw: RawCheck[]): FindingRow[] {
+  return raw.map((rc) => ({
+    check_key: rc.checkKey,
+    result: rc.result,
+    detail: rc.detail,
+    raw: { control_codes: rc.controlCodes },
+  }));
+}
+
 async function callRecord(
   supabase: SupabaseClient,
   companyId: string,
@@ -246,9 +308,9 @@ async function callRecord(
 }
 
 /**
- * Evaluate a sync's posture into checks, resolve each control code to the
- * company's actual control rows, and persist the verdicts. Best-effort: a failure
- * here never breaks the sync that called it (mirrors logEvent).
+ * Manual-sync path (user session). Evaluate a sync's posture into checks +
+ * findings and persist both through the SECURITY DEFINER RPCs (the tamper-safe
+ * writers). Best-effort: a failure here never breaks the sync that called it.
  */
 export async function recordChecksForSync(
   supabase: SupabaseClient,
@@ -258,46 +320,76 @@ export async function recordChecksForSync(
   evidenceId: string | null,
 ): Promise<void> {
   try {
-    const evaluator = EVALUATORS[provider];
-    if (!evaluator) return;
-    const raw = evaluator(posture);
-
-    const frameworkIds = await listSelectedFrameworkIds(supabase, companyId);
-    if (frameworkIds.length === 0) {
-      await callRecord(supabase, companyId, provider, []);
-      return;
-    }
-
-    const { data: controls } = await supabase
-      .from("controls")
-      .select("id, code")
-      .in("framework_id", frameworkIds);
-
-    const codeToId = new Map<string, string>();
-    for (const c of controls ?? []) codeToId.set((c as any).code, (c as any).id);
-
-    const results: ResultRow[] = [];
-    for (const rc of raw) {
-      for (const code of rc.controlCodes) {
-        const controlId = codeToId.get(code);
-        if (!controlId) continue;
-        results.push({
-          control_id: controlId,
-          check_key: rc.checkKey,
-          result: rc.result,
-          detail: rc.detail,
-          evidence_id: evidenceId,
-        });
-      }
-    }
-
-    await callRecord(supabase, companyId, provider, results);
+    const raw = rawChecksFor(provider, posture);
+    if (!raw) return;
+    const codeToId = await loadCodeToId(supabase, companyId);
+    await callRecord(supabase, companyId, provider, buildResults(raw, codeToId, evidenceId));
+    await supabase.rpc("record_integration_findings", {
+      p_company_id: companyId,
+      p_provider: provider,
+      p_findings: buildFindings(raw),
+    });
   } catch {
     // Never let check recording break a sync.
   }
 }
 
-/** Clear a provider's checks (used on disconnect so no stale "pass" lingers). */
+/**
+ * Cron path (service-role admin client, no user session). Writes the same checks
+ * + findings directly — the admin client bypasses RLS, and the RPCs can't be used
+ * because they gate on the caller's auth.uid(). Returns the raw checks so the
+ * caller can diff against the prior results for drift detection. Preserves the
+ * evidence_id link so the report stays attached to its controls.
+ */
+export async function recordChecksForSyncAdmin(
+  admin: SupabaseClient,
+  companyId: string,
+  provider: string,
+  posture: unknown,
+  evidenceId: string | null,
+): Promise<RawCheck[]> {
+  const raw = rawChecksFor(provider, posture);
+  if (!raw) return [];
+
+  const codeToId = await loadCodeToId(admin, companyId);
+  const results = buildResults(raw, codeToId, evidenceId);
+
+  // Replace this provider's checks (delete + insert), mirroring record_control_checks.
+  await admin.from("control_checks").delete().eq("company_id", companyId).eq("provider", provider);
+  if (results.length > 0) {
+    await admin.from("control_checks").insert(
+      results.map((r) => ({
+        company_id: companyId,
+        control_id: r.control_id,
+        check_key: r.check_key,
+        provider,
+        result: r.result,
+        detail: r.detail,
+        evidence_id: r.evidence_id,
+      })),
+    );
+  }
+
+  // Replace this provider's findings.
+  await admin.from("integration_findings").delete().eq("company_id", companyId).eq("provider", provider);
+  const findings = buildFindings(raw);
+  if (findings.length > 0) {
+    await admin.from("integration_findings").insert(
+      findings.map((f) => ({
+        company_id: companyId,
+        provider,
+        check_key: f.check_key,
+        result: f.result,
+        detail: f.detail,
+        raw: f.raw,
+      })),
+    );
+  }
+
+  return raw;
+}
+
+/** Clear a provider's checks + findings (used on disconnect so no stale data lingers). */
 export async function clearChecksForProvider(
   supabase: SupabaseClient,
   companyId: string,
@@ -305,6 +397,11 @@ export async function clearChecksForProvider(
 ): Promise<void> {
   try {
     await callRecord(supabase, companyId, provider, []);
+    await supabase.rpc("record_integration_findings", {
+      p_company_id: companyId,
+      p_provider: provider,
+      p_findings: [],
+    });
   } catch {
     // Best-effort.
   }

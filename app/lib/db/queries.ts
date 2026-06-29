@@ -42,6 +42,9 @@ export interface Evidence {
   note: string | null;
   uploaded_by: string | null;
   created_at: string;
+  /** Set by listEvidence: "manual" = user-uploaded (control_id matches), "integration"
+   * = auto-collected report linked to this control via a control_checks row. */
+  source?: "manual" | "integration";
 }
 
 export interface Policy {
@@ -54,6 +57,12 @@ export interface Policy {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  // Approval + acknowledgement lifecycle (migration 0020).
+  approved_by: string | null;
+  approved_at: string | null;
+  version: number;
+  published_at: string | null;
+  review_cadence_months: number | null;
 }
 
 export interface CopilotMessage {
@@ -186,21 +195,44 @@ function mapControlRow(row: any, evidenceCount: number): ControlWithStatus {
   };
 }
 
-/** Map of control_id -> evidence count for a company (single query). */
+/**
+ * Map of control_id -> evidence count for a company. Counts both manually
+ * uploaded evidence (evidence.control_id) and the auto-collected integration
+ * reports linked to a control through its automated checks
+ * (control_checks.evidence_id) — one CSV can back several checks, so those are
+ * de-duplicated per control.
+ */
 async function evidenceCounts(
   supabase: SupabaseClient,
   companyId: string,
 ): Promise<Record<string, number>> {
-  const { data, error } = await supabase
-    .from("evidence")
-    .select("control_id")
-    .eq("company_id", companyId)
-    .not("control_id", "is", null);
+  const [{ data: manual, error }, { data: checkRows }] = await Promise.all([
+    supabase
+      .from("evidence")
+      .select("control_id")
+      .eq("company_id", companyId)
+      .not("control_id", "is", null),
+    supabase
+      .from("control_checks")
+      .select("control_id, evidence_id")
+      .eq("company_id", companyId)
+      .not("evidence_id", "is", null),
+  ]);
   if (error) throw error;
+
   const counts: Record<string, number> = {};
-  for (const row of data ?? []) {
+  for (const row of manual ?? []) {
     const cid = (row as any).control_id as string;
     counts[cid] = (counts[cid] ?? 0) + 1;
+  }
+
+  const seen: Record<string, Set<string>> = {};
+  for (const row of checkRows ?? []) {
+    const cid = (row as any).control_id as string;
+    (seen[cid] ??= new Set<string>()).add((row as any).evidence_id as string);
+  }
+  for (const [cid, set] of Object.entries(seen)) {
+    counts[cid] = (counts[cid] ?? 0) + set.size;
   }
   return counts;
 }
@@ -234,13 +266,23 @@ export async function getControlWithStatus(
   if (error) throw error;
   if (!data) return null;
 
-  const { count } = await supabase
-    .from("evidence")
-    .select("id", { count: "exact", head: true })
-    .eq("company_id", companyId)
-    .eq("control_id", controlId);
+  const [{ count }, { data: checkRows }] = await Promise.all([
+    supabase
+      .from("evidence")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .eq("control_id", controlId),
+    supabase
+      .from("control_checks")
+      .select("evidence_id")
+      .eq("company_id", companyId)
+      .eq("control_id", controlId)
+      .not("evidence_id", "is", null),
+  ]);
+  // Distinct integration reports backing this control's checks count as evidence too.
+  const integrationCount = new Set((checkRows ?? []).map((r: any) => r.evidence_id as string)).size;
 
-  return mapControlRow(data, count ?? 0);
+  return mapControlRow(data, (count ?? 0) + integrationCount);
 }
 
 export async function setControlStatus(
@@ -304,6 +346,7 @@ export async function listEvidence(
   companyId: string,
   controlId: string,
 ): Promise<Evidence[]> {
+  // Manually uploaded evidence attached directly to this control.
   const { data, error } = await supabase
     .from("evidence")
     .select("*")
@@ -312,7 +355,33 @@ export async function listEvidence(
     .order("created_at", { ascending: false })
     .limit(200); // sanity cap — keeps a runaway control page renderable
   if (error) throw error;
-  return (data ?? []) as Evidence[];
+
+  // Auto-collected integration reports linked to this control through its
+  // automated checks. The CSV is filed with control_id=null, so the link lives in
+  // control_checks.evidence_id; one report can back several checks → dedupe.
+  const { data: checkRows } = await supabase
+    .from("control_checks")
+    .select("evidence_id")
+    .eq("company_id", companyId)
+    .eq("control_id", controlId)
+    .not("evidence_id", "is", null);
+  const ids = [...new Set((checkRows ?? []).map((r: any) => r.evidence_id as string))];
+
+  let integration: Evidence[] = [];
+  if (ids.length > 0) {
+    const { data: ev } = await supabase
+      .from("evidence")
+      .select("*")
+      .eq("company_id", companyId)
+      .in("id", ids);
+    integration = (ev ?? []) as Evidence[];
+  }
+
+  const manualList = ((data ?? []) as Evidence[]).map((e) => ({ ...e, source: "manual" as const }));
+  const integrationList = integration.map((e) => ({ ...e, source: "integration" as const }));
+  return [...manualList, ...integrationList].sort((a, b) =>
+    a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0,
+  );
 }
 
 export async function listAllEvidence(
@@ -345,6 +414,39 @@ export async function listPolicies(
   return (data ?? []) as Policy[];
 }
 
+export interface PolicyAck {
+  policy_id: string;
+  version: number;
+  user_id: string;
+}
+
+/** Every acknowledgement row for a company (the policies page derives per-policy
+ * "N of M acknowledged" + whether the current user has acknowledged). */
+export async function listPolicyAcknowledgements(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<PolicyAck[]> {
+  const { data, error } = await supabase
+    .from("policy_acknowledgements")
+    .select("policy_id, version, user_id")
+    .eq("company_id", companyId);
+  if (error) throw error;
+  return (data ?? []) as PolicyAck[];
+}
+
+/** Number of people on the team — the denominator for policy acknowledgement. */
+export async function getCompanyMemberCount(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<number> {
+  const { count, error } = await supabase
+    .from("company_members")
+    .select("user_id", { count: "exact", head: true })
+    .eq("company_id", companyId);
+  if (error) return 0;
+  return count ?? 0;
+}
+
 export async function getPolicy(
   supabase: SupabaseClient,
   companyId: string,
@@ -365,6 +467,9 @@ export async function getPolicy(
 export type VendorRisk = "low" | "medium" | "high" | "critical";
 export type VendorStatus = "active" | "under_review" | "offboarded";
 
+export type VendorSoc2Status = "none" | "requested" | "on_file";
+export type VendorDataSensitivity = "none" | "internal" | "pii" | "phi";
+
 export interface Vendor {
   id: string;
   company_id: string;
@@ -376,6 +481,11 @@ export interface Vendor {
   notes: string | null;
   reviewed_at: string | null;
   created_at: string;
+  contact_email: string | null;
+  review_cadence_months: number | null;
+  soc2_status: VendorSoc2Status;
+  soc2_expires_at: string | null;
+  data_sensitivity: VendorDataSensitivity;
 }
 
 export async function listVendors(
@@ -403,8 +513,10 @@ export interface Risk {
   title: string;
   description: string | null;
   category: string | null;
-  likelihood: RiskLevel;
-  impact: RiskLevel;
+  likelihood: RiskLevel; // inherent (pre-mitigation)
+  impact: RiskLevel; // inherent (pre-mitigation)
+  residual_likelihood: RiskLevel | null; // post-mitigation (optional)
+  residual_impact: RiskLevel | null; // post-mitigation (optional)
   status: RiskStatus;
   owner_email: string | null;
   treatment: string | null;
@@ -421,6 +533,24 @@ export async function listRisks(supabase: SupabaseClient, companyId: string): Pr
     .limit(300);
   if (error) throw error;
   return (data ?? []) as Risk[];
+}
+
+export interface RiskControlLink {
+  risk_id: string;
+  control_id: string;
+}
+
+/** All risk→control links for a company (the risk page maps these to control codes). */
+export async function listRiskControlLinks(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<RiskControlLink[]> {
+  const { data, error } = await supabase
+    .from("risk_controls")
+    .select("risk_id, control_id")
+    .eq("company_id", companyId);
+  if (error) throw error;
+  return (data ?? []) as RiskControlLink[];
 }
 
 // ---------- Training ----------
@@ -631,4 +761,325 @@ export async function listAuditEvents(
     .limit(opts.limit ?? 200);
   if (error) throw error;
   return (data ?? []) as AuditEvent[];
+}
+
+// ---------- Notifications ----------
+
+export interface Notification {
+  id: string;
+  company_id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface NotificationPref {
+  type: string;
+  email_enabled: boolean;
+  in_app_enabled: boolean;
+}
+
+/** Newest-first notifications for the caller in a company. RLS already restricts
+ * rows to the signed-in user; the company filter keeps it scoped to this workspace. */
+export async function listNotifications(
+  supabase: SupabaseClient,
+  userId: string,
+  companyId: string,
+  limit = 50,
+): Promise<Notification[]> {
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as Notification[];
+}
+
+/** Unread count for the bell badge. Best-effort: returns 0 on any error so the
+ * shell never crashes over a notification read. */
+export async function countUnreadNotifications(
+  supabase: SupabaseClient,
+  userId: string,
+  companyId: string,
+): Promise<number> {
+  const { count, error } = await supabase
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .is("read_at", null);
+  if (error) return 0;
+  return count ?? 0;
+}
+
+/** The caller's per-category delivery preferences (missing row = opted in). */
+export async function listNotificationPrefs(
+  supabase: SupabaseClient,
+  userId: string,
+  companyId: string,
+): Promise<NotificationPref[]> {
+  const { data, error } = await supabase
+    .from("notification_prefs")
+    .select("type, email_enabled, in_app_enabled")
+    .eq("user_id", userId)
+    .eq("company_id", companyId);
+  if (error) throw error;
+  return (data ?? []) as NotificationPref[];
+}
+
+// ---------- Security questionnaires ----------
+
+export type QuestionnaireItemStatus = "draft" | "needs_review" | "approved";
+
+export interface Questionnaire {
+  id: string;
+  company_id: string;
+  name: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface QuestionnaireItem {
+  id: string;
+  questionnaire_id: string;
+  company_id: string;
+  position: number;
+  question: string;
+  answer: string | null;
+  status: QuestionnaireItemStatus;
+  created_at: string;
+}
+
+export async function listQuestionnaires(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<Questionnaire[]> {
+  const { data, error } = await supabase
+    .from("questionnaires")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return (data ?? []) as Questionnaire[];
+}
+
+/** All items across a company's questionnaires (the workspace groups by questionnaire). */
+export async function listQuestionnaireItems(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<QuestionnaireItem[]> {
+  const { data, error } = await supabase
+    .from("questionnaire_items")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("position", { ascending: true })
+    .limit(2000);
+  if (error) throw error;
+  return (data ?? []) as QuestionnaireItem[];
+}
+
+// ---------- Access reviews ----------
+
+export type AccessReviewStatus = "open" | "completed";
+export type AccessDecision = "pending" | "keep" | "revoke";
+
+export interface AccessReview {
+  id: string;
+  company_id: string;
+  name: string;
+  source: string | null;
+  reviewer_email: string | null;
+  status: AccessReviewStatus;
+  started_at: string;
+  completed_at: string | null;
+  evidence_id: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface AccessReviewItem {
+  id: string;
+  review_id: string;
+  company_id: string;
+  subject: string;
+  access: string | null;
+  decision: AccessDecision;
+  note: string | null;
+  decided_at: string | null;
+}
+
+export async function listAccessReviews(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<AccessReview[]> {
+  const { data, error } = await supabase
+    .from("access_reviews")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return (data ?? []) as AccessReview[];
+}
+
+export async function listAccessReviewItems(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<AccessReviewItem[]> {
+  const { data, error } = await supabase
+    .from("access_review_items")
+    .select("*")
+    .eq("company_id", companyId)
+    .limit(5000);
+  if (error) throw error;
+  return (data ?? []) as AccessReviewItem[];
+}
+
+// ---------- Trust Center depth ----------
+
+export interface Subprocessor {
+  id: string;
+  company_id: string;
+  name: string;
+  purpose: string | null;
+  location: string | null;
+  url: string | null;
+  created_at: string;
+}
+
+export type TrustRequestStatus = "new" | "approved" | "declined";
+
+export interface TrustAccessRequest {
+  id: string;
+  company_id: string;
+  email: string;
+  name: string | null;
+  requester_company: string | null;
+  message: string | null;
+  status: TrustRequestStatus;
+  created_at: string;
+}
+
+export async function listSubprocessors(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<Subprocessor[]> {
+  const { data, error } = await supabase
+    .from("subprocessors")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as Subprocessor[];
+}
+
+export async function listTrustAccessRequests(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<TrustAccessRequest[]> {
+  const { data, error } = await supabase
+    .from("trust_access_requests")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  return (data ?? []) as TrustAccessRequest[];
+}
+
+// ---------- Personnel roster ----------
+
+export type PersonnelStatus = "active" | "offboarded";
+
+export interface Person {
+  id: string;
+  company_id: string;
+  name: string;
+  email: string | null;
+  role_title: string | null;
+  status: PersonnelStatus;
+  started_at: string | null;
+  ended_at: string | null;
+  created_at: string;
+}
+
+export async function listPersonnel(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<Person[]> {
+  const { data, error } = await supabase
+    .from("personnel")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("name", { ascending: true })
+    .limit(2000);
+  if (error) throw error;
+  return (data ?? []) as Person[];
+}
+
+// ---------- SSO domains ----------
+
+export interface SsoDomain {
+  id: string;
+  company_id: string;
+  domain: string;
+  verified: boolean;
+  created_at: string;
+}
+
+export async function listSsoDomains(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<SsoDomain[]> {
+  const { data, error } = await supabase
+    .from("company_sso_domains")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as SsoDomain[];
+}
+
+// ---------- Tasks ----------
+
+export type TaskStatus = "todo" | "in_progress" | "done";
+export type TaskPriority = "low" | "medium" | "high";
+export type TaskRecurrence = "none" | "weekly" | "monthly" | "quarterly" | "annually";
+
+export interface Task {
+  id: string;
+  company_id: string;
+  title: string;
+  description: string | null;
+  assignee_email: string | null;
+  priority: TaskPriority;
+  status: TaskStatus;
+  due_date: string | null;
+  recurrence: TaskRecurrence;
+  linked_type: string | null;
+  linked_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+/** Company tasks, soonest due first (no due date last), newest as tiebreaker. The
+ * UI separates done from active. */
+export async function listTasks(supabase: SupabaseClient, companyId: string): Promise<Task[]> {
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("due_date", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Task[];
 }

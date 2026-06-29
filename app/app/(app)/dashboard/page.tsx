@@ -9,6 +9,10 @@ import {
   listRisks,
   listTraining,
   getControlChecks,
+  listTasks,
+  listPolicies,
+  listPolicyAcknowledgements,
+  getCompanyMemberCount,
 } from "@/lib/db/queries";
 import { computeScore, countStatuses } from "@/lib/score";
 import { computeAlerts } from "@/lib/monitoring";
@@ -24,15 +28,20 @@ export default async function DashboardPage() {
   const company = await getCompanyForUser(supabase, user.id);
   if (!company) redirect("/onboarding");
 
-  const [controls, allFrameworks, selectedIds, vendors, risks, training, checks] = await Promise.all([
-    getControlsWithStatus(supabase, company.id),
-    listFrameworks(supabase),
-    listSelectedFrameworkIds(supabase, company.id),
-    listVendors(supabase, company.id),
-    listRisks(supabase, company.id),
-    listTraining(supabase, company.id),
-    getControlChecks(supabase, company.id),
-  ]);
+  const [controls, allFrameworks, selectedIds, vendors, risks, training, checks, tasks, policies, policyAcks, memberCount] =
+    await Promise.all([
+      getControlsWithStatus(supabase, company.id),
+      listFrameworks(supabase),
+      listSelectedFrameworkIds(supabase, company.id),
+      listVendors(supabase, company.id),
+      listRisks(supabase, company.id),
+      listTraining(supabase, company.id),
+      getControlChecks(supabase, company.id),
+      listTasks(supabase, company.id),
+      listPolicies(supabase, company.id),
+      listPolicyAcknowledgements(supabase, company.id),
+      getCompanyMemberCount(supabase, company.id),
+    ]);
 
   const frameworks = allFrameworks.filter((f) => selectedIds.includes(f.id));
 
@@ -46,7 +55,18 @@ export default async function DashboardPage() {
     return { name: f.name, pct: computeScore(subset) };
   });
 
-  const alerts = computeAlerts(controls, frameworkProgress, vendors, risks, training, checks);
+  const alerts = computeAlerts(
+    controls,
+    frameworkProgress,
+    vendors,
+    risks,
+    training,
+    checks,
+    tasks,
+    policies,
+    policyAcks,
+    memberCount,
+  );
 
   // Distinct automated checks by key (one posture finding maps to several controls).
   const checkByKey = new Map<string, string>();

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { getCompanyForUser } from "@/lib/db/queries";
+import { getCompanyForUser, assertCanWrite } from "@/lib/db/queries";
 import {
   fetchWorkspaceUsers,
   refreshAccessToken,
@@ -39,6 +39,8 @@ export async function syncGoogleWorkspace() {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
 
   // Syncing hammers Google's API — once per minute per company is plenty.
   if (!checkRateLimit(`gws-sync:${company.id}`, 1, 60_000)) {
@@ -168,6 +170,8 @@ export async function disconnectGoogleWorkspace() {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
 
   const { error } = await supabase
     .from("integrations")

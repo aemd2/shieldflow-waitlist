@@ -5,6 +5,8 @@ import {
   listFrameworks,
   listSelectedFrameworkIds,
   listPolicies,
+  listPolicyAcknowledgements,
+  getCompanyMemberCount,
   getCallerAccess,
 } from "@/lib/db/queries";
 import { isGroqConfigured } from "@/lib/groq";
@@ -18,14 +20,17 @@ export default async function PoliciesPage() {
   const company = await getCompanyForUser(supabase, user.id);
   if (!company) redirect("/onboarding");
 
-  const [policies, allFrameworks, selectedIds, access] = await Promise.all([
+  const [policies, allFrameworks, selectedIds, access, acks, memberCount] = await Promise.all([
     listPolicies(supabase, company.id),
     listFrameworks(supabase),
     listSelectedFrameworkIds(supabase, company.id),
     getCallerAccess(supabase, company.id, user.id),
+    listPolicyAcknowledgements(supabase, company.id),
+    getCompanyMemberCount(supabase, company.id),
   ]);
   const frameworks = allFrameworks.filter((f) => selectedIds.includes(f.id));
   const canWrite = access?.canWrite ?? false;
+  const canApprove = access?.role === "owner" || access?.role === "admin";
 
   return (
     <div className="space-y-6">
@@ -49,6 +54,10 @@ export default async function PoliciesPage() {
         policies={policies}
         aiEnabled={isGroqConfigured()}
         canWrite={canWrite}
+        canApprove={canApprove}
+        acks={acks}
+        memberCount={memberCount}
+        currentUserId={user.id}
       />
     </div>
   );

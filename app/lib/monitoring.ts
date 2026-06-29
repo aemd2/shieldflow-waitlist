@@ -1,4 +1,13 @@
-import type { ControlWithStatus, Vendor, Risk, TrainingRecord, ControlCheck } from "@/lib/db/queries";
+import type {
+  ControlWithStatus,
+  Vendor,
+  Risk,
+  TrainingRecord,
+  ControlCheck,
+  Task,
+  Policy,
+  PolicyAck,
+} from "@/lib/db/queries";
 
 export type AlertSeverity = "high" | "warning" | "info";
 
@@ -23,6 +32,10 @@ export function computeAlerts(
   risks: Risk[] = [],
   training: TrainingRecord[] = [],
   checks: ControlCheck[] = [],
+  tasks: Task[] = [],
+  policies: Policy[] = [],
+  policyAcks: PolicyAck[] = [],
+  memberCount = 0,
 ): Alert[] {
   const alerts: Alert[] = [];
   const today = new Date();
@@ -103,19 +116,47 @@ export function computeAlerts(
         detail: `${v.name} is active with ${v.risk_level} risk — consider mitigations or review.`,
       });
     }
+
+    // Review cadence + SOC 2 freshness (offboarded vendors don't need either).
+    if (v.status !== "offboarded") {
+      if (v.reviewed_at && v.review_cadence_months) {
+        const next = new Date(v.reviewed_at);
+        next.setMonth(next.getMonth() + v.review_cadence_months);
+        if (next < today) {
+          alerts.push({
+            id: `vendor-cadence-${v.id}`,
+            severity: "warning",
+            title: "Vendor review overdue",
+            detail: `${v.name} was last reviewed ${v.reviewed_at}, past its ${v.review_cadence_months}-month cadence.`,
+          });
+        }
+      }
+      if (v.soc2_status === "on_file" && v.soc2_expires_at && new Date(v.soc2_expires_at) < today) {
+        alerts.push({
+          id: `vendor-soc2-${v.id}`,
+          severity: "warning",
+          title: "Vendor SOC 2 expired",
+          detail: `${v.name}'s SOC 2 report expired ${v.soc2_expires_at} — request a current report.`,
+        });
+      }
+    }
   }
 
-  // Risks needing attention.
+  // Risks needing attention. Use the residual (post-mitigation) score when it's
+  // been assessed, otherwise the inherent score — so linked, mitigated controls
+  // actually lower the alerting level.
   for (const r of risks) {
     if (r.status === "closed" || r.status === "accepted") continue;
-    if (r.likelihood === "high" && r.impact === "high") {
+    const lk = r.residual_likelihood ?? r.likelihood;
+    const im = r.residual_impact ?? r.impact;
+    if (lk === "high" && im === "high") {
       alerts.push({
         id: `risk-critical-${r.id}`,
         severity: "high",
         title: "Critical risk open",
         detail: `"${r.title}" is high likelihood and high impact — prioritise treatment.`,
       });
-    } else if (r.status === "open" && (r.likelihood === "high" || r.impact === "high")) {
+    } else if (r.status === "open" && (lk === "high" || im === "high")) {
       alerts.push({
         id: `risk-elevated-${r.id}`,
         severity: "warning",
@@ -136,6 +177,45 @@ export function computeAlerts(
       title: "Training overdue",
       detail: `${overdueTraining.length} training assignment${overdueTraining.length > 1 ? "s are" : " is"} past due.`,
     });
+  }
+
+  // Tasks overdue (aggregated, like training, so a stale backlog isn't a wall).
+  const overdueTasks = tasks.filter(
+    (t) => t.status !== "done" && t.due_date && new Date(t.due_date) < today,
+  );
+  if (overdueTasks.length > 0) {
+    alerts.push({
+      id: "tasks-overdue",
+      severity: "warning",
+      title: "Tasks overdue",
+      detail: `${overdueTasks.length} task${overdueTasks.length > 1 ? "s are" : " is"} past due.`,
+    });
+  }
+
+  // Published policies awaiting full acknowledgement, and policies due for review.
+  for (const p of policies) {
+    if (!p.published_at) continue;
+    const acked = policyAcks.filter((a) => a.policy_id === p.id && a.version === p.version).length;
+    if (memberCount > 0 && acked < memberCount) {
+      alerts.push({
+        id: `policy-ack-${p.id}`,
+        severity: "info",
+        title: "Policy awaiting acknowledgement",
+        detail: `${acked} of ${memberCount} acknowledged "${p.title}".`,
+      });
+    }
+    if (p.review_cadence_months) {
+      const due = new Date(p.published_at);
+      due.setMonth(due.getMonth() + p.review_cadence_months);
+      if (due < today) {
+        alerts.push({
+          id: `policy-review-${p.id}`,
+          severity: "warning",
+          title: "Policy due for review",
+          detail: `"${p.title}" has passed its ${p.review_cadence_months}-month review cadence.`,
+        });
+      }
+    }
   }
 
   // Predictive: controls due in the next 14 days (not complete).

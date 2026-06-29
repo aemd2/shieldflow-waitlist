@@ -1,6 +1,12 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { getCompanyForUser, listRisks, getCallerAccess } from "@/lib/db/queries";
+import {
+  getCompanyForUser,
+  listRisks,
+  getCallerAccess,
+  getControlsWithStatus,
+  listRiskControlLinks,
+} from "@/lib/db/queries";
 import { RiskManager } from "@/components/risks/RiskManager";
 import { PageHeader } from "@/components/ui/PageHeader";
 
@@ -12,11 +18,14 @@ export default async function RisksPage() {
   const company = await getCompanyForUser(supabase, user.id);
   if (!company) redirect("/onboarding");
 
-  const [risks, access] = await Promise.all([
+  const [risks, access, controls, links] = await Promise.all([
     listRisks(supabase, company.id),
     getCallerAccess(supabase, company.id, user.id),
+    getControlsWithStatus(supabase, company.id),
+    listRiskControlLinks(supabase, company.id),
   ]);
   const canWrite = access?.canWrite ?? false;
+  const controlOptions = controls.map((c) => ({ id: c.id, code: c.code, title: c.title }));
 
   return (
     <div className="space-y-6">
@@ -25,7 +34,7 @@ export default async function RisksPage() {
         subtitle="Track your organisation's risks — likelihood, impact, and how you're treating them. High-impact risks surface on the dashboard."
       />
 
-      <RiskManager risks={risks} canWrite={canWrite} />
+      <RiskManager risks={risks} canWrite={canWrite} controls={controlOptions} links={links} />
     </div>
   );
 }

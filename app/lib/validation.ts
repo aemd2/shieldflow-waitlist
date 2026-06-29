@@ -110,11 +110,17 @@ export const riskSchema = z.object({
   title: z.string().trim().min(2, "Risk title is too short").max(160),
   description: z.string().trim().max(2000).optional().or(z.literal("")),
   category: z.string().trim().max(80).optional().or(z.literal("")),
+  // likelihood/impact are the INHERENT (pre-mitigation) assessment.
   likelihood: z.enum(RISK_LEVELS),
   impact: z.enum(RISK_LEVELS),
+  // residual_* are optional (post-mitigation). "" = not yet assessed.
+  residual_likelihood: z.enum(RISK_LEVELS).optional().or(z.literal("")),
+  residual_impact: z.enum(RISK_LEVELS).optional().or(z.literal("")),
   status: z.enum(RISK_STATUSES),
   owner_email: z.string().trim().email("Enter a valid email").max(254).optional().or(z.literal("")),
   treatment: z.string().trim().max(2000).optional().or(z.literal("")),
+  // Controls that mitigate this risk (the link that grounds residual exposure).
+  controlIds: z.array(z.string().uuid()).max(200).optional().default([]),
 });
 
 export const TRAINING_STATUSES = ["assigned", "in_progress", "completed"] as const;
@@ -163,6 +169,8 @@ export const policyCreateSchema = z.object({
 
 export const VENDOR_RISKS = ["low", "medium", "high", "critical"] as const;
 export const VENDOR_STATUSES = ["active", "under_review", "offboarded"] as const;
+export const VENDOR_SOC2_STATUSES = ["none", "requested", "on_file"] as const;
+export const VENDOR_DATA_SENSITIVITY = ["none", "internal", "pii", "phi"] as const;
 
 export const vendorSchema = z.object({
   name: z.string().trim().min(2, "Vendor name is too short").max(120),
@@ -178,6 +186,19 @@ export const vendorSchema = z.object({
   risk_level: z.enum(VENDOR_RISKS),
   status: z.enum(VENDOR_STATUSES),
   notes: z.string().trim().max(2000).optional().or(z.literal("")),
+  contact_email: z.string().trim().email("Enter a valid email").max(254).optional().or(z.literal("")),
+  review_cadence_months: z.preprocess(
+    (v) => (v === "" || v === undefined || v === null ? undefined : v),
+    z.coerce.number().int().min(1).max(60).optional(),
+  ),
+  soc2_status: z.enum(VENDOR_SOC2_STATUSES),
+  soc2_expires_at: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+    .refine(isRealDate, "That date doesn't exist - pick a date between 2000 and 2100")
+    .optional()
+    .or(z.literal("")),
+  data_sensitivity: z.enum(VENDOR_DATA_SENSITIVITY),
 });
 
 // Trust Center slug: lowercase kebab, no leading/trailing dash. Reserved words
@@ -277,3 +298,150 @@ export const waitlistSchema = z.object({
 });
 
 export type WaitlistPayload = z.infer<typeof waitlistSchema>;
+
+// ---------- Security questionnaires ----------
+export const QUESTIONNAIRE_ITEM_STATUSES = ["draft", "needs_review", "approved"] as const;
+
+export const questionnaireCreateSchema = z.object({
+  name: z.string().trim().min(2, "Give the questionnaire a name").max(160),
+  questions: z
+    .array(z.string().trim().min(3).max(2000))
+    .min(1, "Add at least one question")
+    .max(200, "That's a lot of questions — split it into two."),
+});
+
+export const questionnaireItemSchema = z.object({
+  id: z.string().uuid(),
+  answer: z.string().trim().max(5000).optional().or(z.literal("")),
+  status: z.enum(QUESTIONNAIRE_ITEM_STATUSES),
+});
+
+// ---------- Access reviews ----------
+export const ACCESS_DECISIONS = ["pending", "keep", "revoke"] as const;
+
+export const accessReviewCreateSchema = z.object({
+  name: z.string().trim().min(2, "Give the review a name").max(160),
+  source: z.string().trim().max(80).optional().or(z.literal("")),
+  reviewer_email: z.string().trim().email("Enter a valid email").max(254).optional().or(z.literal("")),
+  subjects: z
+    .array(
+      z.object({
+        subject: z.string().trim().min(1).max(300),
+        access: z.string().trim().max(300).optional().or(z.literal("")),
+      }),
+    )
+    .min(1, "Add at least one person or account")
+    .max(500, "That's a lot — split it into two reviews."),
+});
+
+export const accessReviewDecisionSchema = z.object({
+  id: z.string().uuid(),
+  decision: z.enum(ACCESS_DECISIONS),
+  note: z.string().trim().max(500).optional().or(z.literal("")),
+});
+
+// ---------- Trust Center depth ----------
+export const TRUST_REQUEST_STATUSES = ["new", "approved", "declined"] as const;
+
+export const subprocessorSchema = z.object({
+  name: z.string().trim().min(2, "Name is too short").max(120),
+  purpose: z.string().trim().max(200).optional().or(z.literal("")),
+  location: z.string().trim().max(120).optional().or(z.literal("")),
+  url: z.string().trim().url("Enter a full URL (https://...)").max(300).optional().or(z.literal("")),
+});
+
+// ---------- SSO (Phase A) ----------
+export const ssoDomainSchema = z.object({
+  domain: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9.-]+\.[a-z]{2,}$/, "Enter a domain like acme.com")
+    .max(253),
+});
+
+// ---------- Personnel roster ----------
+export const PERSONNEL_STATUSES = ["active", "offboarded"] as const;
+
+export const personnelSchema = z.object({
+  name: z.string().trim().min(2, "Name is too short").max(120),
+  email: z.string().trim().toLowerCase().email("Enter a valid email").max(254).optional().or(z.literal("")),
+  role_title: z.string().trim().max(120).optional().or(z.literal("")),
+  started_at: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+    .refine(isRealDate, "That date doesn't exist - pick a date between 2000 and 2100")
+    .optional()
+    .or(z.literal("")),
+});
+
+// Public access-request form (anonymous; submitted through the rate-limited route).
+export const trustAccessRequestSchema = z.object({
+  slug: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{3,60}$/, "Invalid page"),
+  email: z.string().trim().toLowerCase().email("Enter a valid email").max(254),
+  name: z.string().trim().max(160).optional().or(z.literal("")),
+  company: z.string().trim().max(160).optional().or(z.literal("")),
+  message: z.string().trim().max(2000).optional().or(z.literal("")),
+  website: z.string().max(0).optional(), // honeypot — must be empty
+});
+
+// ---------- Notifications ----------
+// Categories double as the `type` column on notifications + notification_prefs.
+// Keep in sync with the check constraint in migration 0017_notifications.sql.
+export const NOTIFICATION_CATEGORIES = [
+  "control",
+  "integration",
+  "policy",
+  "vendor",
+  "risk",
+  "team",
+  "system",
+  "task",
+] as const;
+export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
+
+/** Human labels for the preferences UI. */
+export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> = {
+  control: "Controls",
+  integration: "Integrations",
+  policy: "Policies",
+  vendor: "Vendors",
+  risk: "Risks",
+  team: "Team",
+  system: "System",
+  task: "Tasks",
+};
+
+// ---------- Tasks ----------
+export const TASK_STATUSES = ["todo", "in_progress", "done"] as const;
+export const TASK_PRIORITIES = ["low", "medium", "high"] as const;
+export const TASK_RECURRENCE = ["none", "weekly", "monthly", "quarterly", "annually"] as const;
+
+export const taskSchema = z.object({
+  title: z.string().trim().min(2, "Task title is too short").max(200),
+  description: z.string().trim().max(2000).optional().or(z.literal("")),
+  assignee_email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Enter a valid email")
+    .max(254)
+    .optional()
+    .or(z.literal("")),
+  priority: z.enum(TASK_PRIORITIES),
+  status: z.enum(TASK_STATUSES),
+  due_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+    .refine(isRealDate, "That date doesn't exist - pick a date between 2000 and 2100")
+    .optional()
+    .or(z.literal("")),
+  recurrence: z.enum(TASK_RECURRENCE),
+});
+
+/** One category's delivery preference (validated server-side in the prefs action). */
+export const notificationPrefSchema = z.object({
+  type: z.enum(NOTIFICATION_CATEGORIES),
+  email_enabled: z.boolean(),
+  in_app_enabled: z.boolean(),
+});

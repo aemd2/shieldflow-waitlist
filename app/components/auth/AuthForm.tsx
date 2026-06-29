@@ -280,6 +280,38 @@ export function AuthForm({ mode }: { mode: Mode }) {
     }
   }
 
+  async function ssoSignIn() {
+    if (loading) return;
+    setError(null);
+    setInfo(null);
+    const cleanEmail = email.trim().toLowerCase();
+    const domain = cleanEmail.split("@")[1];
+    if (!domain) {
+      setError("Enter your work email above, then continue with SSO.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithSSO({
+        domain,
+        options: {
+          redirectTo: `${window.location.origin}/api/auth/confirm?next=${encodeURIComponent(nextPath)}`,
+        },
+      });
+      if (error || !data?.url) {
+        setError(
+          "Single sign-on isn't set up for this domain yet. Use email and password, or ask your admin.",
+        );
+        setLoading(false);
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setError(NETWORK_ERROR);
+      setLoading(false);
+    }
+  }
+
   const submitDisabled = loading || lockSeconds > 0;
 
   return (
@@ -452,6 +484,12 @@ export function AuthForm({ mode }: { mode: Mode }) {
           className="btn-outline w-full"
         >
           {linkCooldown ? "Link sent — check your inbox" : "Email me a sign-in link"}
+        </button>
+      )}
+
+      {mode === "login" && (
+        <button type="button" onClick={ssoSignIn} disabled={loading} className="btn-outline w-full">
+          Sign in with SSO
         </button>
       )}
 

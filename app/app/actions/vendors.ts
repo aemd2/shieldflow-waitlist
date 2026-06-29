@@ -29,6 +29,24 @@ async function companyOrError(): Promise<
   }
 }
 
+/** Vendor columns except reviewed_at (which is a deliberate review event, not a
+ * side effect of editing other fields). */
+function toRow(d: z.infer<typeof vendorSchema>) {
+  return {
+    name: d.name,
+    website: d.website || null,
+    category: d.category || null,
+    risk_level: d.risk_level,
+    status: d.status,
+    notes: d.notes || null,
+    contact_email: d.contact_email || null,
+    review_cadence_months: d.review_cadence_months ?? null,
+    soc2_status: d.soc2_status,
+    soc2_expires_at: d.soc2_expires_at || null,
+    data_sensitivity: d.data_sensitivity,
+  };
+}
+
 export async function createVendor(input: unknown) {
   const parsed = vendorSchema.safeParse(input);
   if (!parsed.success) {
@@ -40,12 +58,7 @@ export async function createVendor(input: unknown) {
 
   const { error } = await res.supabase.from("vendors").insert({
     company_id: res.company.id,
-    name: parsed.data.name,
-    website: parsed.data.website || null,
-    category: parsed.data.category || null,
-    risk_level: parsed.data.risk_level,
-    status: parsed.data.status,
-    notes: parsed.data.notes || null,
+    ...toRow(parsed.data),
     reviewed_at: new Date().toISOString().slice(0, 10),
   });
   if (error) return { error: "Could not add the vendor. Please try again." };
@@ -73,15 +86,7 @@ export async function updateVendor(id: string, input: unknown) {
 
   const { error } = await res.supabase
     .from("vendors")
-    .update({
-      name: parsed.data.name,
-      website: parsed.data.website || null,
-      category: parsed.data.category || null,
-      risk_level: parsed.data.risk_level,
-      status: parsed.data.status,
-      notes: parsed.data.notes || null,
-      reviewed_at: new Date().toISOString().slice(0, 10),
-    })
+    .update(toRow(parsed.data)) // reviewed_at left untouched — see markVendorReviewed
     .eq("company_id", res.company.id)
     .eq("id", id);
   if (error) return { error: "Could not save the vendor. Please try again." };
@@ -91,6 +96,39 @@ export async function updateVendor(id: string, input: unknown) {
     id,
     label: parsed.data.name,
     metadata: { risk_level: parsed.data.risk_level, status: parsed.data.status },
+  });
+
+  revalidatePath("/vendors");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+/** Record that a vendor was reviewed today — this is what the review cadence and
+ * the "vendor review overdue" dashboard alert key off. */
+export async function markVendorReviewed(id: string) {
+  if (!z.string().uuid().safeParse(id).success) return { error: "Invalid vendor." };
+
+  const res = await companyOrError();
+  if ("error" in res) return { error: res.error };
+
+  const { data: existing } = await res.supabase
+    .from("vendors")
+    .select("name")
+    .eq("company_id", res.company.id)
+    .eq("id", id)
+    .maybeSingle();
+
+  const { error } = await res.supabase
+    .from("vendors")
+    .update({ reviewed_at: new Date().toISOString().slice(0, 10) })
+    .eq("company_id", res.company.id)
+    .eq("id", id);
+  if (error) return { error: "Could not update. Please try again." };
+
+  await logEvent(res.supabase, res.company.id, "vendor.reviewed", {
+    type: "vendor",
+    id,
+    label: (existing?.name as string | undefined) ?? undefined,
   });
 
   revalidatePath("/vendors");

@@ -34,11 +34,29 @@ function toRow(d: z.infer<typeof riskSchema>) {
     category: d.category || null,
     likelihood: d.likelihood,
     impact: d.impact,
+    residual_likelihood: d.residual_likelihood || null,
+    residual_impact: d.residual_impact || null,
     status: d.status,
     owner_email: d.owner_email || null,
     treatment: d.treatment || null,
     reviewed_at: new Date().toISOString().slice(0, 10),
   };
+}
+
+/** Replace a risk's control links with the given set (dedup; scoped to company). */
+async function replaceRiskControls(
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
+  companyId: string,
+  riskId: string,
+  controlIds: string[],
+) {
+  await supabase.from("risk_controls").delete().eq("company_id", companyId).eq("risk_id", riskId);
+  const unique = [...new Set(controlIds)];
+  if (unique.length > 0) {
+    await supabase
+      .from("risk_controls")
+      .insert(unique.map((cid) => ({ risk_id: riskId, control_id: cid, company_id: companyId })));
+  }
 }
 
 export async function createRisk(input: unknown) {
@@ -48,13 +66,18 @@ export async function createRisk(input: unknown) {
   const res = await companyOrError();
   if ("error" in res) return { error: res.error };
 
-  const { error } = await res.supabase
+  const { data: created, error } = await res.supabase
     .from("risks")
-    .insert({ company_id: res.company.id, ...toRow(parsed.data) });
-  if (error) return { error: "Could not add the risk. Please try again." };
+    .insert({ company_id: res.company.id, ...toRow(parsed.data) })
+    .select("id")
+    .single();
+  if (error || !created) return { error: "Could not add the risk. Please try again." };
+
+  await replaceRiskControls(res.supabase, res.company.id, created.id as string, parsed.data.controlIds ?? []);
 
   await logEvent(res.supabase, res.company.id, "risk.created", {
     type: "risk",
+    id: created.id as string,
     label: parsed.data.title,
     metadata: { likelihood: parsed.data.likelihood, impact: parsed.data.impact },
   });
@@ -78,6 +101,8 @@ export async function updateRisk(id: string, input: unknown) {
     .eq("company_id", res.company.id)
     .eq("id", id);
   if (error) return { error: "Could not save the risk. Please try again." };
+
+  await replaceRiskControls(res.supabase, res.company.id, id, parsed.data.controlIds ?? []);
 
   await logEvent(res.supabase, res.company.id, "risk.updated", {
     type: "risk",
