@@ -42,6 +42,7 @@ export async function createCompanyAndOnboard(formData: FormData) {
 
   // Bust the layout cache so the new company is visible immediately
   // (without this, the sidebar can be missing until the user manually refreshes).
-  revalidatePath("/dashboard");
-  redirect("/dashboard");
+  // New workspaces land on the guided 14-Day Sprint, not the empty dashboard.
+  revalidatePath("/getting-started");
+  redirect("/getting-started");
 }

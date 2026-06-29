@@ -1,4 +1,5 @@
 import {
+  Rocket,
   LayoutDashboard,
   FileText,
   FileBarChart,
@@ -23,6 +24,7 @@ export type NavItem = { href: string; label: string; icon: LucideIcon };
 // Single source of truth for the app navigation — used by both the desktop
 // Sidebar and the mobile slide-out drawer so they never drift apart.
 export const NAV: NavItem[] = [
+  { href: "/getting-started", label: "Getting started", icon: Rocket },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/evidence", label: "Evidence", icon: FolderArchive },
   { href: "/policies", label: "Policies", icon: FileText },

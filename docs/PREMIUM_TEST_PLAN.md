@@ -164,6 +164,36 @@ The SAML connection itself must be registered in Supabase Auth (Pro) + an IdP fi
       lands straight on the **dashboard** (auto-joined as a member), not onboarding. ✅
 - [ ] Break-glass: the owner can still sign in with **email + password**. ✅
 
+## 13 · 14-Day Sprint onboarding guide
+
+The guided `/getting-started` flow. Progress is **derived live** (no stored "phase"), so just
+changing the underlying data should move the phases — nothing to "save".
+
+- [ ] **New signup lands on the guide:** create a brand-new workspace (fresh email → onboarding
+      → pick a framework) → you land on **/getting-started**, not the dashboard. Header reads
+      **"0 of 4 phases done"**, Phase 1 "Connect your stack" is the highlighted current phase,
+      the rest are dimmed. ✅
+- [ ] **Sidebar + banner:** "Getting started" is the **first** sidebar item; the dashboard shows
+      a **"Your 14-Day Sprint — 0 of 4 phases done"** banner. Dismiss it (×) → stays gone on
+      reload. ✅
+- [ ] **Phase 1 — Connect:** connect one integration (Integrations → GitHub/AWS → Sync) → back on
+      the guide Phase 1 shows ✓ "1 connected"; Phase 2 "Review your controls" becomes current. ✅
+- [ ] **Phase 2 — Review:** move controls off **Not started** until ≥ 80% are touched → Phase 2
+      flips to ✓; label counts "X of Y reviewed". ✅
+- [ ] **Phase 3 — Core gaps (scale check):** Phase 3 shows the **bounded core count** (e.g.
+      "0 of 8 core controls" for SOC 2 — **not** the full 15), and lists the open core controls
+      inline, each linking to its control page. Set every **core** control to Complete → Phase 3
+      flips to ✓. ✅
+- [ ] **Phase 4 — Documents:** approve a policy (Policies → Approve) → Phase 4 flips to ✓. ✅
+- [ ] **Audit-ready:** with all four phases done, the header swaps to the **"You're audit-ready
+      🎉"** state and the **dashboard banner disappears**. ✅
+- [ ] **Criticality tiers (data):** every framework has a focused **core** subset — SOC 2 = 8,
+      ISO 27001 = 9, HIPAA = 5, PCI-DSS = 5, GDPR = 7 — so the "core gaps" phase never dumps the
+      full list. ✅
+- [ ] **Auditor (C) read-only:** sign in as the auditor → /getting-started **renders** their
+      workspace's progress with **no add/edit/connect actions** and **no errors** (the page makes
+      zero writes). ✅
+
 ## Tenant isolation (do once, critical)
 
 - [ ] As an unrelated **second company**, confirm you see **none** of company A's

@@ -14,6 +14,8 @@ export interface Framework {
   description: string | null;
 }
 
+export type Criticality = "core" | "important" | "operational";
+
 export interface Control {
   id: string;
   framework_id: string;
@@ -21,6 +23,7 @@ export interface Control {
   title: string;
   description: string | null;
   category: string | null;
+  criticality: Criticality;
 }
 
 export interface ControlWithStatus extends Control {
@@ -182,7 +185,7 @@ export async function listFrameworks(supabase: SupabaseClient): Promise<Framewor
 }
 
 const CONTROL_SELECT =
-  "status, owner_email, due_date, notes, controls(id, framework_id, code, title, description, category)";
+  "status, owner_email, due_date, notes, controls(id, framework_id, code, title, description, category, criticality)";
 
 function mapControlRow(row: any, evidenceCount: number): ControlWithStatus {
   return {

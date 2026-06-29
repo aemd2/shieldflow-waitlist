@@ -13,12 +13,16 @@ import {
   listPolicies,
   listPolicyAcknowledgements,
   getCompanyMemberCount,
+  listIntegrations,
+  type Integration,
 } from "@/lib/db/queries";
 import { computeScore, countStatuses } from "@/lib/score";
+import { computeSprint } from "@/lib/setup";
 import { computeAlerts } from "@/lib/monitoring";
 import { ScoreCard } from "@/components/dashboard/ScoreCard";
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
 import { ControlsExplorer } from "@/components/dashboard/ControlsExplorer";
+import { SprintBanner } from "@/components/setup/SprintBanner";
 
 export default async function DashboardPage() {
   const supabase = await createServerSupabase();
@@ -28,7 +32,7 @@ export default async function DashboardPage() {
   const company = await getCompanyForUser(supabase, user.id);
   if (!company) redirect("/onboarding");
 
-  const [controls, allFrameworks, selectedIds, vendors, risks, training, checks, tasks, policies, policyAcks, memberCount] =
+  const [controls, allFrameworks, selectedIds, vendors, risks, training, checks, tasks, policies, policyAcks, memberCount, integrations] =
     await Promise.all([
       getControlsWithStatus(supabase, company.id),
       listFrameworks(supabase),
@@ -41,6 +45,7 @@ export default async function DashboardPage() {
       listPolicies(supabase, company.id),
       listPolicyAcknowledgements(supabase, company.id),
       getCompanyMemberCount(supabase, company.id),
+      listIntegrations(supabase, company.id).catch(() => [] as Integration[]),
     ]);
 
   const frameworks = allFrameworks.filter((f) => selectedIds.includes(f.id));
@@ -48,6 +53,13 @@ export default async function DashboardPage() {
   const statuses = controls.map((c) => c.status);
   const score = computeScore(statuses);
   const counts = countStatuses(statuses);
+
+  // 14-Day Sprint progress — derived live, drives the dashboard nudge banner.
+  const sprint = computeSprint({
+    connectedIntegrations: integrations.filter((i) => i.status === "connected").length,
+    controls,
+    approvedPolicies: policies.filter((p) => p.status === "final").length,
+  });
 
   // Per-framework progress (for monitoring rule + display).
   const frameworkProgress = frameworks.map((f) => {
@@ -78,6 +90,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {!sprint.ready && (
+        <SprintBanner completedCount={sprint.completedCount} total={sprint.phases.length} />
+      )}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Compliance dashboard</h1>
         <p className="text-sm text-muted-foreground">Overview of {company.name}&apos;s controls.</p>
