@@ -194,6 +194,24 @@ changing the underlying data should move the phases — nothing to "save".
       workspace's progress with **no add/edit/connect actions** and **no errors** (the page makes
       zero writes). ✅
 
+## 14 · Role visibility — Billing & notification prefs (RBAC)
+
+Billing is an **owner/admin-only** surface; auditors are **fully read-only**, including their own
+notification preferences. Both rules are enforced **server-side**, not just hidden in the UI.
+
+- [ ] **Member can't see Billing:** sign in as a **member (B)** → **Billing** is absent from the
+      sidebar and the mobile menu. Visit `/billing` directly → redirected to the dashboard (no plan
+      data exposed). ✅
+- [ ] **Auditor can't see Billing:** same for the **auditor (C)** — no Billing in the nav, `/billing`
+      bounces to the dashboard. ✅
+- [ ] **Auditor notification prefs are read-only:** as **C**, Settings → **Notifications** → the
+      in-app/email toggles are **disabled** and the panel reads "read-only for auditor access — you
+      can't change notification settings." ✅
+- [ ] **Owner/admin unaffected:** as **A** (owner) or an **admin**, Billing is in the sidebar and
+      opens; notification toggles still flip and **persist across reload**. ✅
+- [ ] **Server-side enforcement (not just UI):** the member/auditor billing redirect and the auditor
+      pref rejection both live on the server, so hand-crafting the request can't bypass them. ✅
+
 ## Tenant isolation (do once, critical)
 
 - [ ] As an unrelated **second company**, confirm you see **none** of company A's
