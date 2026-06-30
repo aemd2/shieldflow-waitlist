@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { acceptInvite } from "@/app/actions/team";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 
 export function JoinClient({ token, email }: { token: string; email: string }) {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,15 +26,15 @@ export function JoinClient({ token, email }: { token: string; email: string }) {
     // few seconds to render; without this the button would sit on "Joining…" the
     // whole time and look frozen even though the membership is already created.
     setJoined(true);
-    router.push("/dashboard");
-    router.refresh();
+    // Hard redirect so the server issues a fresh request and picks up the new
+    // company_members row — client-side router.push can race a cached session.
+    window.location.href = "/dashboard";
   }
 
   async function switchAccount() {
     const supabase = createBrowserSupabase();
     await supabase.auth.signOut();
-    router.push(`/login?next=${encodeURIComponent(`/join?token=${token}`)}`);
-    router.refresh();
+    window.location.href = `/login?next=${encodeURIComponent(`/join?token=${token}`)}`;
   }
 
   return (
