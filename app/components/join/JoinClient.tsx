@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { acceptInvite } from "@/app/actions/team";
@@ -8,22 +8,28 @@ import { createBrowserSupabase } from "@/lib/supabase/client";
 
 export function JoinClient({ token, email }: { token: string; email: string }) {
   const router = useRouter();
-  const [pending, start] = useTransition();
+  const [loading, setLoading] = useState(false);
+  const [joined, setJoined] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function accept() {
-    start(async () => {
-      setError(null);
-      const res = await acceptInvite(token).catch(() => ({
-        error: "Network problem — please try again.",
-      }));
-      if ("error" in res && res.error) {
-        setError(res.error);
-        return;
-      }
-      router.push("/dashboard");
-      router.refresh();
-    });
+  async function accept() {
+    if (loading || joined) return;
+    setError(null);
+    setLoading(true);
+    const res = await acceptInvite(token).catch(() => ({
+      error: "Network problem — please try again.",
+    }));
+    if ("error" in res && res.error) {
+      setError(res.error);
+      setLoading(false);
+      return;
+    }
+    // Confirm success immediately. The dashboard is a heavy page that can take a
+    // few seconds to render; without this the button would sit on "Joining…" the
+    // whole time and look frozen even though the membership is already created.
+    setJoined(true);
+    router.push("/dashboard");
+    router.refresh();
   }
 
   async function switchAccount() {
@@ -49,16 +55,18 @@ export function JoinClient({ token, email }: { token: string; email: string }) {
           </div>
         )}
 
-        <button onClick={accept} disabled={pending} className="btn-primary w-full">
-          {pending ? "Joining..." : "Accept invitation"}
+        <button onClick={accept} disabled={loading || joined} className="btn-primary w-full">
+          {joined ? "Joined ✓ — taking you in…" : loading ? "Joining…" : "Accept invitation"}
         </button>
-        <button
-          type="button"
-          onClick={switchAccount}
-          className="text-xs text-muted-foreground underline hover:text-foreground"
-        >
-          Not {email}? Sign in with a different account
-        </button>
+        {!joined && (
+          <button
+            type="button"
+            onClick={switchAccount}
+            className="text-xs text-muted-foreground underline hover:text-foreground"
+          >
+            Not {email}? Sign in with a different account
+          </button>
+        )}
       </div>
     </div>
   );

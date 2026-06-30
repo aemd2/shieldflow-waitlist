@@ -53,8 +53,11 @@ export async function updateSession(request: NextRequest) {
     const dest = request.nextUrl.pathname + request.nextUrl.search;
 
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.search = ""; // drop the original query so it doesn't leak onto /login
+    // Invitees following a /join link almost always need to CREATE an account,
+    // so send them to signup (which cross-links to sign-in for the rare returning
+    // auditor, carrying `next` along). Everyone else lands on login as before.
+    url.pathname = path.startsWith("/join") ? "/signup" : "/login";
+    url.search = ""; // drop the original query so it doesn't leak onto the auth page
     // Only flag "expired" if the browser actually carried an auth cookie that failed —
     // a first-time visitor with no cookie shouldn't see a session-expired banner.
     const hadAuthCookie = request.cookies
