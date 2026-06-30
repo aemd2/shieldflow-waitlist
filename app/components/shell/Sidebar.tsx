@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BrandMark } from "@/components/BrandMark";
-import { NAV } from "./nav-items";
+import { visibleNav, type NavRole } from "./nav-items";
 
-export function Sidebar({ companyName }: { companyName: string }) {
+export function Sidebar({ companyName, role }: { companyName: string; role: NavRole | null }) {
   const pathname = usePathname();
+  const items = visibleNav(role);
   return (
     <aside className="hidden w-60 flex-col border-r border-border bg-card p-4 md:flex print:hidden">
       <div className="mb-6 flex items-center gap-2">
@@ -17,7 +18,7 @@ export function Sidebar({ companyName }: { companyName: string }) {
         </div>
       </div>
       <nav className="space-y-1 text-sm">
-        {NAV.map(({ href, label, icon: Icon }) => {
+        {items.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link

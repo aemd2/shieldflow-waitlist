@@ -15,7 +15,13 @@ type PrefMap = Record<string, Pref>;
 
 const NETWORK = "Network problem — check your connection and try again.";
 
-export function NotificationPrefs({ prefs }: { prefs: NotificationPref[] }) {
+export function NotificationPrefs({
+  prefs,
+  readOnly = false,
+}: {
+  prefs: NotificationPref[];
+  readOnly?: boolean;
+}) {
   const toast = useToast();
   const [pending, start] = useTransition();
   const [map, setMap] = useState<PrefMap>(() => {
@@ -26,6 +32,7 @@ export function NotificationPrefs({ prefs }: { prefs: NotificationPref[] }) {
   });
 
   function toggle(type: NotificationCategory, field: keyof Pref) {
+    if (readOnly) return; // auditors are read-only — never write
     const prev = map[type];
     const next = { ...prev, [field]: !prev[field] };
     setMap((m) => ({ ...m, [type]: next })); // optimistic
@@ -47,7 +54,9 @@ export function NotificationPrefs({ prefs }: { prefs: NotificationPref[] }) {
       <div>
         <h2 className="text-sm font-semibold text-foreground">Notifications</h2>
         <p className="text-xs text-muted-foreground">
-          Choose how you hear about each kind of update. Email is sent only when enabled.
+          {readOnly
+            ? "These are read-only for auditor access — you can't change notification settings."
+            : "Choose how you hear about each kind of update. Email is sent only when enabled."}
         </p>
       </div>
 
@@ -64,7 +73,7 @@ export function NotificationPrefs({ prefs }: { prefs: NotificationPref[] }) {
               <div className="flex justify-center">
                 <Toggle
                   checked={map[c].inApp}
-                  disabled={pending}
+                  disabled={pending || readOnly}
                   label={`In-app ${NOTIFICATION_CATEGORY_LABELS[c]}`}
                   onChange={() => toggle(c, "inApp")}
                 />
@@ -72,7 +81,7 @@ export function NotificationPrefs({ prefs }: { prefs: NotificationPref[] }) {
               <div className="flex justify-center">
                 <Toggle
                   checked={map[c].email}
-                  disabled={pending}
+                  disabled={pending || readOnly}
                   label={`Email ${NOTIFICATION_CATEGORY_LABELS[c]}`}
                   onChange={() => toggle(c, "email")}
                 />

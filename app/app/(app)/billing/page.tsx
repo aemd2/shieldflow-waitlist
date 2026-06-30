@@ -18,9 +18,10 @@ export default async function BillingPage({
   const company = await getCompanyForUser(supabase, user.id);
   if (!company) redirect("/onboarding");
 
-  // Billing is not an auditor surface — auditors are read-only and can't see/change plans.
+  // Billing is an owner/admin surface only — members and auditors can't see or
+  // change plans (the nav hides it for them too; this is the server-side gate).
   const access = await getCallerAccess(supabase, company.id, user.id);
-  if (access?.role === "auditor") redirect("/dashboard");
+  if (access?.role !== "owner" && access?.role !== "admin") redirect("/dashboard");
 
   // Sync with Stripe on return from checkout or portal — handles the case where
   // webhooks haven't fired yet (always the case locally without `stripe listen`).

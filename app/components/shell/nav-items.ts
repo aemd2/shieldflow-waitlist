@@ -19,7 +19,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type NavItem = { href: string; label: string; icon: LucideIcon };
+export type NavItem = { href: string; label: string; icon: LucideIcon; ownerAdminOnly?: boolean };
+export type NavRole = "owner" | "admin" | "member" | "auditor";
 
 // Single source of truth for the app navigation — used by both the desktop
 // Sidebar and the mobile slide-out drawer so they never drift apart.
@@ -39,6 +40,13 @@ export const NAV: NavItem[] = [
   { href: "/reports", label: "Reports", icon: FileBarChart },
   { href: "/activity", label: "Activity", icon: History },
   { href: "/integrations", label: "Integrations", icon: Plug },
-  { href: "/billing", label: "Billing", icon: CreditCard },
+  { href: "/billing", label: "Billing", icon: CreditCard, ownerAdminOnly: true },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
+
+// Filter the nav for a role. Billing is an owner/admin surface — members and
+// auditors never see it (the billing page enforces the same rule server-side).
+export function visibleNav(role: NavRole | null): NavItem[] {
+  const canManageBilling = role === "owner" || role === "admin";
+  return NAV.filter((item) => !item.ownerAdminOnly || canManageBilling);
+}

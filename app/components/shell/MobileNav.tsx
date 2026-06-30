@@ -5,14 +5,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
-import { NAV } from "./nav-items";
+import { visibleNav, type NavRole } from "./nav-items";
 
 // The mobile counterpart to the desktop Sidebar: a hamburger button that opens
 // a slide-out drawer. Shown only below the `md` breakpoint (the Sidebar takes
 // over at ≥768px), so navigation is reachable at every screen width.
-export function MobileNav({ companyName }: { companyName: string }) {
+export function MobileNav({ companyName, role }: { companyName: string; role: NavRole | null }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const items = visibleNav(role);
 
   // Close the drawer whenever the route changes (e.g. after a link click).
   useEffect(() => {
@@ -70,7 +71,7 @@ export function MobileNav({ companyName }: { companyName: string }) {
               </button>
             </div>
             <nav className="space-y-1 text-sm">
-              {NAV.map(({ href, label, icon: Icon }) => {
+              {items.map(({ href, label, icon: Icon }) => {
                 const active = pathname === href || pathname.startsWith(href + "/");
                 return (
                   <Link

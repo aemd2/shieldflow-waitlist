@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import {
   getCompanyForUser,
+  getCallerAccess,
   getCompanyTeam,
   listNotificationPrefs,
   listSubprocessors,
@@ -35,6 +36,8 @@ export default async function SettingsPage() {
     invites: [],
   }));
   const notificationPrefs = await listNotificationPrefs(supabase, user.id, company.id).catch(() => []);
+  const access = await getCallerAccess(supabase, company.id, user.id);
+  const isAuditor = access?.role === "auditor";
   const isOwner = company.owner_user_id === user.id;
   const subprocessors = isOwner ? await listSubprocessors(supabase, company.id).catch(() => []) : [];
   const trustRequests = isOwner ? await listTrustAccessRequests(supabase, company.id).catch(() => []) : [];
@@ -55,7 +58,7 @@ export default async function SettingsPage() {
         invites={team.invites}
       />
 
-      <NotificationPrefs prefs={notificationPrefs} />
+      <NotificationPrefs prefs={notificationPrefs} readOnly={isAuditor} />
 
       {/* Trust Center is an owner-only workspace setting (RLS enforces it too). */}
       {isOwner && (

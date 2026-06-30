@@ -4,14 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { getCompanyForUser, type Company } from "@/lib/db/queries";
+import { getCompanyForUser, getCallerAccess, READ_ONLY_MESSAGE, type Company } from "@/lib/db/queries";
 import { notificationPrefSchema } from "@/lib/validation";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";
 
-// Notifications belong to the signed-in user, so these actions are gated on
-// identity, not the company write-role: an auditor (read-only on company data)
-// may still read and manage their OWN notifications and preferences.
+// Notifications belong to the signed-in user, so reading them (mark-read) is
+// gated on identity, not the company write-role. Changing notification *prefs*
+// is treated as a write — auditors are fully read-only and can't change them.
 async function userCompany(): Promise<
   | { supabase: Awaited<ReturnType<typeof createServerSupabase>>; userId: string; company: Company }
   | { error: string }
@@ -68,6 +68,10 @@ export async function updateNotificationPref(input: unknown) {
 
   const res = await userCompany();
   if ("error" in res) return { error: res.error };
+
+  // Auditors are fully read-only — they can't change notification settings.
+  const access = await getCallerAccess(res.supabase, res.company.id, res.userId);
+  if (access?.role === "auditor") return { error: READ_ONLY_MESSAGE };
 
   const { error } = await res.supabase
     .from("notification_prefs")

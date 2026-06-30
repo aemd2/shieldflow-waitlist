@@ -18,6 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Onboarding pages render even when no company exists yet — handled in those pages.
 
   const access = company ? await getCallerAccess(supabase, company.id, user.id) : null;
+  const role = access?.role ?? null;
   const readOnly = access?.role === "auditor";
   const unread = company ? await countUnreadNotifications(supabase, user.id, company.id) : 0;
 
@@ -25,9 +26,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <ToastProvider>
       <ConfirmProvider>
         <div className="flex min-h-screen bg-secondary">
-          {company && <Sidebar companyName={company.name} />}
+          {company && <Sidebar companyName={company.name} role={role} />}
           <div className="flex flex-1 flex-col">
-            <Topbar email={user.email ?? ""} companyName={company?.name} readOnly={readOnly} unread={unread} />
+            <Topbar email={user.email ?? ""} companyName={company?.name} role={role} readOnly={readOnly} unread={unread} />
             {readOnly && (
               <div className="border-b border-amber-300 bg-amber-50 px-6 py-2 text-xs text-amber-800 print:hidden">
                 You have <strong>read-only auditor access</strong>. You can review controls,
