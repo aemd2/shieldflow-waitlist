@@ -7,9 +7,11 @@ import {
   listEvidence,
   getChecksForControl,
   getCallerAccess,
+  listFrameworks,
 } from "@/lib/db/queries";
 import type { ControlCheck } from "@/lib/db/queries";
 import { StatusPicker } from "@/components/dashboard/StatusPicker";
+import { CriticalityBadge } from "@/components/controls/CriticalityBadge";
 import { ControlMetaForm } from "@/components/controls/ControlMetaForm";
 import { EvidenceUploader } from "@/components/evidence/EvidenceUploader";
 import { EvidenceList } from "@/components/evidence/EvidenceList";
@@ -33,12 +35,18 @@ export default async function ControlDetailPage({
   const control = await getControlWithStatus(supabase, company.id, id);
   if (!control) notFound();
 
-  const [evidence, checks, access] = await Promise.all([
+  const [evidence, checks, access, frameworks] = await Promise.all([
     listEvidence(supabase, company.id, id),
     getChecksForControl(supabase, company.id, id),
     getCallerAccess(supabase, company.id, user.id),
+    listFrameworks(supabase),
   ]);
 
+  const framework = frameworks.find((f) => f.id === control.framework_id);
+  const suggestedEvidence = (control.suggested_evidence ?? "")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
   const canWrite = access?.canWrite ?? false;
   const hasFailingCheck = checks.some((c) => c.result === "fail");
 
@@ -57,8 +65,12 @@ export default async function ControlDetailPage({
 
       <div className="card space-y-4">
         <div>
-          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            {control.category ?? "Control"} &middot; {control.code}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {framework ? `${framework.name} · ` : ""}
+              {control.category ?? "Control"} &middot; {control.code}
+            </span>
+            <CriticalityBadge criticality={control.criticality} />
           </div>
           <h1 className="mt-1 text-2xl font-semibold text-foreground">{control.title}</h1>
         </div>
@@ -82,6 +94,13 @@ export default async function ControlDetailPage({
           )}
         </div>
       </div>
+
+      {control.guidance && (
+        <div className="card space-y-2">
+          <h2 className="text-sm font-semibold text-foreground">How to satisfy this control</h2>
+          <p className="text-sm leading-relaxed text-muted-foreground">{control.guidance}</p>
+        </div>
+      )}
 
       {checks.length > 0 && (
         <div className="card space-y-3">
@@ -125,6 +144,21 @@ export default async function ControlDetailPage({
           </h2>
           {canWrite && <EvidenceUploader companyId={company.id} controlId={control.id} />}
         </div>
+        {suggestedEvidence.length > 0 && (
+          <div className="rounded-lg border border-border bg-secondary/40 p-3">
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Evidence auditors typically expect
+            </div>
+            <ul className="mt-2 space-y-1">
+              {suggestedEvidence.map((item) => (
+                <li key={item} className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <EvidenceList items={evidence} controlId={control.id} canWrite={canWrite} />
       </div>
     </div>

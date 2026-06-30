@@ -24,6 +24,10 @@ export interface Control {
   description: string | null;
   category: string | null;
   criticality: Criticality;
+  /** How to actually satisfy this control (per-control teaching content). */
+  guidance: string | null;
+  /** Newline-separated list of artifacts an auditor typically expects. */
+  suggested_evidence: string | null;
 }
 
 export interface ControlWithStatus extends Control {
@@ -185,7 +189,7 @@ export async function listFrameworks(supabase: SupabaseClient): Promise<Framewor
 }
 
 const CONTROL_SELECT =
-  "status, owner_email, due_date, notes, controls(id, framework_id, code, title, description, category, criticality)";
+  "status, owner_email, due_date, notes, controls(id, framework_id, code, title, description, category, criticality, guidance, suggested_evidence)";
 
 function mapControlRow(row: any, evidenceCount: number): ControlWithStatus {
   return {

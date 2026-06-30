@@ -88,6 +88,19 @@ export default async function DashboardPage() {
   const checksFailing = checkResults.filter((r) => r === "fail").length;
   const checksInconclusive = checkResults.filter((r) => r === "inconclusive").length;
 
+  // Per-control health for the list rows: a failing check wins (most important to
+  // surface), then passing, then inconclusive. Controls with no checks are absent.
+  const controlHealth: Record<string, "pass" | "fail" | "inconclusive"> = {};
+  for (const ch of checks) {
+    const cur = controlHealth[ch.control_id];
+    if (ch.result === "fail") controlHealth[ch.control_id] = "fail";
+    else if (ch.result === "pass") {
+      if (cur !== "fail") controlHealth[ch.control_id] = "pass";
+    } else if (!cur) {
+      controlHealth[ch.control_id] = "inconclusive";
+    }
+  }
+
   return (
     <div className="space-y-6">
       {!sprint.ready && (
@@ -145,7 +158,7 @@ export default async function DashboardPage() {
 
       <AlertsPanel alerts={alerts} />
 
-      <ControlsExplorer controls={controls} frameworks={frameworks} />
+      <ControlsExplorer controls={controls} frameworks={frameworks} health={controlHealth} />
     </div>
   );
 }

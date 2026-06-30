@@ -2,12 +2,24 @@ import Link from "next/link";
 import { Paperclip, User, CalendarClock } from "lucide-react";
 import type { ControlWithStatus } from "@/lib/db/queries";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
+import { CriticalityBadge } from "@/components/controls/CriticalityBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 const STATUS_LABEL: Record<string, { text: string; variant: BadgeVariant }> = {
   not_started: { text: "Not started", variant: "neutral" },
   in_progress: { text: "In progress", variant: "warning" },
   complete: { text: "Complete", variant: "success" },
+};
+
+export type CheckResult = "pass" | "fail" | "inconclusive";
+
+// Live health derived from a control's automated checks (see dashboard). Shown
+// next to the manual status so "marked Complete" and "a test is failing" are
+// both visible at a glance — the pattern Vanta/Drata use.
+const HEALTH: Record<CheckResult, { text: string; cls: string }> = {
+  pass: { text: "Checks passing", cls: "border-emerald-300 bg-emerald-50 text-emerald-700" },
+  fail: { text: "Check failing", cls: "border-destructive/30 bg-destructive/10 text-destructive" },
+  inconclusive: { text: "Check inconclusive", cls: "border-border bg-secondary text-muted-foreground" },
 };
 
 function isOverdue(c: ControlWithStatus): boolean {
@@ -19,7 +31,13 @@ function isOverdue(c: ControlWithStatus): boolean {
   return due < today;
 }
 
-export function ControlList({ controls }: { controls: ControlWithStatus[] }) {
+export function ControlList({
+  controls,
+  health = {},
+}: {
+  controls: ControlWithStatus[];
+  health?: Record<string, CheckResult>;
+}) {
   if (controls.length === 0) {
     return <EmptyState description="No controls match this filter." />;
   }
@@ -40,6 +58,7 @@ export function ControlList({ controls }: { controls: ControlWithStatus[] }) {
           <ul className="divide-y divide-border">
             {items.map((c) => {
               const s = STATUS_LABEL[c.status];
+              const h = health[c.id];
               return (
                 <li key={c.id}>
                   <Link
@@ -47,8 +66,11 @@ export function ControlList({ controls }: { controls: ControlWithStatus[] }) {
                     className="flex items-center justify-between gap-4 px-6 py-3 hover:bg-secondary"
                   >
                     <div className="min-w-0">
-                      <div className="text-sm font-medium text-foreground">
-                        <span className="text-muted-foreground">{c.code}</span> &middot; {c.title}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium text-foreground">
+                          <span className="text-muted-foreground">{c.code}</span> &middot; {c.title}
+                        </span>
+                        {c.criticality === "core" && <CriticalityBadge criticality="core" />}
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                         {c.evidenceCount > 0 && (
@@ -72,7 +94,16 @@ export function ControlList({ controls }: { controls: ControlWithStatus[] }) {
                         )}
                       </div>
                     </div>
-                    <Badge variant={s.variant}>{s.text}</Badge>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {h && (
+                        <span
+                          className={`hidden rounded-md border px-2 py-0.5 text-xs font-medium sm:inline-flex ${HEALTH[h].cls}`}
+                        >
+                          {HEALTH[h].text}
+                        </span>
+                      )}
+                      <Badge variant={s.variant}>{s.text}</Badge>
+                    </div>
                   </Link>
                 </li>
               );
