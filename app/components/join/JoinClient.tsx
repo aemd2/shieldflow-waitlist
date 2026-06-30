@@ -7,28 +7,28 @@ import { createBrowserSupabase } from "@/lib/supabase/client";
 
 export function JoinClient({ token, email }: { token: string; email: string }) {
   const [loading, setLoading] = useState(false);
-  const [joined, setJoined] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function accept() {
-    if (loading || joined) return;
+    if (loading) return;
     setError(null);
     setLoading(true);
-    const res = await acceptInvite(token).catch(() => ({
-      error: "Network problem — please try again.",
-    }));
-    if ("error" in res && res.error) {
-      setError(res.error);
+    try {
+      // On success the server action calls redirect("/dashboard") — Next.js
+      // sends the redirect instruction to the browser directly, which is more
+      // reliable than client-side router.push or window.location (avoids the
+      // router-cache race that kept the page stuck).
+      // On error it returns { error: string } — we show that below.
+      const res = await acceptInvite(token);
+      if (res && "error" in res) {
+        setError(res.error);
+        setLoading(false);
+      }
+      // No else — if we're still here the redirect is in flight.
+    } catch {
+      setError("Network problem — please try again.");
       setLoading(false);
-      return;
     }
-    // Confirm success immediately. The dashboard is a heavy page that can take a
-    // few seconds to render; without this the button would sit on "Joining…" the
-    // whole time and look frozen even though the membership is already created.
-    setJoined(true);
-    // Hard redirect so the server issues a fresh request and picks up the new
-    // company_members row — client-side router.push can race a cached session.
-    window.location.href = "/dashboard";
   }
 
   async function switchAccount() {
@@ -53,10 +53,11 @@ export function JoinClient({ token, email }: { token: string; email: string }) {
           </div>
         )}
 
-        <button onClick={accept} disabled={loading || joined} className="btn-primary w-full">
-          {joined ? "Joined ✓ — taking you in…" : loading ? "Joining…" : "Accept invitation"}
+        <button onClick={accept} disabled={loading} className="btn-primary w-full">
+          {loading ? "Joining…" : "Accept invitation"}
         </button>
-        {!joined && (
+
+        {!loading && (
           <button
             type="button"
             onClick={switchAccount}

@@ -191,5 +191,8 @@ export async function acceptInvite(token: string) {
     label: user.email ?? undefined,
   });
 
-  return { ok: true, companyId };
+  // Server-side redirect — most reliable pattern (Notion/Linear style).
+  // The framework sends the redirect instruction to the browser directly,
+  // bypassing any client-side router cache or session-refresh race.
+  redirect("/dashboard");
 }
