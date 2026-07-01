@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useOptimistic } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Download, Save, Trash2, Eye, Pencil, ShieldCheck, Send, Check } from "lucide-react";
 import { Markdown } from "@/components/ui/Markdown";
@@ -218,6 +218,21 @@ function PolicyEditor({
   const [mode, setMode] = useState<"preview" | "edit">("preview");
   const [pending, start] = useTransition();
 
+  // Optimistic lifecycle state — the button reflects the new state the instant
+  // it's clicked instead of waiting on the round trip + router.refresh(), which
+  // otherwise has a visible gap where the old button is still showing (and
+  // still clickable), inviting repeat clicks. React reconciles this back to the
+  // real `policy`/`mine`/`acked` props once fresh data lands, and rolls it back
+  // automatically if the action errors.
+  const [optimisticPolicy, setOptimisticPolicy] = useOptimistic(
+    policy,
+    (state, patch: Partial<Pick<Policy, "approved_at" | "published_at">>) => ({ ...state, ...patch }),
+  );
+  const [optimisticAck, setOptimisticAck] = useOptimistic(
+    { mine, acked },
+    (state, _action: true) => ({ mine: true, acked: state.mine ? state.acked : state.acked + 1 }),
+  );
+
   function run(fn: () => Promise<{ error?: string } | undefined>, ok: string) {
     start(async () => {
       const res = await fn().catch(() => ({ error: NETWORK }));
@@ -226,6 +241,34 @@ function PolicyEditor({
         toast("success", ok);
         onChanged();
       }
+    });
+  }
+
+  function approve() {
+    start(async () => {
+      setOptimisticPolicy({ approved_at: new Date().toISOString() });
+      const res = await approvePolicy(policy.id).catch(() => ({ error: NETWORK }));
+      if (res?.error) { toast("error", res.error); return; }
+      toast("success", "Policy approved");
+      onChanged();
+    });
+  }
+  function publish() {
+    start(async () => {
+      setOptimisticPolicy({ published_at: new Date().toISOString() });
+      const res = await publishPolicy(policy.id).catch(() => ({ error: NETWORK }));
+      if (res?.error) { toast("error", res.error); return; }
+      toast("success", "Published for acknowledgement");
+      onChanged();
+    });
+  }
+  function acknowledge() {
+    start(async () => {
+      setOptimisticAck(true);
+      const res = await acknowledgePolicy(policy.id).catch(() => ({ error: NETWORK }));
+      if (res?.error) { toast("error", res.error); return; }
+      toast("success", "Acknowledged");
+      onChanged();
     });
   }
 
@@ -246,10 +289,65 @@ function PolicyEditor({
     URL.revokeObjectURL(url);
   }
 
-  const fullyAcked = memberCount > 0 && acked >= memberCount;
+  const fullyAcked = memberCount > 0 && optimisticAck.acked >= memberCount;
 
   return (
     <div className="space-y-4">
+      {/* Approval & acknowledgement — surfaced first so the action needed (Approve /
+          Publish / Acknowledge) is immediately visible, never buried below a long
+          policy body. */}
+      <div className="card space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <ShieldCheck className="h-4 w-4" /> Approval &amp; acknowledgement
+          </h3>
+          <Badge variant={lifecycle(optimisticPolicy).variant}>
+            {lifecycle(optimisticPolicy).label} · v{optimisticPolicy.version}
+          </Badge>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          {optimisticPolicy.published_at
+            ? `Published. ${optimisticAck.acked} of ${memberCount} team member${memberCount === 1 ? "" : "s"} acknowledged this version.`
+            : optimisticPolicy.approved_at
+              ? "Approved — publish it to request acknowledgements from the team."
+              : "Draft — an owner or admin approves it, then publishes it for the team to acknowledge."}
+        </p>
+
+        {optimisticPolicy.published_at && (
+          <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+            <div
+              className={`h-full transition-all ${fullyAcked ? "bg-[var(--brand-emerald)]" : "bg-amber-500"}`}
+              style={{ width: `${memberCount > 0 ? Math.min(100, Math.round((optimisticAck.acked / memberCount) * 100)) : 0}%` }}
+            />
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          {canApprove && !optimisticPolicy.approved_at && (
+            <button onClick={approve} disabled={pending} className="btn-primary text-xs">
+              <ShieldCheck className="mr-1 h-3 w-3" /> Approve
+            </button>
+          )}
+          {canApprove && optimisticPolicy.approved_at && !optimisticPolicy.published_at && (
+            <button onClick={publish} disabled={pending} className="btn-primary text-xs">
+              <Send className="mr-1 h-3 w-3" /> Publish for acknowledgement
+            </button>
+          )}
+          {optimisticPolicy.published_at && (
+            optimisticAck.mine ? (
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
+                <Check className="h-4 w-4" /> You acknowledged this version
+              </span>
+            ) : (
+              <button onClick={acknowledge} disabled={pending} className="btn-accent text-xs">
+                <Check className="mr-1 h-3 w-3" /> I acknowledge this policy
+              </button>
+            )
+          )}
+        </div>
+      </div>
+
       <div className="card space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           {canWrite ? (
@@ -307,57 +405,6 @@ function PolicyEditor({
             Status: {status === "final" ? "Final" : "Draft"} · read-only
           </div>
         )}
-      </div>
-
-      {/* Approval & acknowledgement */}
-      <div className="card space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <ShieldCheck className="h-4 w-4" /> Approval &amp; acknowledgement
-          </h3>
-          <Badge variant={lifecycle(policy).variant}>{lifecycle(policy).label} · v{policy.version}</Badge>
-        </div>
-
-        <p className="text-xs text-muted-foreground">
-          {policy.published_at
-            ? `Published. ${acked} of ${memberCount} team member${memberCount === 1 ? "" : "s"} acknowledged this version.`
-            : policy.approved_at
-              ? "Approved — publish it to request acknowledgements from the team."
-              : "Draft — an owner or admin approves it, then publishes it for the team to acknowledge."}
-        </p>
-
-        {policy.published_at && (
-          <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-            <div
-              className={`h-full transition-all ${fullyAcked ? "bg-[var(--brand-emerald)]" : "bg-amber-500"}`}
-              style={{ width: `${memberCount > 0 ? Math.min(100, Math.round((acked / memberCount) * 100)) : 0}%` }}
-            />
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-center gap-2">
-          {canApprove && !policy.approved_at && (
-            <button onClick={() => run(() => approvePolicy(policy.id), "Policy approved")} disabled={pending} className="btn-primary text-xs">
-              <ShieldCheck className="mr-1 h-3 w-3" /> Approve
-            </button>
-          )}
-          {canApprove && policy.approved_at && !policy.published_at && (
-            <button onClick={() => run(() => publishPolicy(policy.id), "Published for acknowledgement")} disabled={pending} className="btn-primary text-xs">
-              <Send className="mr-1 h-3 w-3" /> Publish for acknowledgement
-            </button>
-          )}
-          {policy.published_at && (
-            mine ? (
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
-                <Check className="h-4 w-4" /> You acknowledged this version
-              </span>
-            ) : (
-              <button onClick={() => run(() => acknowledgePolicy(policy.id), "Acknowledged")} disabled={pending} className="btn-accent text-xs">
-                <Check className="mr-1 h-3 w-3" /> I acknowledge this policy
-              </button>
-            )
-          )}
-        </div>
       </div>
     </div>
   );
