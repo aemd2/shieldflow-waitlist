@@ -45,30 +45,43 @@ Expected: `{ "ok": true, "companies": N, "integrations": N, "synced": N, "drift"
 Without the header → `401`. Flip an AWS/GitHub setting, run twice, and a connected
 member should get an "Automated monitoring update" notification on the second run.
 
-## Alternative — Supabase `pg_cron` (for sub-daily schedules)
+## Live: hourly via Supabase `pg_cron` + Vault (competitive cadence)
 
-Vercel Hobby caps cron at daily. To run more often, schedule from Postgres instead
-(extensions `pg_cron` + `pg_net` are available on this project). Run once in the SQL
-editor, replacing the secret:
+Vercel Hobby caps its *own* cron feature at daily — a more frequent `vercel.json`
+schedule fails at deploy time. Vanta runs its automated tests hourly, so daily-only
+was a real gap. Fixed by scheduling from Postgres instead (`pg_cron` + `pg_net`,
+enabled on this project), with the secret in **Supabase Vault** — the job definition
+in `cron.job` only ever contains a vault lookup, never the raw `CRON_SECRET` value:
 
 ```sql
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
+-- One-time: store the secret encrypted (never appears in cron.job or source).
+select vault.create_secret('<CRON_SECRET value>', 'shieldflow_cron_secret',
+  'Bearer token for POST /api/cron/sync (continuous compliance monitoring)');
+
 select cron.schedule(
   'shieldflow-continuous-sync',
-  '0 */6 * * *',  -- every 6 hours
+  '0 * * * *',  -- hourly, on the hour — matches Vanta's cadence
   $$
   select net.http_post(
     url     := 'https://shieldflow.cloud/api/cron/sync',
-    headers := jsonb_build_object('Authorization', 'Bearer <CRON_SECRET>')
+    headers := jsonb_build_object(
+      'Authorization',
+      'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'shieldflow_cron_secret')
+    )
   );
   $$
 );
 ```
 
-Keep the secret out of source — store it in Supabase Vault and read it in the job if
-you prefer. To remove: `select cron.unschedule('shieldflow-continuous-sync');`
+The Vercel daily cron (`vercel.json`) stays in place as a redundant fallback — both
+calling the same idempotent endpoint hourly + daily is harmless, it just means fresher
+data. Check recent runs: `select * from cron.job_run_details order by start_time desc limit 20;`.
+To pause: `select cron.unschedule('shieldflow-continuous-sync');`. To rotate the secret:
+`select vault.update_secret((select id from vault.secrets where name = 'shieldflow_cron_secret'), '<new value>');`
+— no redeploy needed, the next run picks it up.
 
 ## Scale note
 
