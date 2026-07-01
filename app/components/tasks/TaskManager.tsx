@@ -15,7 +15,7 @@ import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ListCard, ListRow } from "@/components/ui/ListCard";
 import { TASK_STATUSES, TASK_PRIORITIES, TASK_RECURRENCE } from "@/lib/validation";
-import type { Task, TaskPriority, TaskStatus, TaskRecurrence } from "@/lib/db/queries";
+import type { Task, TaskPriority, TaskStatus, TaskRecurrence, TeamMember } from "@/lib/db/queries";
 
 const NETWORK = "Network problem — check your connection and try again.";
 
@@ -67,7 +67,15 @@ function isOverdue(t: Task): boolean {
   return due < today;
 }
 
-export function TaskManager({ tasks, canWrite = true }: { tasks: Task[]; canWrite?: boolean }) {
+export function TaskManager({
+  tasks,
+  canWrite = true,
+  members = [],
+}: {
+  tasks: Task[];
+  canWrite?: boolean;
+  members?: TeamMember[];
+}) {
   const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
@@ -168,14 +176,20 @@ export function TaskManager({ tasks, canWrite = true }: { tasks: Task[]; canWrit
             />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Assignee email">
-              <Input
-                type="email"
-                maxLength={254}
-                value={form.assignee_email}
-                onChange={(e) => set("assignee_email")(e.target.value)}
-                placeholder="teammate@company.com"
-              />
+            <Field label="Assignee">
+              <Select value={form.assignee_email} onChange={(e) => set("assignee_email")(e.target.value)}>
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m.user_id} value={m.email}>
+                    {m.email} ({m.role})
+                  </option>
+                ))}
+                {/* A prior assignee who's no longer on the team — keep it selectable so
+                    editing the task doesn't silently reassign it out from under you. */}
+                {form.assignee_email && !members.some((m) => m.email === form.assignee_email) && (
+                  <option value={form.assignee_email}>{form.assignee_email} (no longer on team)</option>
+                )}
+              </Select>
             </Field>
             <Field label="Due date">
               <Input type="date" value={form.due_date} onChange={(e) => set("due_date")(e.target.value)} />
