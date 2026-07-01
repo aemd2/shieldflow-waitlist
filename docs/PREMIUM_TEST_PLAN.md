@@ -212,6 +212,27 @@ notification preferences. Both rules are enforced **server-side**, not just hidd
 - [ ] **Server-side enforcement (not just UI):** the member/auditor billing redirect and the auditor
       pref rejection both live on the server, so hand-crafting the request can't bypass them. ✅
 
+## 15 · Control detail & list enrichment
+
+Each control page should teach *that* control (guidance + expected evidence), and the controls list
+should carry priority + live health signals — the Vanta/Drata-style depth.
+
+- [ ] **Header badges:** open any control → the eyebrow reads `Framework · Category · Code` and a
+      **criticality badge** (Core / Important / Operational) shows next to it. ✅
+- [ ] **Guidance card:** a **"How to satisfy this control"** card shows control-specific guidance
+      (not generic filler). ✅
+- [ ] **Expected evidence:** an **"Evidence auditors typically expect"** list sits above the upload
+      box, so it's never blank. ✅
+- [ ] **All frameworks seeded:** open one control each from SOC 2, ISO 27001, HIPAA, PCI-DSS, GDPR →
+      every one has its own guidance + evidence (none blank, none identical). ✅
+- [ ] **List — Core badge:** on the dashboard's Controls list, core controls carry a **"Core"** badge. ✅
+- [ ] **List — search + filter:** the **search box** filters by code/title; the **priority filter**
+      (All / Core / Important / Operational) narrows the list; "Showing X of Y" updates. ✅
+- [ ] **List — health pill:** after syncing an integration, a control its checks map to shows a
+      **"Checks passing" / "Check failing"** pill next to its status. ✅
+- [ ] **Auditor read-only:** as the auditor (C), all of the above **renders** with no edit/connect
+      actions and no errors (the pages make zero writes). ✅
+
 ## Tenant isolation (do once, critical)
 
 - [ ] As an unrelated **second company**, confirm you see **none** of company A's
