@@ -83,6 +83,28 @@ To pause: `select cron.unschedule('shieldflow-continuous-sync');`. To rotate the
 `select vault.update_secret((select id from vault.secrets where name = 'shieldflow_cron_secret'), '<new value>');`
 — no redeploy needed, the next run picks it up.
 
+### Free-tier storage guard
+
+We're on the **Supabase free tier** (500 MB DB cap), so `pg_net`'s response-logging
+table (`net._http_response`) needs a backstop: its documented 6-hour auto-expiry has a
+known reliability issue upstream (one reported case grew to 430 MB unattended). A second
+job prunes both `net._http_response` and `cron.job_run_details` (which `pg_cron` never
+auto-cleans) daily at 03:30 UTC, keeping 3/7 days of history respectively:
+
+```sql
+select cron.schedule(
+  'shieldflow-cron-cleanup',
+  '30 3 * * *',
+  $$
+  delete from net._http_response where created < now() - interval '3 days';
+  delete from cron.job_run_details where end_time < now() - interval '7 days';
+  $$
+);
+```
+
+Sanity-check current footprint any time: `select pg_size_pretty(pg_database_size(current_database()));`
+— at hourly cadence with a small JSON response body, this adds a negligible amount per day.
+
 ## Scale note
 
 The endpoint currently walks all connected integrations in one invocation (fine for
