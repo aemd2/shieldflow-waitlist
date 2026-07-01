@@ -8,6 +8,7 @@ import {
   getChecksForControl,
   getCallerAccess,
   listFrameworks,
+  getCompanyTeam,
 } from "@/lib/db/queries";
 import type { ControlCheck } from "@/lib/db/queries";
 import { StatusPicker } from "@/components/dashboard/StatusPicker";
@@ -35,11 +36,12 @@ export default async function ControlDetailPage({
   const control = await getControlWithStatus(supabase, company.id, id);
   if (!control) notFound();
 
-  const [evidence, checks, access, frameworks] = await Promise.all([
+  const [evidence, checks, access, frameworks, team] = await Promise.all([
     listEvidence(supabase, company.id, id),
     getChecksForControl(supabase, company.id, id),
     getCallerAccess(supabase, company.id, user.id),
     listFrameworks(supabase),
+    getCompanyTeam(supabase, company.id).catch(() => ({ members: [], invites: [] })),
   ]);
 
   const framework = frameworks.find((f) => f.id === control.framework_id);
@@ -124,6 +126,7 @@ export default async function ControlDetailPage({
             ownerEmail={control.owner_email}
             dueDate={control.due_date}
             notes={control.notes}
+            members={team.members}
           />
         ) : (
           <dl className="grid grid-cols-3 gap-2 text-sm">
