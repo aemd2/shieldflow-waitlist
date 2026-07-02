@@ -5,9 +5,17 @@ import { usePathname } from "next/navigation";
 import { BrandMark } from "@/components/BrandMark";
 import { visibleNav, type NavRole } from "./nav-items";
 
-export function Sidebar({ companyName, role }: { companyName: string; role: NavRole | null }) {
+export function Sidebar({
+  companyName,
+  role,
+  sprintReady = false,
+}: {
+  companyName: string;
+  role: NavRole | null;
+  sprintReady?: boolean;
+}) {
   const pathname = usePathname();
-  const items = visibleNav(role);
+  const items = visibleNav(role, sprintReady);
   return (
     <aside className="hidden h-full w-60 shrink-0 flex-col overflow-y-auto border-r border-border bg-card p-4 md:flex print:hidden">
       <div className="mb-6 flex shrink-0 items-center gap-2">

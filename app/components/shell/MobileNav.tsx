@@ -10,10 +10,18 @@ import { visibleNav, type NavRole } from "./nav-items";
 // The mobile counterpart to the desktop Sidebar: a hamburger button that opens
 // a slide-out drawer. Shown only below the `md` breakpoint (the Sidebar takes
 // over at ≥768px), so navigation is reachable at every screen width.
-export function MobileNav({ companyName, role }: { companyName: string; role: NavRole | null }) {
+export function MobileNav({
+  companyName,
+  role,
+  sprintReady = false,
+}: {
+  companyName: string;
+  role: NavRole | null;
+  sprintReady?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-  const items = visibleNav(role);
+  const items = visibleNav(role, sprintReady);
 
   // Close the drawer whenever the route changes (e.g. after a link click).
   useEffect(() => {

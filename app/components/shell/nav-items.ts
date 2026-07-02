@@ -44,9 +44,15 @@ export const NAV: NavItem[] = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-// Filter the nav for a role. Billing is an owner/admin surface — members and
-// auditors never see it (the billing page enforces the same rule server-side).
-export function visibleNav(role: NavRole | null): NavItem[] {
+// Filter the nav for a role + sprint state. Billing is an owner/admin surface —
+// members and auditors never see it (the billing page enforces the same rule
+// server-side). "Getting started" drops out once the 14-Day Sprint is
+// complete — it's an onboarding offer, not a permanent fixture; the guide
+// page itself stays reachable by URL, just not pinned in the nav anymore.
+export function visibleNav(role: NavRole | null, sprintReady = false): NavItem[] {
   const canManageBilling = role === "owner" || role === "admin";
-  return NAV.filter((item) => !item.ownerAdminOnly || canManageBilling);
+  return NAV.filter((item) => {
+    if (item.href === "/getting-started" && sprintReady) return false;
+    return !item.ownerAdminOnly || canManageBilling;
+  });
 }
