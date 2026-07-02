@@ -12,6 +12,7 @@ import {
 import { computeScore, countStatuses } from "@/lib/score";
 import { computeAlerts } from "@/lib/monitoring";
 import { PrintButton } from "@/components/reports/PrintButton";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -66,14 +67,12 @@ export default async function ReportsPage() {
   return (
     <div className="space-y-6">
       {/* Toolbar — hidden when printing */}
-      <div className="flex items-center justify-between print:hidden">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Audit report</h1>
-          <p className="text-sm text-muted-foreground">
-            A one-page compliance snapshot to share with auditors and prospects. Save it as a PDF.
-          </p>
-        </div>
-        <PrintButton />
+      <div className="print:hidden">
+        <PageHeader
+          title="Audit report"
+          subtitle="A one-page compliance snapshot to share with auditors and prospects. Save it as a PDF."
+          actions={<PrintButton />}
+        />
       </div>
 
       {/* The printable report */}

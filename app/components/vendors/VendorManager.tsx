@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
+import { FormSection } from "@/components/ui/FormSection";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
@@ -185,46 +186,59 @@ export function VendorManager({ vendors, canWrite = true }: { vendors: Vendor[];
           <h2 className="text-sm font-semibold text-foreground">
             {editing === "new" ? "New vendor" : "Edit vendor"}
           </h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Name" required>
-              <Input required maxLength={120} value={form.name} onChange={(e) => set("name")(e.target.value)} placeholder="e.g. AWS" />
-            </Field>
-            <Field label="Website">
-              <Input type="url" maxLength={300} value={form.website} onChange={(e) => set("website")(e.target.value)} placeholder="https://..." />
-            </Field>
-            <Field label="Category">
-              <Input maxLength={80} value={form.category} onChange={(e) => set("category")(e.target.value)} placeholder="e.g. Cloud hosting" />
-            </Field>
-            <Field label="Security contact email">
-              <Input type="email" maxLength={254} value={form.contact_email} onChange={(e) => set("contact_email")(e.target.value)} placeholder="security@vendor.com" />
-            </Field>
-            <Field label="Risk level">
-              <Select value={form.risk_level} onChange={(e) => set("risk_level")(e.target.value)}>
-                {VENDOR_RISKS.map((r) => <option key={r} value={r}>{cap(r)}</option>)}
-              </Select>
-            </Field>
-            <Field label="Status">
-              <Select value={form.status} onChange={(e) => set("status")(e.target.value)}>
-                {VENDOR_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-              </Select>
-            </Field>
-            <Field label="Data they process">
-              <Select value={form.data_sensitivity} onChange={(e) => set("data_sensitivity")(e.target.value)}>
-                {VENDOR_DATA_SENSITIVITY.map((d) => <option key={d} value={d}>{SENSITIVITY_LABEL[d]}</option>)}
-              </Select>
-            </Field>
-            <Field label="Re-review every (months)" hint="Drives the 'review overdue' alert.">
-              <Input type="number" min={1} max={60} value={form.review_cadence_months} onChange={(e) => set("review_cadence_months")(e.target.value)} placeholder="e.g. 12" />
-            </Field>
-            <Field label="SOC 2 status">
-              <Select value={form.soc2_status} onChange={(e) => set("soc2_status")(e.target.value)}>
-                {VENDOR_SOC2_STATUSES.map((s) => <option key={s} value={s}>{SOC2_LABEL[s]}</option>)}
-              </Select>
-            </Field>
-            <Field label="SOC 2 report expires">
-              <Input type="date" value={form.soc2_expires_at} onChange={(e) => set("soc2_expires_at")(e.target.value)} disabled={form.soc2_status !== "on_file"} />
-            </Field>
-          </div>
+          <FormSection label="Basics">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Name" required>
+                <Input required maxLength={120} value={form.name} onChange={(e) => set("name")(e.target.value)} placeholder="e.g. AWS" />
+              </Field>
+              <Field label="Website">
+                <Input type="url" maxLength={300} value={form.website} onChange={(e) => set("website")(e.target.value)} placeholder="https://..." />
+              </Field>
+              <Field label="Category">
+                <Input maxLength={80} value={form.category} onChange={(e) => set("category")(e.target.value)} placeholder="e.g. Cloud hosting" />
+              </Field>
+              <Field label="Security contact email">
+                <Input type="email" maxLength={254} value={form.contact_email} onChange={(e) => set("contact_email")(e.target.value)} placeholder="security@vendor.com" />
+              </Field>
+            </div>
+          </FormSection>
+
+          <FormSection label="Risk & compliance">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Risk level">
+                <Select value={form.risk_level} onChange={(e) => set("risk_level")(e.target.value)}>
+                  {VENDOR_RISKS.map((r) => <option key={r} value={r}>{cap(r)}</option>)}
+                </Select>
+              </Field>
+              <Field label="Status">
+                <Select value={form.status} onChange={(e) => set("status")(e.target.value)}>
+                  {VENDOR_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+                </Select>
+              </Field>
+              <Field label="Data they process">
+                <Select value={form.data_sensitivity} onChange={(e) => set("data_sensitivity")(e.target.value)}>
+                  {VENDOR_DATA_SENSITIVITY.map((d) => <option key={d} value={d}>{SENSITIVITY_LABEL[d]}</option>)}
+                </Select>
+              </Field>
+              <Field label="SOC 2 status">
+                <Select value={form.soc2_status} onChange={(e) => set("soc2_status")(e.target.value)}>
+                  {VENDOR_SOC2_STATUSES.map((s) => <option key={s} value={s}>{SOC2_LABEL[s]}</option>)}
+                </Select>
+              </Field>
+              <Field label="SOC 2 report expires">
+                <Input type="date" value={form.soc2_expires_at} onChange={(e) => set("soc2_expires_at")(e.target.value)} disabled={form.soc2_status !== "on_file"} />
+              </Field>
+            </div>
+          </FormSection>
+
+          <FormSection label="Review cadence">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Re-review every (months)" hint="Drives the 'review overdue' alert.">
+                <Input type="number" min={1} max={60} value={form.review_cadence_months} onChange={(e) => set("review_cadence_months")(e.target.value)} placeholder="e.g. 12" />
+              </Field>
+            </div>
+          </FormSection>
+
           <Field label="Notes">
             <Textarea maxLength={2000} rows={3} value={form.notes} onChange={(e) => set("notes")(e.target.value)} placeholder="DPA signed, subprocessor list reviewed, ..." />
           </Field>

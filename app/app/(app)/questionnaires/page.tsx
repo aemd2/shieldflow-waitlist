@@ -8,6 +8,7 @@ import {
 } from "@/lib/db/queries";
 import { isGroqConfigured } from "@/lib/groq";
 import { QuestionnaireWorkspace } from "@/components/questionnaires/QuestionnaireWorkspace";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function QuestionnairesPage() {
   const supabase = await createServerSupabase();
@@ -26,13 +27,10 @@ export default async function QuestionnairesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Security questionnaires</h1>
-        <p className="text-sm text-muted-foreground">
-          Paste a customer or RFP security questionnaire, draft answers with AI grounded only in your
-          compliance data, review what needs a human, and export to CSV.
-        </p>
-      </div>
+      <PageHeader
+        title="Security questionnaires"
+        subtitle="Paste a customer or RFP security questionnaire, draft answers with AI grounded only in your compliance data, review what needs a human, and export to CSV."
+      />
       <QuestionnaireWorkspace
         questionnaires={questionnaires}
         items={items}

@@ -35,6 +35,7 @@ export function PolicyWorkspace({
   acks,
   memberCount,
   currentUserId,
+  initialPolicyId = null,
 }: {
   frameworks: Framework[];
   policies: Policy[];
@@ -45,17 +46,22 @@ export function PolicyWorkspace({
   acks: PolicyAck[];
   memberCount: number;
   currentUserId: string;
+  /** From ?policy= on /policies — opens the right pane while keeping the list visible. */
+  initialPolicyId?: string | null;
 }) {
   const router = useRouter();
   const toast = useToast();
   const [policyType, setPolicyType] = useState<(typeof POLICY_TYPES)[number]>(POLICY_TYPES[0]);
   const [frameworkId, setFrameworkId] = useState<string>(frameworks[0]?.id ?? "");
   const [generating, setGenerating] = useState(false);
-  const [selected, setSelected] = useState<Policy | null>(null);
+  // Track selection by id (not object) so a policy that doesn't exist yet at
+  // click time — like one just generated, arriving via router.refresh() — can
+  // still be pre-selected and auto-open once the fresh list lands.
+  const [selectedId, setSelectedId] = useState<string | null>(initialPolicyId);
 
   // Keep the selected policy in sync with refreshed server data (so lifecycle
   // buttons reflect the latest state after an approve/publish/acknowledge).
-  const selectedLive = selected ? policies.find((p) => p.id === selected.id) ?? null : null;
+  const selectedLive = selectedId ? policies.find((p) => p.id === selectedId) ?? null : null;
 
   function ackedCount(p: Policy): number {
     return acks.filter((a) => a.policy_id === p.id && a.version === p.version).length;
@@ -92,6 +98,10 @@ export function PolicyWorkspace({
         toast("error", created.error);
         return;
       }
+      // Auto-open the new policy in the editor pane — without this the right
+      // side keeps showing the "Select a policy" placeholder and the generate
+      // looks like it did nothing.
+      if (created?.id) setSelectedId(created.id);
       toast("success", "Policy generated");
       router.refresh();
     } catch {
@@ -150,7 +160,7 @@ export function PolicyWorkspace({
                 return (
                   <li key={p.id}>
                     <button
-                      onClick={() => setSelected(p)}
+                      onClick={() => setSelectedId(p.id)}
                       className={`flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm hover:bg-secondary ${
                         selectedLive?.id === p.id ? "bg-secondary" : ""
                       }`}

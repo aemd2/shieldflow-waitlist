@@ -11,14 +11,21 @@ import {
 } from "@/lib/db/queries";
 import { isGroqConfigured } from "@/lib/groq";
 import { PolicyWorkspace } from "@/components/policies/PolicyGenerator";
+import { PageHeader } from "@/components/ui/PageHeader";
 
-export default async function PoliciesPage() {
+export default async function PoliciesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ policy?: string }>;
+}) {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const company = await getCompanyForUser(supabase, user.id);
   if (!company) redirect("/onboarding");
+
+  const { policy: policyParam } = await searchParams;
 
   const [policies, allFrameworks, selectedIds, access, acks, memberCount] = await Promise.all([
     listPolicies(supabase, company.id),
@@ -32,15 +39,16 @@ export default async function PoliciesPage() {
   const canWrite = access?.canWrite ?? false;
   const canApprove = access?.role === "owner" || access?.role === "admin";
   const isAuditor = access?.role === "auditor";
+  // Notification deep-links land as ?policy=<uuid> — only honour ids in this workspace.
+  const initialPolicyId =
+    policyParam && policies.some((p) => p.id === policyParam) ? policyParam : null;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Policies</h1>
-        <p className="text-sm text-muted-foreground">
-          Generate audit-ready policy documents with AI, then edit and finalize.
-        </p>
-      </div>
+      <PageHeader
+        title="Policies"
+        subtitle="Generate audit-ready policy documents with AI, then edit and finalize."
+      />
 
       {!isGroqConfigured() && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -60,6 +68,7 @@ export default async function PoliciesPage() {
         acks={acks}
         memberCount={memberCount}
         currentUserId={user.id}
+        initialPolicyId={initialPolicyId}
       />
     </div>
   );

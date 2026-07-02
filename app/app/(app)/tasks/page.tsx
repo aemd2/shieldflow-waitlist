@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, listTasks, getCallerAccess, getCompanyTeam } from "@/lib/db/queries";
 import { TaskManager } from "@/components/tasks/TaskManager";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function TasksPage() {
   const supabase = await createServerSupabase();
@@ -20,14 +21,10 @@ export default async function TasksPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Tasks</h1>
-        <p className="text-sm text-muted-foreground">
-          Remediation work and recurring compliance obligations — assign owners, set due
-          dates, and let recurring items (access reviews, pen tests, policy reviews) re-spawn
-          when you complete them.
-        </p>
-      </div>
+      <PageHeader
+        title="Tasks"
+        subtitle="Remediation work and recurring compliance obligations — assign owners, set due dates, and let recurring items (access reviews, pen tests, policy reviews) re-spawn when you complete them."
+      />
       <TaskManager tasks={tasks} canWrite={canWrite} members={team.members} />
     </div>
   );

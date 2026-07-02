@@ -24,6 +24,7 @@ import { ScoreCard } from "@/components/dashboard/ScoreCard";
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
 import { ControlsExplorer } from "@/components/dashboard/ControlsExplorer";
 import { SprintBanner } from "@/components/setup/SprintBanner";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function DashboardPage() {
   const supabase = await createServerSupabase();
@@ -109,10 +110,10 @@ export default async function DashboardPage() {
       {!sprint.ready && !isAuditor && (
         <SprintBanner completedCount={sprint.completedCount} total={sprint.phases.length} />
       )}
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Compliance dashboard</h1>
-        <p className="text-sm text-muted-foreground">Overview of {company.name}&apos;s controls.</p>
-      </div>
+      <PageHeader
+        title="Compliance dashboard"
+        subtitle={`Overview of ${company.name}'s controls.`}
+      />
 
       <div className="grid gap-4 md:grid-cols-4">
         <ScoreCard score={score} />

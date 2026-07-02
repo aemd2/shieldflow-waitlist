@@ -15,6 +15,7 @@ import { NotificationPrefs } from "@/components/notifications/NotificationPrefs"
 import { SubprocessorManager } from "@/components/settings/SubprocessorManager";
 import { TrustRequests } from "@/components/settings/TrustRequests";
 import { SsoSettings } from "@/components/settings/SsoSettings";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function SettingsPage() {
   const supabase = await createServerSupabase();
@@ -45,10 +46,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Settings</h1>
-        <p className="text-sm text-muted-foreground">Workspace settings for {company.name}.</p>
-      </div>
+      <PageHeader title="Settings" subtitle={`Workspace settings for ${company.name}.`} />
 
       <TeamSettings
         isOwner={isOwner}

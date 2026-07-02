@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, listCopilotMessages } from "@/lib/db/queries";
 import { isGroqConfigured } from "@/lib/groq";
 import { Chat } from "@/components/copilot/Chat";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function CopilotPage() {
   const supabase = await createServerSupabase();
@@ -17,10 +18,10 @@ export default async function CopilotPage() {
   return (
     <div className="mx-auto flex h-[calc(100vh-8rem)] max-w-3xl flex-col">
       <div className="mb-4">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Compliance Co-Pilot</h1>
-        <p className="text-sm text-muted-foreground">
-          Ask about your controls, gaps, and what to do next. Grounded in your live data.
-        </p>
+        <PageHeader
+          title="Compliance Co-Pilot"
+          subtitle="Ask about your controls, gaps, and what to do next. Grounded in your live data."
+        />
       </div>
 
       {!isGroqConfigured() && (

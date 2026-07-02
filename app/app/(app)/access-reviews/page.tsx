@@ -7,6 +7,7 @@ import {
   getCallerAccess,
 } from "@/lib/db/queries";
 import { AccessReviewWorkspace } from "@/components/access/AccessReviewWorkspace";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function AccessReviewsPage() {
   const supabase = await createServerSupabase();
@@ -25,14 +26,10 @@ export default async function AccessReviewsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Access reviews</h1>
-        <p className="text-sm text-muted-foreground">
-          Periodically attest who should keep access. Snapshot the people and their access, mark
-          keep or revoke on each, and completing the review files a signed evidence record. We record
-          the attestation — we never revoke access for you.
-        </p>
-      </div>
+      <PageHeader
+        title="Access reviews"
+        subtitle="Periodically attest who should keep access. Snapshot the people and their access, mark keep or revoke on each, and completing the review files a signed evidence record. We record the attestation — we never revoke access for you."
+      />
       <AccessReviewWorkspace reviews={reviews} items={items} canWrite={canWrite} />
     </div>
   );

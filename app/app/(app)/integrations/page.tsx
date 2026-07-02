@@ -22,6 +22,7 @@ import { isGoogleConfigured } from "@/lib/google";
 import { isGitHubOAuthConfigured } from "@/lib/github";
 import { isSlackOAuthConfigured } from "@/lib/slack";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { GoogleWorkspaceCard } from "@/components/integrations/GoogleWorkspaceCard";
 import { GitHubCard } from "@/components/integrations/GitHubCard";
 import { SlackCard } from "@/components/integrations/SlackCard";
@@ -77,13 +78,10 @@ export default async function IntegrationsPage() {
       <Suspense fallback={null}>
         <IntegrationsUrlToast />
       </Suspense>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Integrations</h1>
-        <p className="text-sm text-muted-foreground">
-          Connect your stack to collect compliance evidence automatically and keep your team in
-          the loop.
-        </p>
-      </div>
+      <PageHeader
+        title="Integrations"
+        subtitle="Connect your stack to collect compliance evidence automatically and keep your team in the loop."
+      />
 
       <Section title="Identity & workspace">
         <IntegrationCard
@@ -308,12 +306,10 @@ function ReadOnlyIntegrations({ integrations }: { integrations: Integration[] })
   const providers = Object.keys(INTEGRATION_LABELS);
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Integrations</h1>
-        <p className="text-sm text-muted-foreground">
-          Connection status (read-only). Connecting and syncing is reserved for the workspace team.
-        </p>
-      </div>
+      <PageHeader
+        title="Integrations"
+        subtitle="Connection status (read-only). Connecting and syncing is reserved for the workspace team."
+      />
       <div className="card divide-y divide-border p-0">
         {providers.map((p) => {
           const row = byProvider(p);

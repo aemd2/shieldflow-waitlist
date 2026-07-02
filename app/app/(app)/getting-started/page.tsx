@@ -9,6 +9,7 @@ import {
 } from "@/lib/db/queries";
 import { computeSprint } from "@/lib/setup";
 import { SprintGuide, type OutstandingControl } from "@/components/setup/SprintGuide";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function GettingStartedPage() {
   const supabase = await createServerSupabase();
@@ -40,10 +41,10 @@ export default async function GettingStartedPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Getting started</h1>
-        <p className="text-sm text-muted-foreground">
-          Your guided path to audit-ready for {company.name}.
-        </p>
+        <PageHeader
+          title="Getting started"
+          subtitle={`Your guided path to audit-ready for ${company.name}.`}
+        />
       </div>
       <SprintGuide sprint={sprint} outstandingCore={outstandingCore} />
     </div>
