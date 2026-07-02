@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
-import { visibleNav, type NavRole } from "./nav-items";
+import { visibleNavSections, type NavRole } from "./nav-items";
 
 // The mobile counterpart to the desktop Sidebar: a hamburger button that opens
 // a slide-out drawer. Shown only below the `md` breakpoint (the Sidebar takes
@@ -21,7 +21,7 @@ export function MobileNav({
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-  const items = visibleNav(role, sprintReady);
+  const sections = visibleNavSections(role, sprintReady);
 
   // Close the drawer whenever the route changes (e.g. after a link click).
   useEffect(() => {
@@ -78,21 +78,32 @@ export function MobileNav({
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <nav className="space-y-1 text-sm">
-              {items.map(({ href, label, icon: Icon }) => {
-                const active = pathname === href || pathname.startsWith(href + "/");
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    className={`flex items-center gap-2 rounded-md px-3 py-2 transition-colors ${
-                      active ? "bg-secondary font-medium text-foreground" : "hover:bg-secondary"
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" /> {label}
-                  </Link>
-                );
-              })}
+            <nav className="space-y-4 overflow-y-auto text-sm">
+              {sections.map((section, i) => (
+                <div key={section.label ?? i}>
+                  {section.label && (
+                    <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {section.label}
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    {section.items.map(({ href, label, icon: Icon }) => {
+                      const active = pathname === href || pathname.startsWith(href + "/");
+                      return (
+                        <Link
+                          key={href}
+                          href={href}
+                          className={`flex items-center gap-2 rounded-md px-3 py-2 transition-colors ${
+                            active ? "bg-secondary font-medium text-foreground" : "hover:bg-secondary"
+                          }`}
+                        >
+                          <Icon className="h-4 w-4" /> {label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </nav>
           </aside>
         </div>
