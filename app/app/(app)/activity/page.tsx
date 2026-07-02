@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
 import { cn } from "@/lib/cn";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 export const dynamic = "force-dynamic";
 

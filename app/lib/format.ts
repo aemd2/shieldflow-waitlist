@@ -30,3 +30,26 @@ export function formatDateTime(iso: string): string {
     minute: "2-digit",
   });
 }
+
+/** Section-header label for grouping a chronological list by day, e.g. for an
+ *  activity feed: "Today", "Yesterday", "Monday" (this week), or "22 June 2026"
+ *  (older) — the standard grouping pattern that turns a flat wall of rows into
+ *  scannable chunks. */
+export function dateGroupLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const day = new Date(d);
+  day.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays > 1 && diffDays < 7) return d.toLocaleDateString(undefined, { weekday: "long" });
+  return d.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "long",
+    year: d.getFullYear() === today.getFullYear() ? undefined : "numeric",
+  });
+}

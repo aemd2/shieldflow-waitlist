@@ -21,7 +21,7 @@ import {
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { ListCard, ListRow } from "@/components/ui/ListCard";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { timeAgo, formatDateTime } from "@/lib/format";
+import { timeAgo, formatDateTime, dateGroupLabel } from "@/lib/format";
 import type { AuditEvent } from "@/lib/db/queries";
 
 /** A label rendered in the foreground colour + medium weight, to stand out
@@ -178,35 +178,55 @@ export function ActivityFeed({ events }: { events: AuditEvent[] }) {
     );
   }
 
+  // Events arrive newest-first, so same-day entries are already consecutive —
+  // group them under a date header (Today / Yesterday / ...) instead of one
+  // long undifferentiated list, the standard pattern for activity feeds.
+  const groups: { label: string; items: AuditEvent[] }[] = [];
+  for (const e of events) {
+    const label = dateGroupLabel(e.created_at);
+    const current = groups[groups.length - 1];
+    if (current && current.label === label) current.items.push(e);
+    else groups.push({ label, items: [e] });
+  }
+
   return (
-    <ListCard>
-      {events.map((e) => {
-        const f = formatEvent(e);
-        const Icon = f.icon;
-        const actor = e.actor_email ?? "System";
-        return (
-          <ListRow key={e.id} className="items-start">
-            <div className="flex min-w-0 items-start gap-3">
-              <span className="mt-0.5 shrink-0 rounded-full bg-secondary p-1.5 text-muted-foreground">
-                <Icon className="h-4 w-4" />
-              </span>
-              <p className="min-w-0 break-words text-sm text-muted-foreground">
-                {strong(actor)} {f.predicate}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-3">
-              <Badge variant={f.variant}>{f.category}</Badge>
-              <time
-                dateTime={e.created_at}
-                title={formatDateTime(e.created_at)}
-                className="shrink-0 whitespace-nowrap text-right text-xs tabular-nums text-muted-foreground"
-              >
-                {timeAgo(e.created_at)}
-              </time>
-            </div>
-          </ListRow>
-        );
-      })}
-    </ListCard>
+    <div className="space-y-5">
+      {groups.map((group) => (
+        <div key={group.label}>
+          <div className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {group.label}
+          </div>
+          <ListCard>
+            {group.items.map((e) => {
+              const f = formatEvent(e);
+              const Icon = f.icon;
+              const actor = e.actor_email ?? "System";
+              return (
+                <ListRow key={e.id} className="items-start">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className="mt-0.5 shrink-0 rounded-full bg-secondary p-1.5 text-muted-foreground">
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <p className="min-w-0 break-words text-sm text-muted-foreground">
+                      {strong(actor)} {f.predicate}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <Badge variant={f.variant}>{f.category}</Badge>
+                    <time
+                      dateTime={e.created_at}
+                      title={formatDateTime(e.created_at)}
+                      className="shrink-0 whitespace-nowrap text-right text-xs tabular-nums text-muted-foreground"
+                    >
+                      {timeAgo(e.created_at)}
+                    </time>
+                  </div>
+                </ListRow>
+              );
+            })}
+          </ListCard>
+        </div>
+      ))}
+    </div>
   );
 }
