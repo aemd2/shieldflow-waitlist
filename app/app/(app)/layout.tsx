@@ -25,17 +25,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <ToastProvider>
       <ConfirmProvider>
-        <div className="flex min-h-screen bg-secondary">
+        <div className="flex h-screen overflow-hidden bg-secondary">
           {company && <Sidebar companyName={company.name} role={role} />}
-          <div className="flex flex-1 flex-col">
+          <div className="flex flex-1 flex-col overflow-hidden">
             <Topbar email={user.email ?? ""} companyName={company?.name} role={role} readOnly={readOnly} unread={unread} />
             {readOnly && (
-              <div className="border-b border-amber-300 bg-amber-50 px-6 py-2 text-xs text-amber-800 print:hidden">
+              <div className="shrink-0 border-b border-amber-300 bg-amber-50 px-6 py-2 text-xs text-amber-800 print:hidden">
                 You have <strong>read-only auditor access</strong>. You can review controls,
                 evidence and reports, but can&apos;t make changes.
               </div>
             )}
-            <main className="flex-1 p-6 md:p-8">{children}</main>
+            <main className="flex-1 overflow-y-auto p-6 md:p-8">{children}</main>
           </div>
         </div>
       </ConfirmProvider>

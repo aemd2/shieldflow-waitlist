@@ -9,8 +9,8 @@ export function Sidebar({ companyName, role }: { companyName: string; role: NavR
   const pathname = usePathname();
   const items = visibleNav(role);
   return (
-    <aside className="hidden w-60 flex-col border-r border-border bg-card p-4 md:flex print:hidden">
-      <div className="mb-6 flex items-center gap-2">
+    <aside className="hidden h-full w-60 shrink-0 flex-col overflow-y-auto border-r border-border bg-card p-4 md:flex print:hidden">
+      <div className="mb-6 flex shrink-0 items-center gap-2">
         <BrandMark className="h-7 w-7 shrink-0" />
         <div className="min-w-0">
           <div className="text-base font-bold text-foreground">ShieldFlow</div>

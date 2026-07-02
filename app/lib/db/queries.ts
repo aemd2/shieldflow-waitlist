@@ -747,15 +747,22 @@ export interface AuditEvent {
 }
 
 /**
- * Newest-first activity for a company. Optionally narrowed to one target_type
- * (the /activity filter chips). RLS scopes this to the caller's company; the
- * 200 cap keeps the feed fast for heavy workspaces.
+ * Newest-first activity for a company, paginated (page 1-indexed). Optionally
+ * narrowed to one target_type (the /activity filter chips). RLS scopes this to
+ * the caller's company. Fetches one extra row over `pageSize` to detect
+ * whether a next page exists without a separate COUNT query — an
+ * append-only audit trail shouldn't silently cap out with no way to reach
+ * older history, so this replaces a flat 200-row limit.
  */
 export async function listAuditEvents(
   supabase: SupabaseClient,
   companyId: string,
-  opts: { targetType?: string; limit?: number } = {},
-): Promise<AuditEvent[]> {
+  opts: { targetType?: string; page?: number; pageSize?: number } = {},
+): Promise<{ events: AuditEvent[]; hasMore: boolean }> {
+  const pageSize = opts.pageSize ?? 50;
+  const page = Math.max(1, opts.page ?? 1);
+  const from = (page - 1) * pageSize;
+
   let query = supabase
     .from("audit_events")
     .select("*")
@@ -765,9 +772,12 @@ export async function listAuditEvents(
 
   const { data, error } = await query
     .order("created_at", { ascending: false })
-    .limit(opts.limit ?? 200);
+    .range(from, from + pageSize); // pageSize + 1 rows
   if (error) throw error;
-  return (data ?? []) as AuditEvent[];
+
+  const rows = (data ?? []) as AuditEvent[];
+  const hasMore = rows.length > pageSize;
+  return { events: hasMore ? rows.slice(0, pageSize) : rows, hasMore };
 }
 
 // ---------- Notifications ----------
