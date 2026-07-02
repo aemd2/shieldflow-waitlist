@@ -31,6 +31,7 @@ export default async function PoliciesPage() {
   const frameworks = allFrameworks.filter((f) => selectedIds.includes(f.id));
   const canWrite = access?.canWrite ?? false;
   const canApprove = access?.role === "owner" || access?.role === "admin";
+  const isAuditor = access?.role === "auditor";
 
   return (
     <div className="space-y-6">
@@ -55,6 +56,7 @@ export default async function PoliciesPage() {
         aiEnabled={isGroqConfigured()}
         canWrite={canWrite}
         canApprove={canApprove}
+        isAuditor={isAuditor}
         acks={acks}
         memberCount={memberCount}
         currentUserId={user.id}

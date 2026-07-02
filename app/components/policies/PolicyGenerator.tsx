@@ -31,6 +31,7 @@ export function PolicyWorkspace({
   aiEnabled,
   canWrite = true,
   canApprove = false,
+  isAuditor = false,
   acks,
   memberCount,
   currentUserId,
@@ -40,6 +41,7 @@ export function PolicyWorkspace({
   aiEnabled: boolean;
   canWrite?: boolean;
   canApprove?: boolean;
+  isAuditor?: boolean;
   acks: PolicyAck[];
   memberCount: number;
   currentUserId: string;
@@ -179,6 +181,7 @@ export function PolicyWorkspace({
             policy={selectedLive}
             canWrite={canWrite}
             canApprove={canApprove}
+            isAuditor={isAuditor}
             acked={ackedCount(selectedLive)}
             memberCount={memberCount}
             mine={iAcknowledged(selectedLive)}
@@ -199,6 +202,7 @@ function PolicyEditor({
   onChanged,
   canWrite = true,
   canApprove = false,
+  isAuditor = false,
   acked,
   memberCount,
   mine,
@@ -207,6 +211,7 @@ function PolicyEditor({
   onChanged: () => void;
   canWrite?: boolean;
   canApprove?: boolean;
+  isAuditor?: boolean;
   acked: number;
   memberCount: number;
   mine: boolean;
@@ -334,7 +339,9 @@ function PolicyEditor({
               <Send className="mr-1 h-3 w-3" /> Publish for acknowledgement
             </button>
           )}
-          {optimisticPolicy.published_at && (
+          {/* Acknowledgement is an internal-workforce attestation — auditors are
+              external reviewers and never acknowledge, so neither branch applies. */}
+          {optimisticPolicy.published_at && !isAuditor && (
             optimisticAck.mine ? (
               <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
                 <Check className="h-4 w-4" /> You acknowledged this version

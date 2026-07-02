@@ -14,6 +14,7 @@ import {
   listPolicyAcknowledgements,
   getCompanyMemberCount,
   listIntegrations,
+  getCallerAccess,
   type Integration,
 } from "@/lib/db/queries";
 import { computeScore, countStatuses } from "@/lib/score";
@@ -32,7 +33,7 @@ export default async function DashboardPage() {
   const company = await getCompanyForUser(supabase, user.id);
   if (!company) redirect("/onboarding");
 
-  const [controls, allFrameworks, selectedIds, vendors, risks, training, checks, tasks, policies, policyAcks, memberCount, integrations] =
+  const [controls, allFrameworks, selectedIds, vendors, risks, training, checks, tasks, policies, policyAcks, memberCount, integrations, access] =
     await Promise.all([
       getControlsWithStatus(supabase, company.id),
       listFrameworks(supabase),
@@ -46,7 +47,9 @@ export default async function DashboardPage() {
       listPolicyAcknowledgements(supabase, company.id),
       getCompanyMemberCount(supabase, company.id),
       listIntegrations(supabase, company.id).catch(() => [] as Integration[]),
+      getCallerAccess(supabase, company.id, user.id),
     ]);
+  const isAuditor = access?.role === "auditor";
 
   const frameworks = allFrameworks.filter((f) => selectedIds.includes(f.id));
 
@@ -103,7 +106,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {!sprint.ready && (
+      {!sprint.ready && !isAuditor && (
         <SprintBanner completedCount={sprint.completedCount} total={sprint.phases.length} />
       )}
       <div>

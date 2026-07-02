@@ -8,6 +8,7 @@ import {
   assertCanWrite,
   getCallerAccess,
   getCompanyTeam,
+  READ_ONLY_MESSAGE,
 } from "@/lib/db/queries";
 import { logEvent } from "@/lib/audit";
 import { notify } from "@/lib/notify";
@@ -227,9 +228,11 @@ export async function publishPolicy(id: string) {
   });
 
   // Ask every teammate to acknowledge (best-effort; never blocks the publish).
+  // Auditors are excluded — the notification's only action is acknowledging,
+  // which they're correctly barred from doing.
   try {
     const team = await getCompanyTeam(supabase, res.company.id);
-    const memberIds = team.members.map((m) => m.user_id);
+    const memberIds = team.members.filter((m) => m.role !== "auditor").map((m) => m.user_id);
     if (memberIds.length > 0) {
       await notify(supabase, res.company.id, memberIds, {
         type: "policy",
@@ -260,6 +263,11 @@ export async function acknowledgePolicy(id: string) {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
+
+  // Acknowledgement is an internal-workforce attestation, not a general company
+  // write — but auditors are still read-only reviewers and must never create one.
+  const access = await getCallerAccess(supabase, company.id, user.id);
+  if (access?.role === "auditor") return { error: READ_ONLY_MESSAGE };
 
   const { data: pol } = await supabase
     .from("policies")
