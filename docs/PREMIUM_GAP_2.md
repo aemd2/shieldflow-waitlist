@@ -69,10 +69,26 @@ architecture item" situation.
 
 - **G3 · Automated-test depth** — more checks per already-connected tool (more GitHub/AWS/Google
   signals), closer to competitors' hundreds-per-integration.
-- **G4 · Monitoring cadence** — scheduled sync today; competitors test hourly. Move to more
-  frequent runs as integration count grows.
+- ~~G4 · Monitoring cadence~~ — **done 2026-07-01**: hourly via Supabase `pg_cron` + `pg_net`
+  (secret in Vault), matching Vanta's benchmark. Vercel's daily cron stays as a fallback. See
+  `docs/CRON_SETUP.md`.
 - **G5 · AI depth** — we have Co-Pilot + questionnaire AI. Competitors have autonomous agents:
   auto policy drafting, vendor auto-scoring, remediation suggestions, risk graphs. Incremental.
+- **G10 · Notification trigger coverage** — found during §1/§3 testing: the notification system
+  (bell/`/notifications`) only fires on 4 events (task assigned, control owner assigned, policy
+  published, cron drift). Two real events an assignee would expect to hear about **don't** notify
+  them, and only ever surface as a dashboard-only alert card someone has to happen to see:
+  1. **Overdue tasks/controls** — `computeAlerts()` (`lib/monitoring.ts`) builds the "Tasks
+     overdue"/"Overdue control" banner live on every dashboard load; no `notify()` call anywhere
+     in it. Drata's docs explicitly describe notifying/digesting the assignee when their tasks
+     come due or go overdue — we only tell whoever happens to open the dashboard.
+  2. **Evidence uploaded by a teammate** — `evidence.ts` only calls `logEvent` (Activity trail),
+     never `notify()`. An owner has no way to know a teammate uploaded something except by
+     manually checking `/activity`.
+  - *Fix shape:* reuse the existing `notify()` path (same pattern as task-assignment) — overdue
+    would need a scheduled check (the hourly `pg_cron` job we already run is a natural place to
+    add this); evidence-upload would be a one-line addition at the existing upload call site.
+    Scoped, low-risk, deferred per "testing first" — not built.
 
 ### P2 — breadth to add when customers ask
 
