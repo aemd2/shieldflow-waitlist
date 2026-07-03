@@ -62,41 +62,44 @@ the result you should see.** Anything else = a bug; note it and tell me.
       new instance appears** with the due date advanced one month. ✅
 - [ ] Edit / delete work; auditor (C) sees the list read-only (no add/edit). ✅
 
-## 4 · Policy approval + acknowledgement
+## 4 · Policy approval + acknowledgement ✅ **tested** (7/2/2026)
 
-- [ ] `/policies` → generate or open a policy. As **owner/admin**, the **Approval &
+- [x] `/policies` → generate or open a policy. As **owner/admin**, the **Approval &
       acknowledgement** panel shows **Approve**. Click it → badge → **Approved**. ✅
-- [ ] Click **Publish for acknowledgement** → every teammate gets a **policy**
+- [x] Click **Publish for acknowledgement** → every teammate gets a **policy**
       notification; the panel shows **"0 of N acknowledged"**. ✅
-- [ ] As **B**, open the policy → **"I acknowledge"** → the count becomes **1 of N**, and
+- [x] As **B**, open the policy → **"I acknowledge"** → the count becomes **1 of N**, and
       B sees "You acknowledged this version." ✅
-- [ ] **Edit** the published policy body + Save → version bumps to **v2**, status resets
+- [x] **Edit** the published policy body + Save → version bumps to **v2**, status resets
       to **Draft**, acknowledgements reset (must re-approve + re-acknowledge). ✅
-- [ ] Dashboard shows **"Policy awaiting acknowledgement"** while < 100% acknowledged. ✅
-- [ ] A **member** (not owner/admin) does **not** see Approve/Publish. ✅
+- [x] Dashboard shows **"Policy awaiting acknowledgement"** while < 100% acknowledged. ✅
+- [x] A **member** (not owner/admin) does **not** see Approve/Publish. ✅
 
-## 5 · Risk register (engine)
+## 5 · Risk register (engine) ✅ **tested** (7/2/2026)
 
-- [ ] `/risks` → **Add risk** → "Start from the risk library" → pick one → the form
+- [x] `/risks` → **Add risk** → "Start from the risk library" → pick one → the form
       pre-fills (title, category, likelihood, impact, treatment). ✅
-- [ ] Set **Inherent** High/High and **Residual** Low/Medium; tick 1–2 **mitigating
+- [x] Set **Inherent** High/High and **Residual** Low/Medium; tick 1–2 **mitigating
       controls** → Save. The row shows **inherent → residual** badges and a linked-control
       count. ✅
-- [ ] The **heat-map** above the list shows the risk in the residual cell (not inherent). ✅
-- [ ] A risk with **residual** set drives the dashboard alert off residual (a High→Low
+- [x] The **heat-map** above the list shows the risk in the residual cell (not inherent). ✅
+- [x] A risk with **residual** set drives the dashboard alert off residual (a High→Low
       mitigated risk no longer screams "critical"). ✅
 
-## 6 · Vendors (assessment)
+## 6 · Vendors (assessment) ✅ **tested** (7/2/2026)
 
-- [ ] `/vendors` → add/edit a vendor: set **Re-review every = 1 month**, **SOC 2 = On
+- [x] `/vendors` → add/edit a vendor: set **Re-review every = 1 month**, **SOC 2 = On
       file** with an **expiry in the past**, **Data = PII**. ✅
-- [ ] The row shows **SOC 2 expired** (red), **PII**, and (because reviewed_at is older
+- [x] The row shows **SOC 2 expired** (red), **PII**, and (because reviewed_at is older
       than the cadence after you wait/he backdate) **Review overdue** badges; dashboard
       shows "Vendor review overdue" + "Vendor SOC 2 expired". ✅
-- [ ] Click **Mark reviewed** (calendar icon) → `reviewed_at` updates to today and the
+- [x] Click **Mark reviewed** (calendar icon) → `reviewed_at` updates to today and the
       overdue badge clears; **editing other fields does NOT reset** reviewed_at. ✅
 
-## 7 · Security questionnaire AI
+## 7 · Security questionnaire AI ⏭️ **skipped** — still needs more work
+
+> **Not verified in this pass.** The feature ships but quality/UX isn't where we want it
+> yet — defer full §7 click-through until the next build iteration. Continue with §8 below.
 
 - [ ] `/questionnaires` → **New questionnaire** → name it, paste a few questions (one per
       line) → Create. ✅
