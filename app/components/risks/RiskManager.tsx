@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
+import { FormSection } from "@/components/ui/FormSection";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
@@ -197,99 +198,104 @@ export function RiskManager({
             {editing === "new" ? "New risk" : "Edit risk"}
           </h2>
 
-          {editing === "new" && (
-            <Field label="Start from the risk library (optional)">
-              <Select defaultValue="" onChange={(e) => applyTemplate(e.target.value)}>
-                <option value="">— Choose a common risk —</option>
-                {RISK_LIBRARY.map((t, idx) => (
-                  <option key={idx} value={String(idx)}>{t.title}</option>
-                ))}
-              </Select>
-            </Field>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Title" required>
-              <Input required maxLength={160} value={form.title} onChange={(e) => set("title")(e.target.value)} placeholder="e.g. Single cloud region — no DR" />
-            </Field>
-            <Field label="Category">
-              <Input maxLength={80} value={form.category} onChange={(e) => set("category")(e.target.value)} placeholder="e.g. Availability" />
-            </Field>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-md border border-border p-3">
-              <div className="mb-2 text-xs font-semibold text-muted-foreground">Inherent (before controls)</div>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Likelihood">
-                  <Select value={form.likelihood} onChange={(e) => set("likelihood")(e.target.value)}>
-                    {RISK_LEVELS.map((l) => <option key={l} value={l}>{cap(l)}</option>)}
-                  </Select>
-                </Field>
-                <Field label="Impact">
-                  <Select value={form.impact} onChange={(e) => set("impact")(e.target.value)}>
-                    {RISK_LEVELS.map((l) => <option key={l} value={l}>{cap(l)}</option>)}
-                  </Select>
-                </Field>
-              </div>
-            </div>
-            <div className="rounded-md border border-border p-3">
-              <div className="mb-2 text-xs font-semibold text-muted-foreground">Residual (after controls)</div>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Likelihood">
-                  <Select value={form.residual_likelihood} onChange={(e) => set("residual_likelihood")(e.target.value)}>
-                    <option value="">— Not set —</option>
-                    {RISK_LEVELS.map((l) => <option key={l} value={l}>{cap(l)}</option>)}
-                  </Select>
-                </Field>
-                <Field label="Impact">
-                  <Select value={form.residual_impact} onChange={(e) => set("residual_impact")(e.target.value)}>
-                    <option value="">— Not set —</option>
-                    {RISK_LEVELS.map((l) => <option key={l} value={l}>{cap(l)}</option>)}
-                  </Select>
-                </Field>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Status">
-              <Select value={form.status} onChange={(e) => set("status")(e.target.value)}>
-                {RISK_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-              </Select>
-            </Field>
-            <Field label="Owner email">
-              <Input type="email" maxLength={254} value={form.owner_email} onChange={(e) => set("owner_email")(e.target.value)} placeholder="owner@company.com" />
-            </Field>
-          </div>
-
-          <Field label="Mitigating controls" hint="Link the controls that treat this risk — they justify the residual score.">
-            {controls.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No controls yet — add a framework first.</p>
-            ) : (
-              <div className="max-h-44 space-y-1 overflow-y-auto rounded-md border border-border p-2">
-                {controls.map((c) => (
-                  <label key={c.id} className="flex items-start gap-2 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={form.controlIds.includes(c.id)}
-                      onChange={() => toggleControl(c.id)}
-                      className="mt-0.5"
-                    />
-                    <span><span className="font-medium text-foreground">{c.code}</span> · {c.title}</span>
-                  </label>
-                ))}
-              </div>
+          <FormSection label="Basics">
+            {editing === "new" && (
+              <Field label="Start from the risk library (optional)">
+                <Select defaultValue="" onChange={(e) => applyTemplate(e.target.value)}>
+                  <option value="">— Choose a common risk —</option>
+                  {RISK_LIBRARY.map((t, idx) => (
+                    <option key={idx} value={String(idx)}>{t.title}</option>
+                  ))}
+                </Select>
+              </Field>
             )}
-            <p className="mt-1 text-xs text-muted-foreground">{form.controlIds.length} linked</p>
-          </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Title" required>
+                <Input required maxLength={160} value={form.title} onChange={(e) => set("title")(e.target.value)} placeholder="e.g. Single cloud region — no DR" />
+              </Field>
+              <Field label="Category">
+                <Input maxLength={80} value={form.category} onChange={(e) => set("category")(e.target.value)} placeholder="e.g. Availability" />
+              </Field>
+            </div>
+            <Field label="Description">
+              <Textarea maxLength={2000} rows={2} value={form.description} onChange={(e) => set("description")(e.target.value)} placeholder="What is the risk?" />
+            </Field>
+          </FormSection>
 
-          <Field label="Description">
-            <Textarea maxLength={2000} rows={2} value={form.description} onChange={(e) => set("description")(e.target.value)} placeholder="What is the risk?" />
-          </Field>
-          <Field label="Treatment / mitigation">
-            <Textarea maxLength={2000} rows={2} value={form.treatment} onChange={(e) => set("treatment")(e.target.value)} placeholder="How are you reducing it?" />
-          </Field>
+          <FormSection label="Scoring" hint="Rate the risk before controls, then after — the heat-map plots the residual score.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-md border border-border p-3">
+                <div className="mb-2 text-xs font-semibold text-muted-foreground">Inherent (before controls)</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Likelihood">
+                    <Select value={form.likelihood} onChange={(e) => set("likelihood")(e.target.value)}>
+                      {RISK_LEVELS.map((l) => <option key={l} value={l}>{cap(l)}</option>)}
+                    </Select>
+                  </Field>
+                  <Field label="Impact">
+                    <Select value={form.impact} onChange={(e) => set("impact")(e.target.value)}>
+                      {RISK_LEVELS.map((l) => <option key={l} value={l}>{cap(l)}</option>)}
+                    </Select>
+                  </Field>
+                </div>
+              </div>
+              <div className="rounded-md border border-border p-3">
+                <div className="mb-2 text-xs font-semibold text-muted-foreground">Residual (after controls)</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Likelihood">
+                    <Select value={form.residual_likelihood} onChange={(e) => set("residual_likelihood")(e.target.value)}>
+                      <option value="">— Not set —</option>
+                      {RISK_LEVELS.map((l) => <option key={l} value={l}>{cap(l)}</option>)}
+                    </Select>
+                  </Field>
+                  <Field label="Impact">
+                    <Select value={form.residual_impact} onChange={(e) => set("residual_impact")(e.target.value)}>
+                      <option value="">— Not set —</option>
+                      {RISK_LEVELS.map((l) => <option key={l} value={l}>{cap(l)}</option>)}
+                    </Select>
+                  </Field>
+                </div>
+              </div>
+            </div>
+          </FormSection>
+
+          <FormSection label="Treatment">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Status">
+                <Select value={form.status} onChange={(e) => set("status")(e.target.value)}>
+                  {RISK_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+                </Select>
+              </Field>
+              <Field label="Owner email">
+                <Input type="email" maxLength={254} value={form.owner_email} onChange={(e) => set("owner_email")(e.target.value)} placeholder="owner@company.com" />
+              </Field>
+            </div>
+
+            <Field label="Mitigating controls" hint="Link the controls that treat this risk — they justify the residual score.">
+              {controls.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No controls yet — add a framework first.</p>
+              ) : (
+                <div className="max-h-44 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+                  {controls.map((c) => (
+                    <label key={c.id} className="flex items-start gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={form.controlIds.includes(c.id)}
+                        onChange={() => toggleControl(c.id)}
+                        className="mt-0.5"
+                      />
+                      <span><span className="font-medium text-foreground">{c.code}</span> · {c.title}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <p className="mt-1 text-xs text-muted-foreground">{form.controlIds.length} linked</p>
+            </Field>
+
+            <Field label="Treatment / mitigation">
+              <Textarea maxLength={2000} rows={2} value={form.treatment} onChange={(e) => set("treatment")(e.target.value)} placeholder="How are you reducing it?" />
+            </Field>
+          </FormSection>
 
           <div className="flex gap-2">
             <Button type="submit" loading={pending}>Save risk</Button>

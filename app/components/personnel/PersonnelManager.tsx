@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
+import { FormSection } from "@/components/ui/FormSection";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -161,20 +162,22 @@ export function PersonnelManager({
       {editing && (
         <form onSubmit={submit} className="card space-y-4">
           <h2 className="text-sm font-semibold text-foreground">{editing === "new" ? "New person" : "Edit person"}</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Name" required>
-              <Input required maxLength={120} value={form.name} onChange={(e) => set("name")(e.target.value)} placeholder="Alex Doe" />
-            </Field>
-            <Field label="Email">
-              <Input type="email" maxLength={254} value={form.email} onChange={(e) => set("email")(e.target.value)} placeholder="alex@company.com" />
-            </Field>
-            <Field label="Role / title">
-              <Input maxLength={120} value={form.role_title} onChange={(e) => set("role_title")(e.target.value)} placeholder="Engineer" />
-            </Field>
-            <Field label="Start date">
-              <Input type="date" value={form.started_at} onChange={(e) => set("started_at")(e.target.value)} />
-            </Field>
-          </div>
+          <FormSection label="Details">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Name" required>
+                <Input required maxLength={120} value={form.name} onChange={(e) => set("name")(e.target.value)} placeholder="Alex Doe" />
+              </Field>
+              <Field label="Email">
+                <Input type="email" maxLength={254} value={form.email} onChange={(e) => set("email")(e.target.value)} placeholder="alex@company.com" />
+              </Field>
+              <Field label="Role / title">
+                <Input maxLength={120} value={form.role_title} onChange={(e) => set("role_title")(e.target.value)} placeholder="Engineer" />
+              </Field>
+              <Field label="Start date">
+                <Input type="date" value={form.started_at} onChange={(e) => set("started_at")(e.target.value)} />
+              </Field>
+            </div>
+          </FormSection>
           <div className="flex gap-2">
             <Button type="submit" loading={pending}>Save</Button>
             <Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancel</Button>

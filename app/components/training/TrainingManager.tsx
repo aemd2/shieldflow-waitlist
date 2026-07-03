@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
+import { FormSection } from "@/components/ui/FormSection";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
@@ -131,17 +132,22 @@ export function TrainingManager({
           <h2 className="text-sm font-semibold text-foreground">
             {editing === "new" ? "New training record" : "Edit training record"}
           </h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Person" required>
-              <Input required maxLength={120} value={form.person_name} onChange={(e) => set("person_name")(e.target.value)} placeholder="e.g. Jordan Lee" />
-            </Field>
-            <Field label="Email">
-              <Input type="email" maxLength={254} value={form.person_email} onChange={(e) => set("person_email")(e.target.value)} placeholder="jordan@company.com" />
-            </Field>
+          <FormSection label="Basics">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Person" required>
+                <Input required maxLength={120} value={form.person_name} onChange={(e) => set("person_name")(e.target.value)} placeholder="e.g. Jordan Lee" />
+              </Field>
+              <Field label="Email">
+                <Input type="email" maxLength={254} value={form.person_email} onChange={(e) => set("person_email")(e.target.value)} placeholder="jordan@company.com" />
+              </Field>
+            </div>
             <Field label="Course" required>
               <Input required maxLength={160} value={form.course} onChange={(e) => set("course")(e.target.value)} placeholder="e.g. Security Awareness Training" />
             </Field>
-            <div className="grid grid-cols-2 gap-4">
+          </FormSection>
+
+          <FormSection label="Schedule">
+            <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Status">
                 <Select value={form.status} onChange={(e) => set("status")(e.target.value)}>
                   {TRAINING_STATUSES.map((s) => <option key={s} value={s}>{STATUS[s].label}</option>)}
@@ -151,7 +157,7 @@ export function TrainingManager({
                 <Input type="date" value={form.due_date} onChange={(e) => set("due_date")(e.target.value)} />
               </Field>
             </div>
-          </div>
+          </FormSection>
           <div className="flex gap-2">
             <Button type="submit" loading={pending}>Save</Button>
             <Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancel</Button>

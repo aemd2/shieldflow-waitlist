@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
+import { FormSection } from "@/components/ui/FormSection";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
@@ -167,16 +168,16 @@ export function TaskManager({
           <h2 className="text-sm font-semibold text-foreground">
             {editing === "new" ? "New task" : "Edit task"}
           </h2>
-          <Field label="Title" required>
-            <Input
-              required
-              maxLength={200}
-              value={form.title}
-              onChange={(e) => set("title")(e.target.value)}
-              placeholder="e.g. Quarterly access review"
-            />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <FormSection label="Basics">
+            <Field label="Title" required>
+              <Input
+                required
+                maxLength={200}
+                value={form.title}
+                onChange={(e) => set("title")(e.target.value)}
+                placeholder="e.g. Quarterly access review"
+              />
+            </Field>
             <Field label="Assignee">
               <Select value={form.assignee_email} onChange={(e) => set("assignee_email")(e.target.value)}>
                 <option value="">Unassigned</option>
@@ -192,36 +193,41 @@ export function TaskManager({
                 )}
               </Select>
             </Field>
-            <Field label="Due date">
-              <Input type="date" value={form.due_date} onChange={(e) => set("due_date")(e.target.value)} />
+            <Field label="Description">
+              <Textarea
+                maxLength={2000}
+                rows={2}
+                value={form.description}
+                onChange={(e) => set("description")(e.target.value)}
+                placeholder="What needs to be done?"
+              />
             </Field>
-            <div className="grid grid-cols-3 gap-3">
-              <Field label="Priority">
-                <Select value={form.priority} onChange={(e) => set("priority")(e.target.value)}>
-                  {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{cap(p)}</option>)}
-                </Select>
+          </FormSection>
+
+          <FormSection label="Schedule">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Due date">
+                <Input type="date" value={form.due_date} onChange={(e) => set("due_date")(e.target.value)} />
               </Field>
-              <Field label="Status">
-                <Select value={form.status} onChange={(e) => set("status")(e.target.value)}>
-                  {TASK_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-                </Select>
-              </Field>
-              <Field label="Repeats">
-                <Select value={form.recurrence} onChange={(e) => set("recurrence")(e.target.value)}>
-                  {TASK_RECURRENCE.map((r) => <option key={r} value={r}>{RECURRENCE_LABEL[r]}</option>)}
-                </Select>
-              </Field>
+              <div className="grid grid-cols-3 gap-3">
+                <Field label="Priority">
+                  <Select value={form.priority} onChange={(e) => set("priority")(e.target.value)}>
+                    {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{cap(p)}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Status">
+                  <Select value={form.status} onChange={(e) => set("status")(e.target.value)}>
+                    {TASK_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Repeats">
+                  <Select value={form.recurrence} onChange={(e) => set("recurrence")(e.target.value)}>
+                    {TASK_RECURRENCE.map((r) => <option key={r} value={r}>{RECURRENCE_LABEL[r]}</option>)}
+                  </Select>
+                </Field>
+              </div>
             </div>
-          </div>
-          <Field label="Description">
-            <Textarea
-              maxLength={2000}
-              rows={2}
-              value={form.description}
-              onChange={(e) => set("description")(e.target.value)}
-              placeholder="What needs to be done?"
-            />
-          </Field>
+          </FormSection>
           <div className="flex gap-2">
             <Button type="submit" loading={pending}>Save task</Button>
             <Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
