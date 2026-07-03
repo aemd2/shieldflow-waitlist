@@ -2,11 +2,13 @@
 
 import { useState, useTransition, useOptimistic } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Download, Save, Trash2, Eye, Pencil, ShieldCheck, Send, Check } from "lucide-react";
+import { Plus, Sparkles, Download, Save, Trash2, Eye, Pencil, ShieldCheck, Send, Check } from "lucide-react";
 import { Markdown } from "@/components/ui/Markdown";
 import { useToast } from "@/components/ui/Toast";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Field } from "@/components/ui/Field";
+import { Select } from "@/components/ui/Select";
 import {
   WorkspaceLayout,
   SidebarListPanel,
@@ -61,6 +63,7 @@ export function PolicyWorkspace({
   const [policyType, setPolicyType] = useState<(typeof POLICY_TYPES)[number]>(POLICY_TYPES[0]);
   const [frameworkId, setFrameworkId] = useState<string>(frameworks[0]?.id ?? "");
   const [generating, setGenerating] = useState(false);
+  const [creating, setCreating] = useState(false);
   // Track selection by id (not object) so a policy that doesn't exist yet at
   // click time — like one just generated, arriving via router.refresh() — can
   // still be pre-selected and auto-open once the fresh list lands.
@@ -110,6 +113,7 @@ export function PolicyWorkspace({
       // looks like it did nothing.
       if (created?.id) setSelectedId(created.id);
       toast("success", "Policy generated");
+      setCreating(false);
       router.refresh();
     } catch {
       toast("error", "Network error. Please try again.");
@@ -124,29 +128,31 @@ export function PolicyWorkspace({
       sidebar={
         <>
           {canWrite && (
-            <div className="card space-y-4">
-              <h2 className="text-sm font-semibold text-foreground">Generate a policy</h2>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">Policy type</label>
-                <select
+            <Button variant="accent" fullWidth onClick={() => setCreating((v) => !v)} leftIcon={<Plus className="h-4 w-4" />}>
+              New policy
+            </Button>
+          )}
+
+          {creating && canWrite && (
+            <div className="card space-y-3">
+              <Field label="Policy type">
+                <Select
                   value={policyType}
                   onChange={(e) => setPolicyType(e.target.value as (typeof POLICY_TYPES)[number])}
-                  className="input"
                 >
                   {POLICY_TYPES.map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
-                </select>
-              </div>
+                </Select>
+              </Field>
               {frameworks.length > 0 && (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Framework</label>
-                  <select value={frameworkId} onChange={(e) => setFrameworkId(e.target.value)} className="input">
+                <Field label="Framework">
+                  <Select value={frameworkId} onChange={(e) => setFrameworkId(e.target.value)}>
                     {frameworks.map((f) => (
                       <option key={f.id} value={f.id}>{f.name}</option>
                     ))}
-                  </select>
-                </div>
+                  </Select>
+                </Field>
               )}
               <Button
                 onClick={generate}

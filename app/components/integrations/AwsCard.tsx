@@ -109,7 +109,7 @@ export function AwsCard({
   return (
     <form onSubmit={connect} className="space-y-2">
       {needsReconnect && (
-        <p className="text-xs text-amber-600">Access was revoked — reconnect to resume syncing.</p>
+        <p className="text-xs text-warning">Access was revoked — reconnect to resume syncing.</p>
       )}
       <label className="block text-xs font-medium text-muted-foreground">
         Read-only IAM access key

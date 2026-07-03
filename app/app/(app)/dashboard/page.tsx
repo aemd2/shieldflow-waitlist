@@ -178,8 +178,8 @@ function StatCard({
   color: "emerald" | "amber" | "muted";
 }) {
   const colorClass = {
-    emerald: "text-[var(--brand-emerald)]",
-    amber: "text-amber-600",
+    emerald: "text-success",
+    amber: "text-warning",
     muted: "text-muted-foreground",
   }[color];
   return (

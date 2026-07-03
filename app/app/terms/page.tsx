@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Alert } from "@/components/ui/Alert";
 
 export const metadata = { title: "Terms of Service · ShieldFlow" };
 
@@ -14,10 +15,10 @@ export default function TermsPage() {
       <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">Terms of Service</h1>
       <p className="mt-1 text-sm text-muted-foreground">Last updated: {UPDATED}</p>
 
-      <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      <Alert variant="warning" className="mt-4">
         <strong>Template notice:</strong> These are starting-point terms. Have them reviewed by legal
         counsel and adapted to your business before relying on them with paying customers.
-      </div>
+      </Alert>
 
       <div className="mt-8 space-y-6 text-sm leading-relaxed text-foreground">
         <Section title="1. Agreement">

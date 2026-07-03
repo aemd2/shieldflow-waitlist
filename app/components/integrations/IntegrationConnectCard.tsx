@@ -166,7 +166,7 @@ export function IntegrationConnectCard({
   return (
     <form onSubmit={connect} className="space-y-2">
       {needsReconnect && (
-        <p className="text-xs text-amber-600">Access was revoked — reconnect to resume syncing.</p>
+        <p className="text-xs text-warning">Access was revoked — reconnect to resume syncing.</p>
       )}
       {fields.map((f) =>
         f.type === "textarea" ? (

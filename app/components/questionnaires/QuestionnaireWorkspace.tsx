@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
+import { Alert } from "@/components/ui/Alert";
 import {
   WorkspaceLayout,
   SidebarListPanel,
@@ -187,7 +188,7 @@ export function QuestionnaireWorkspace({
                 <h2 className="text-sm font-semibold text-foreground">{selected.name}</h2>
                 <p className="text-xs text-muted-foreground">
                   {answered}/{selItems.length} answered
-                  {needsReview > 0 && <> · <span className="text-amber-600">{needsReview} need review</span></>}
+                  {needsReview > 0 && <> · <span className="text-warning">{needsReview} need review</span></>}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -208,9 +209,9 @@ export function QuestionnaireWorkspace({
             </div>
 
             {!aiEnabled && (
-              <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+              <Alert variant="warning">
                 Add a <code>GROQ_API_KEY</code> to enable AI drafting. You can still answer manually.
-              </div>
+              </Alert>
             )}
 
             <div className="space-y-3">

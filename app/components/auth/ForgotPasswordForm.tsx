@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
+import { Alert } from "@/components/ui/Alert";
 
 export function ForgotPasswordForm() {
   const supabase = createBrowserSupabase();
@@ -34,9 +35,9 @@ export function ForgotPasswordForm() {
       </p>
 
       {sent ? (
-        <div className="rounded-md border border-[var(--brand-emerald)]/40 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <Alert variant="success">
           If an account exists for that email, a reset link is on its way. Check your inbox.
-        </div>
+        </Alert>
       ) : (
         <>
           <div>

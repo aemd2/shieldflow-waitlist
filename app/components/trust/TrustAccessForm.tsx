@@ -39,7 +39,7 @@ export function TrustAccessForm({ slug }: { slug: string }) {
 
   if (state === "done") {
     return (
-      <div className="card border-[var(--brand-emerald)]/40 bg-emerald-50 text-sm text-emerald-800">
+      <div className="card border-success-border bg-success-muted text-sm text-success">
         {note}
       </div>
     );

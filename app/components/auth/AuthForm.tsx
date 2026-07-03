@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
+import { Alert } from "@/components/ui/Alert";
 import { isLikelyValidEmail, suggestEmailCorrection } from "@/lib/email";
 import { friendlyAuthError } from "@/lib/auth-errors";
 import {
@@ -393,7 +394,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
           </button>
         </div>
         {capsOn && (
-          <p className="mt-1 text-xs text-amber-600">Caps Lock is on.</p>
+          <p className="mt-1 text-xs text-warning">Caps Lock is on.</p>
         )}
         {mode === "signup" && (
           <p className="mt-1 text-xs text-muted-foreground">At least 8 characters.</p>
@@ -431,11 +432,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
         Remember me on this device
       </label>
 
-      {info && (
-        <div className="rounded-md border border-[var(--brand-emerald)]/40 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          {info}
-        </div>
-      )}
+      {info && <Alert variant="success">{info}</Alert>}
 
       {error && (
         <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">

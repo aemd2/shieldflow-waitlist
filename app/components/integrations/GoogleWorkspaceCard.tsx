@@ -6,6 +6,7 @@ import { RefreshCw, Unplug } from "lucide-react";
 import { syncGoogleWorkspace, disconnectGoogleWorkspace } from "@/app/actions/integrations";
 import { useToast } from "@/components/ui/Toast";
 import { Button, buttonClasses } from "@/components/ui/Button";
+import { Alert } from "@/components/ui/Alert";
 
 const CALLBACK_ERRORS: Record<string, string> = {
   not_configured: "Google integration isn't configured yet (missing GOOGLE_CLIENT_ID/SECRET).",
@@ -72,10 +73,10 @@ export function GoogleWorkspaceCard({
 
   if (!configured) {
     return (
-      <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      <Alert variant="warning">
         Not configured yet — add <code className="font-mono">GOOGLE_CLIENT_ID</code> and{" "}
         <code className="font-mono">GOOGLE_CLIENT_SECRET</code> to enable it. See SETUP.md.
-      </div>
+      </Alert>
     );
   }
 

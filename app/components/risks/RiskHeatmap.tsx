@@ -16,10 +16,11 @@ function sev(l: string, i: string): "low" | "medium" | "high" | "critical" {
   return "low";
 }
 const CELL: Record<string, string> = {
-  low: "bg-emerald-50 text-emerald-700",
-  medium: "bg-amber-50 text-amber-700",
+  low: "bg-success-muted text-success",
+  medium: "bg-warning-muted text-warning",
+  // "high" stays the deliberate one-off orange shade from Badge.tsx's severity ramp.
   high: "bg-orange-100 text-orange-800",
-  critical: "bg-red-100 text-red-800",
+  critical: "bg-destructive/10 text-destructive",
 };
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 

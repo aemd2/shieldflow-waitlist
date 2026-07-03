@@ -4,7 +4,7 @@ import type { Alert, AlertSeverity } from "@/lib/monitoring";
 
 const STYLE: Record<AlertSeverity, { cls: string; Icon: typeof Info }> = {
   high: { cls: "border-destructive/30 bg-destructive/10 text-destructive", Icon: AlertCircle },
-  warning: { cls: "border-amber-300 bg-amber-50 text-amber-800", Icon: AlertTriangle },
+  warning: { cls: "border-warning-border bg-warning-muted text-warning", Icon: AlertTriangle },
   info: { cls: "border-border bg-secondary text-muted-foreground", Icon: Info },
 };
 

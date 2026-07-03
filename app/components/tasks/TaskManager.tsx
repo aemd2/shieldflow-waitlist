@@ -334,7 +334,7 @@ function TaskRow({
             <button
               onClick={onComplete}
               disabled={pending}
-              className="rounded-md p-2 text-emerald-700 hover:bg-emerald-50"
+              className="rounded-md p-2 text-success hover:bg-success-muted"
               title="Mark complete"
             >
               <Check className="h-4 w-4" />

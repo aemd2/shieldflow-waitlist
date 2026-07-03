@@ -6,6 +6,7 @@ import { Check, Sparkles, Lock } from "lucide-react";
 import { startCheckout, openBillingPortal } from "@/app/actions/billing";
 import { useToast } from "@/components/ui/Toast";
 import { Button, buttonClasses } from "@/components/ui/Button";
+import { Alert } from "@/components/ui/Alert";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import {
   applyFoundingDiscount,
@@ -109,20 +110,20 @@ export function PlanCards({
   return (
     <div className="space-y-5">
       {justSucceeded && (
-        <div className="rounded-md border border-[var(--brand-emerald)]/40 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <Alert variant="success">
           Payment received — your subscription activates as soon as Stripe confirms it
           (usually a few seconds). Refresh if you don&apos;t see it yet.
-        </div>
+        </Alert>
       )}
 
       {currentPlan &&
         ["past_due", "unpaid", "incomplete", "incomplete_expired"].includes(
           subscriptionStatus ?? "",
         ) && (
-          <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <Alert variant="warning">
             There&apos;s a payment issue with your subscription — open the billing portal to update
             your card before access is interrupted.
-          </div>
+          </Alert>
         )}
 
       {/* Current plan — the primary thing an existing customer comes here for. */}

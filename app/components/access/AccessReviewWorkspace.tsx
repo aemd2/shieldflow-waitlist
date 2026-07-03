@@ -10,6 +10,7 @@ import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
+import { Alert } from "@/components/ui/Alert";
 import {
   WorkspaceLayout,
   SidebarListPanel,
@@ -199,9 +200,9 @@ export function AccessReviewWorkspace({
             </div>
 
             {selected.status === "completed" && (
-              <div className="rounded-md border border-[var(--brand-emerald)]/40 bg-emerald-50 px-4 py-2 text-xs text-emerald-800">
+              <Alert variant="success">
                 This review is complete and its attestations were filed as evidence (see the Evidence vault).
-              </div>
+              </Alert>
             )}
 
             <div className="card p-0">
@@ -217,14 +218,14 @@ export function AccessReviewWorkspace({
                         <button
                           onClick={() => decide(it.id, "keep")}
                           disabled={pending}
-                          className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${it.decision === "keep" ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-border hover:bg-secondary"}`}
+                          className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${it.decision === "keep" ? "border-success-border bg-success-muted text-success" : "border-border hover:bg-secondary"}`}
                         >
                           <Check className="h-3 w-3" /> Keep
                         </button>
                         <button
                           onClick={() => decide(it.id, "revoke")}
                           disabled={pending}
-                          className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${it.decision === "revoke" ? "border-red-300 bg-red-50 text-red-800" : "border-border hover:bg-secondary"}`}
+                          className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${it.decision === "revoke" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-border hover:bg-secondary"}`}
                         >
                           <X className="h-3 w-3" /> Revoke
                         </button>

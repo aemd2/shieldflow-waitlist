@@ -5,7 +5,7 @@ import type { Criticality } from "@/lib/db/queries";
 // auditor-critical, must-pass controls); the others stay muted so they don't
 // shout. Shared by the control detail header and the controls list rows.
 const STYLES: Record<Criticality, { label: string; cls: string }> = {
-  core: { label: "Core", cls: "border-[var(--brand-emerald)]/40 bg-emerald-50 text-emerald-700" },
+  core: { label: "Core", cls: "border-success-border bg-success-muted text-success" },
   important: { label: "Important", cls: "border-border bg-secondary text-muted-foreground" },
   operational: { label: "Operational", cls: "border-border bg-secondary text-muted-foreground" },
 };
