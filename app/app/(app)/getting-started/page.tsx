@@ -39,7 +39,6 @@ export default async function GettingStartedPage() {
   return (
     <PageShell
       layout="stack"
-      width="narrow"
       title="Getting started"
       subtitle={`Your guided path to audit-ready for ${company.name}.`}
     >
