@@ -5,10 +5,12 @@ import { cn } from "@/lib/cn";
  * Fixed-width sidebar list + flexible detail pane.
  */
 export function WorkspaceLayout({
+  header,
   sidebar,
   children,
   sidebarWidth = "md",
 }: {
+  header?: React.ReactNode;
   sidebar: React.ReactNode;
   children: React.ReactNode;
   sidebarWidth?: "md" | "lg";
@@ -17,9 +19,12 @@ export function WorkspaceLayout({
     sidebarWidth === "lg" ? "lg:grid-cols-[320px_1fr]" : "lg:grid-cols-[300px_1fr]";
 
   return (
-    <div className={cn("grid gap-6", cols)}>
-      <div className="space-y-4">{sidebar}</div>
-      <div>{children}</div>
+    <div className="space-y-4">
+      {header ? <div className="flex justify-end">{header}</div> : null}
+      <div className={cn("grid gap-6", cols)}>
+        <div className="space-y-4">{sidebar}</div>
+        <div>{children}</div>
+      </div>
     </div>
   );
 }

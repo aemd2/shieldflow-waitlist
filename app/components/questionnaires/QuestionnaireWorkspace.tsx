@@ -146,14 +146,15 @@ export function QuestionnaireWorkspace({
 
   return (
     <WorkspaceLayout
+      header={
+        canWrite ? (
+          <Button variant="accent" onClick={() => setCreating((v) => !v)} leftIcon={<Plus className="h-4 w-4" />}>
+            New questionnaire
+          </Button>
+        ) : undefined
+      }
       sidebar={
         <>
-          {canWrite && (
-            <Button variant="accent" fullWidth onClick={() => setCreating((v) => !v)} leftIcon={<Plus className="h-4 w-4" />}>
-              New questionnaire
-            </Button>
-          )}
-
           {creating && canWrite && (
             <div className="card space-y-3">
               <Field label="Name" required>

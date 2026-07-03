@@ -125,14 +125,15 @@ export function PolicyWorkspace({
   return (
     <WorkspaceLayout
       sidebarWidth="lg"
+      header={
+        canWrite ? (
+          <Button variant="accent" onClick={() => setCreating((v) => !v)} leftIcon={<Plus className="h-4 w-4" />}>
+            New policy
+          </Button>
+        ) : undefined
+      }
       sidebar={
         <>
-          {canWrite && (
-            <Button variant="accent" fullWidth onClick={() => setCreating((v) => !v)} leftIcon={<Plus className="h-4 w-4" />}>
-              New policy
-            </Button>
-          )}
-
           {creating && canWrite && (
             <div className="card space-y-3">
               <Field label="Policy type">
