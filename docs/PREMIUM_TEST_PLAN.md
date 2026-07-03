@@ -21,56 +21,63 @@ the result you should see.** Anything else = a bug; note it and tell me.
 
 ---
 
-## 1 · Notifications
+## 1 · Notifications ✅ **tested** (7/3/2026)
 
-- [ ] A **bell** shows in the top bar.
-- [ ] Open `/notifications` → empty state "No notifications yet."
-- [ ] Settings → **Notifications**: toggle a category's in-app/email → reload → the
+- [x] A **bell** shows in the top bar. ✅
+- [x] Open `/notifications` → empty state "No notifications yet." ✅
+- [x] Settings → **Notifications**: toggle a category's in-app/email → reload → the
       toggle persisted. ✅
-- [ ] As **A**, open a control and set its **Owner** to **B's** email → as **B**, the
+- [x] As **A**, open a control and set its **Owner** to **B's** email → as **B**, the
       bell shows a count and `/notifications` lists "You were assigned control …". ✅
-- [ ] Click the notification → it marks read (red dot clears) and deep-links to the
+- [x] Click the notification → it marks read (red dot clears) and deep-links to the
       control. "Mark all read" clears the badge. ✅
-- [ ] (If `RESEND_API_KEY` set) B also gets an email. Without it: in-app only, no error.
+- [x] In-app works with no error when `RESEND_API_KEY` is unset. ✅ `RESEND_API_KEY` has
+      since been added to `.env.local` — the email-delivery half is not yet re-verified.
 
-## 2 · Continuous control testing
+## 2 · Continuous control testing ✅ **tested** (7/3/2026 — GitHub)
 
-- [ ] **Checks visible (1.2):** open a control your integration maps to (e.g. an MFA /
+- [x] **Checks visible (1.2):** open a control your integration maps to (e.g. an MFA /
       branch-protection control) → an **"Automated checks"** card shows pass/fail/
-      inconclusive with detail. ✅
-- [ ] **Conflict flag:** set that control to **Complete** while a check is **failing** →
+      inconclusive with detail. ✅ (Secure Coding + Access Control controls, GitHub)
+- [x] **Conflict flag:** set that control to **Complete** while a check is **failing** →
       an amber "marked complete but a check is failing" note appears. ✅
-- [ ] **Evidence on control (1.3):** the synced CSV appears under that control's
+- [x] **Evidence on control (1.3):** the synced CSV appears under that control's
       **Evidence** with an **"Auto"** badge and downloads; the control's evidence count
-      includes it. ✅
-- [ ] **Dashboard:** the "Automated monitoring" card shows passing/failing/inconclusive
-      counts; failing checks appear in Monitoring & alerts. ✅
+      includes it. ✅ (found + fixed a real bug along the way — the company-wide
+      `/evidence` vault had no download control at all for integration CSVs, since
+      those save with `control_id: null`; fixed in `EvidenceDownloadButton.tsx`)
+- [x] **Dashboard:** the "Automated monitoring" card shows passing/failing/inconclusive
+      counts; failing checks appear in Monitoring & alerts. ✅ (0 passing / 2 failing,
+      both surfaced under Monitoring & alerts)
 - [ ] **Continuous cron (1.4):** with `CRON_SECRET` set, run
       `curl -X POST https://<host>/api/cron/sync -H "Authorization: Bearer <CRON_SECRET>"`
       → JSON `{ ok, companies, integrations, synced, drift, … }`. Without the header →
-      **401**. ✅
+      **401**. Not yet run.
 - [ ] Flip a setting on the provider (e.g. make a repo public / disable a policy), run
       the cron **twice** → a member gets an **"Automated monitoring update"** drift
-      notification. ✅
+      notification. Not yet run.
 
 ## 2b · Integrations — every connector, one by one
 
 `/integrations` lists 10 connectable providers. Full step-by-step per connector (token
 format checks, sync, CSV in evidence, revoke/reconnect, secret-never-in-source checks)
 already live in `docs/TESTING.md §9.1–9.10` — work through each here and tick it off.
-Redirect-URI mismatches (like the Slack one hit 7/3/2026) are an app-config problem, not
-code — fix in the provider's own developer console, not here.
+Redirect-URI mismatches (like the Slack + GitHub ones hit 7/3/2026) are an app-config
+problem, not code — fix in the provider's own developer console, not here.
 
-- [ ] **GitHub** (§9.1) — OAuth connect or PAT paste, Sync, CSV in evidence. ✅
-- [ ] **Slack** (§9.2) — Add to Slack, digest send, revoke/reconnect. ✅
-- [ ] **Google Workspace** (§9.3) — OAuth connect, Sync, admin-only sync check. ✅
-- [ ] **AWS** (§9.4) — access key connect, Sync, CSV in evidence. ✅
-- [ ] **Okta** (§9.5) — domain + API token, Sync, SSRF guard on bad domain. ✅
-- [ ] **GitLab** (§9.6) — PAT connect, Sync, CSV in evidence. ✅
-- [ ] **Jira** (§9.7) — site + email + token, Sync, SSRF guard on bad site. ✅
-- [ ] **Linear** (§9.8) — API key connect, Sync, CSV in evidence. ✅
-- [ ] **Cloudflare** (§9.9) — API token connect, Sync, CSV in evidence. ✅
-- [ ] **Google Cloud** (§9.10) — service-account JSON paste, Sync, CSV in evidence. ✅
+- [x] **GitHub** (§9.1) — OAuth connect or PAT paste, Sync, CSV in evidence. ✅ **tested**
+      (7/3/2026 — hit a redirect_uri mismatch, fixed in the GitHub OAuth App settings)
+- [x] **Slack** (§9.2) — Add to Slack, digest send, revoke/reconnect. ✅ **tested**
+      (7/3/2026 — hit a redirect_uri mismatch, fixed in the Slack app's OAuth settings;
+      digest confirmed delivered with score/framework %/alerts)
+- [ ] **Google Workspace** (§9.3) — OAuth connect, Sync, admin-only sync check.
+- [ ] **AWS** (§9.4) — access key connect, Sync, CSV in evidence.
+- [ ] **Okta** (§9.5) — domain + API token, Sync, SSRF guard on bad domain.
+- [ ] **GitLab** (§9.6) — PAT connect, Sync, CSV in evidence.
+- [ ] **Jira** (§9.7) — site + email + token, Sync, SSRF guard on bad site.
+- [ ] **Linear** (§9.8) — API key connect, Sync, CSV in evidence.
+- [ ] **Cloudflare** (§9.9) — API token connect, Sync, CSV in evidence.
+- [ ] **Google Cloud** (§9.10) — service-account JSON paste, Sync, CSV in evidence.
 
 ## 3 · Tasks
 
