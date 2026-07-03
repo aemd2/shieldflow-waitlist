@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   FileText,
   FileBarChart,
-  MessageSquare,
   FolderArchive,
   Building2,
   Plug,
@@ -31,13 +30,13 @@ export type NavSection = { label: string | null; items: NavItem[] };
 // scannable clusters, not one undifferentiated list.
 const SECTIONS: NavSection[] = [
   {
-    // Daily-driver items — unlabelled, always at the top.
+    // Daily-driver items — unlabelled, always at the top. Co-Pilot isn't a
+    // page anymore — it opens as a docked panel from the topbar icon instead.
     label: null,
     items: [
       { href: "/getting-started", label: "Getting started", icon: Rocket },
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/tasks", label: "Tasks", icon: ListChecks },
-      { href: "/copilot", label: "Co-Pilot", icon: MessageSquare },
     ],
   },
   {

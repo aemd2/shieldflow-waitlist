@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
 import { visibleNavSections, type NavRole } from "./nav-items";
-import { useCopilotPanel } from "@/components/copilot/CopilotPanelProvider";
 
 // The mobile counterpart to the desktop Sidebar: a hamburger button that opens
 // a slide-out drawer. Shown only below the `md` breakpoint (the Sidebar takes
@@ -23,7 +22,6 @@ export function MobileNav({
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const sections = visibleNavSections(role, sprintReady);
-  const { toggle: toggleCopilot } = useCopilotPanel();
 
   // Close the drawer whenever the route changes (e.g. after a link click).
   useEffect(() => {
@@ -91,20 +89,10 @@ export function MobileNav({
                   <div className="space-y-1">
                     {section.items.map(({ href, label, icon: Icon }) => {
                       const active = pathname === href || pathname.startsWith(href + "/");
-                      const isCopilot = href === "/copilot";
                       return (
                         <Link
                           key={href}
                           href={href}
-                          onClick={
-                            isCopilot
-                              ? (e) => {
-                                  e.preventDefault();
-                                  setOpen(false);
-                                  toggleCopilot();
-                                }
-                              : undefined
-                          }
                           className={`flex items-center gap-2 rounded-md px-3 py-2 transition-colors ${
                             active ? "bg-secondary font-medium text-foreground" : "hover:bg-secondary"
                           }`}
