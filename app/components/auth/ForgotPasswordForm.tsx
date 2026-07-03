@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createBrowserSupabase } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/Button";
 
 export function ForgotPasswordForm() {
   const supabase = createBrowserSupabase();
@@ -49,9 +50,9 @@ export function ForgotPasswordForm() {
               autoComplete="email"
             />
           </div>
-          <button type="submit" disabled={loading} className="btn-primary w-full">
+          <Button type="submit" loading={loading} fullWidth>
             {loading ? "Sending..." : "Send reset link"}
-          </button>
+          </Button>
         </>
       )}
 

@@ -6,6 +6,7 @@ import { Upload } from "lucide-react";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { recordEvidence } from "@/app/actions/evidence";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/Button";
 import { MAX_EVIDENCE_BYTES, ALLOWED_EVIDENCE_MIME, sanitizeFileName } from "@/lib/validation";
 
 function uuid(): string {
@@ -101,15 +102,15 @@ export function EvidenceUploader({
         onChange={onPick}
         disabled={busy}
       />
-      <button
+      <Button
         type="button"
+        variant="accent"
         onClick={() => inputRef.current?.click()}
-        disabled={busy}
-        className="btn-accent"
+        loading={busy}
+        leftIcon={<Upload className="h-4 w-4" />}
       >
-        <Upload className="mr-2 h-4 w-4" />
         {busy ? "Uploading..." : "Upload evidence"}
-      </button>
+      </Button>
       <p className="mt-2 text-xs text-muted-foreground">
         PDF, PNG, JPEG, CSV, or Word · max 10MB
       </p>

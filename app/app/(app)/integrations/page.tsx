@@ -22,7 +22,7 @@ import { isGoogleConfigured } from "@/lib/google";
 import { isGitHubOAuthConfigured } from "@/lib/github";
 import { isSlackOAuthConfigured } from "@/lib/slack";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageShell, PageSection } from "@/components/ui/page";
 import { GoogleWorkspaceCard } from "@/components/integrations/GoogleWorkspaceCard";
 import { GitHubCard } from "@/components/integrations/GitHubCard";
 import { SlackCard } from "@/components/integrations/SlackCard";
@@ -73,17 +73,16 @@ export default async function IntegrationsPage() {
     row?.status === "connected" ? "connected" : row?.status === "error" ? "error" : "available";
 
   return (
-    <div className="space-y-6">
-      {/* Reads ?error= / ?connected= from OAuth callbacks and shows a toast */}
+    <PageShell
+      layout="sections"
+      title="Integrations"
+      subtitle="Connect your stack to collect compliance evidence automatically and keep your team in the loop."
+    >
       <Suspense fallback={null}>
         <IntegrationsUrlToast />
       </Suspense>
-      <PageHeader
-        title="Integrations"
-        subtitle="Connect your stack to collect compliance evidence automatically and keep your team in the loop."
-      />
 
-      <Section title="Identity & workspace">
+      <PageSection title="Identity & workspace" columns={2}>
         <IntegrationCard
           name="Google Workspace"
           description="Pulls a user-security report (2FA enrollment, admins, suspended accounts) into your evidence vault."
@@ -123,9 +122,9 @@ export default async function IntegrationsPage() {
             }
           />
         </IntegrationCard>
-      </Section>
+      </PageSection>
 
-      <Section title="Notifications">
+      <PageSection title="Notifications" columns={2}>
         <IntegrationCard
           name="Slack"
           description="Sends a compliance digest — score, framework progress, and top alerts — to a channel of your choice."
@@ -138,9 +137,9 @@ export default async function IntegrationsPage() {
             lastSyncedAt={slack?.last_synced_at ?? null}
           />
         </IntegrationCard>
-      </Section>
+      </PageSection>
 
-      <Section title="Source control">
+      <PageSection title="Source control" columns={2}>
         <IntegrationCard
           name="GitHub"
           description="Audits your repositories — branch protection, public exposure, archived repos — and files the report as evidence."
@@ -174,9 +173,9 @@ export default async function IntegrationsPage() {
             setupHint={<>GitLab → Preferences → Access Tokens → create a token with the read_api scope.</>}
           />
         </IntegrationCard>
-      </Section>
+      </PageSection>
 
-      <Section title="Project & ticketing">
+      <PageSection title="Project & ticketing" columns={2}>
         <IntegrationCard
           name="Jira"
           description="Inventories your projects as change-management evidence."
@@ -220,9 +219,9 @@ export default async function IntegrationsPage() {
             setupHint={<>Linear → Settings → API → Personal API keys → create a key.</>}
           />
         </IntegrationCard>
-      </Section>
+      </PageSection>
 
-      <Section title="Cloud infrastructure">
+      <PageSection title="Cloud infrastructure" columns={2}>
         <IntegrationCard
           name="AWS"
           description="Reads your account security posture — root MFA, IAM password policy, user/MFA counts — and files it as evidence."
@@ -281,9 +280,9 @@ export default async function IntegrationsPage() {
             }
           />
         </IntegrationCard>
-      </Section>
+      </PageSection>
 
-      <Section title="Coming soon">
+      <PageSection title="Coming soon" columns={2}>
         <IntegrationCard
           name="Microsoft Entra ID"
           description="User, MFA, and conditional-access evidence from Azure AD."
@@ -296,8 +295,8 @@ export default async function IntegrationsPage() {
           icon={<Mail className="h-5 w-5 text-muted-foreground" />}
           status="coming_soon"
         />
-      </Section>
-    </div>
+      </PageSection>
+    </PageShell>
   );
 }
 
@@ -305,11 +304,11 @@ function ReadOnlyIntegrations({ integrations }: { integrations: Integration[] })
   const byProvider = (p: string) => integrations.find((i) => i.provider === p) ?? null;
   const providers = Object.keys(INTEGRATION_LABELS);
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Integrations"
-        subtitle="Connection status (read-only). Connecting and syncing is reserved for the workspace team."
-      />
+    <PageShell
+      layout="stack"
+      title="Integrations"
+      subtitle="Connection status (read-only). Connecting and syncing is reserved for the workspace team."
+    >
       <div className="card divide-y divide-border p-0">
         {providers.map((p) => {
           const row = byProvider(p);
@@ -335,17 +334,6 @@ function ReadOnlyIntegrations({ integrations }: { integrations: Integration[] })
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {title}
-      </h2>
-      <div className="grid gap-4 lg:grid-cols-2">{children}</div>
-    </section>
+    </PageShell>
   );
 }

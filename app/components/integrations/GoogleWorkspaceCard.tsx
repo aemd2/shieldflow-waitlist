@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { RefreshCw, Unplug } from "lucide-react";
 import { syncGoogleWorkspace, disconnectGoogleWorkspace } from "@/app/actions/integrations";
 import { useToast } from "@/components/ui/Toast";
+import { Button, buttonClasses } from "@/components/ui/Button";
 
 const CALLBACK_ERRORS: Record<string, string> = {
   not_configured: "Google integration isn't configured yet (missing GOOGLE_CLIENT_ID/SECRET).",
@@ -81,18 +82,21 @@ export function GoogleWorkspaceCard({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {!connected ? (
-        <a href="/api/integrations/google/start" className="btn-accent">
+        <a href="/api/integrations/google/start" className={buttonClasses("accent")}>
           {status === "error" ? "Reconnect" : "Connect Google Workspace"}
         </a>
       ) : (
         <>
-          <button onClick={sync} disabled={busy !== null} className="btn-primary">
-            <RefreshCw className={`mr-2 h-4 w-4 ${busy === "sync" ? "animate-spin" : ""}`} />
+          <Button
+            onClick={sync}
+            disabled={busy !== null}
+            leftIcon={<RefreshCw className={`h-4 w-4 ${busy === "sync" ? "animate-spin" : ""}`} />}
+          >
             {busy === "sync" ? "Syncing..." : "Sync now"}
-          </button>
-          <button onClick={disconnect} disabled={busy !== null} className="btn-outline">
-            <Unplug className="mr-2 h-4 w-4" /> Disconnect
-          </button>
+          </Button>
+          <Button variant="outline" onClick={disconnect} disabled={busy !== null} leftIcon={<Unplug className="h-4 w-4" />}>
+            Disconnect
+          </Button>
         </>
       )}
       {lastSyncedAt && (

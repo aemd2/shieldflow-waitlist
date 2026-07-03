@@ -24,7 +24,7 @@ import { ScoreCard } from "@/components/dashboard/ScoreCard";
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
 import { ControlsExplorer } from "@/components/dashboard/ControlsExplorer";
 import { SprintBanner } from "@/components/setup/SprintBanner";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageShell } from "@/components/ui/page";
 
 export default async function DashboardPage() {
   const supabase = await createServerSupabase();
@@ -106,15 +106,16 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {!sprint.ready && !isAuditor && (
-        <SprintBanner completedCount={sprint.completedCount} total={sprint.phases.length} />
-      )}
-      <PageHeader
-        title="Compliance dashboard"
-        subtitle={`Overview of ${company.name}'s controls.`}
-      />
-
+    <PageShell
+      layout="overview"
+      banner={
+        !sprint.ready && !isAuditor ? (
+          <SprintBanner completedCount={sprint.completedCount} total={sprint.phases.length} />
+        ) : undefined
+      }
+      title="Compliance dashboard"
+      subtitle={`Overview of ${company.name}'s controls.`}
+    >
       <div className="grid gap-4 md:grid-cols-4">
         <ScoreCard score={score} />
         <StatCard label="Complete" value={counts.complete} color="emerald" />
@@ -163,7 +164,7 @@ export default async function DashboardPage() {
       <AlertsPanel alerts={alerts} />
 
       <ControlsExplorer controls={controls} frameworks={frameworks} health={controlHealth} />
-    </div>
+    </PageShell>
   );
 }
 

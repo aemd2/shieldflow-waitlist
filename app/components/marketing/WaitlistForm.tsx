@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 export function WaitlistForm() {
   const router = useRouter();
@@ -87,7 +88,7 @@ export function WaitlistForm() {
         </div>
       </div>
 
-      <button type="submit" disabled={loading} className="btn-accent h-11 w-full text-base font-semibold">
+      <Button type="submit" variant="accent" disabled={loading} fullWidth className="h-11 text-base font-semibold">
         {loading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Reserving your spot…
@@ -95,7 +96,7 @@ export function WaitlistForm() {
         ) : (
           "Claim my founding spot →"
         )}
-      </button>
+      </Button>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 

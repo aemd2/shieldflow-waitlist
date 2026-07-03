@@ -4,12 +4,9 @@ import { cn } from "@/lib/cn";
 export type AlertVariant = "success" | "error" | "warning" | "info";
 
 const VARIANT: Record<AlertVariant, { cls: string; Icon: typeof Info }> = {
-  success: {
-    cls: "border-[var(--brand-emerald)]/40 bg-emerald-50 text-emerald-800",
-    Icon: CheckCircle2,
-  },
+  success: { cls: "border-success-border bg-success-muted text-success", Icon: CheckCircle2 },
   error: { cls: "border-destructive/30 bg-destructive/10 text-destructive", Icon: AlertCircle },
-  warning: { cls: "border-amber-300 bg-amber-50 text-amber-800", Icon: AlertTriangle },
+  warning: { cls: "border-warning-border bg-warning-muted text-warning", Icon: AlertTriangle },
   info: { cls: "border-border bg-secondary text-muted-foreground", Icon: Info },
 };
 

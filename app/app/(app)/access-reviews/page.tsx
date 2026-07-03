@@ -7,7 +7,7 @@ import {
   getCallerAccess,
 } from "@/lib/db/queries";
 import { AccessReviewWorkspace } from "@/components/access/AccessReviewWorkspace";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageShell } from "@/components/ui/page";
 
 export default async function AccessReviewsPage() {
   const supabase = await createServerSupabase();
@@ -25,12 +25,12 @@ export default async function AccessReviewsPage() {
   const canWrite = access?.canWrite ?? false;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Access reviews"
-        subtitle="Periodically attest who should keep access. Snapshot the people and their access, mark keep or revoke on each, and completing the review files a signed evidence record. We record the attestation — we never revoke access for you."
-      />
+    <PageShell
+      layout="workspace"
+      title="Access reviews"
+      subtitle="Periodically attest who should keep access. Snapshot the people and their access, mark keep or revoke on each, and completing the review files a signed evidence record. We record the attestation — we never revoke access for you."
+    >
       <AccessReviewWorkspace reviews={reviews} items={items} canWrite={canWrite} />
-    </div>
+    </PageShell>
   );
 }

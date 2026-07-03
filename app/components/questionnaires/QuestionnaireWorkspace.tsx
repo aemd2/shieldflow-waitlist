@@ -10,6 +10,12 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
+import {
+  WorkspaceLayout,
+  SidebarListPanel,
+  SidebarListButton,
+  WorkspaceDetailEmpty,
+} from "@/components/ui/layouts";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import {
   createQuestionnaire,
@@ -138,58 +144,43 @@ export function QuestionnaireWorkspace({
   const needsReview = selItems.filter((it) => it.status === "needs_review").length;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
-      {/* Left: list + create */}
-      <div className="space-y-4">
-        {canWrite && (
-          <Button variant="accent" fullWidth onClick={() => setCreating((v) => !v)} leftIcon={<Plus className="h-4 w-4" />}>
-            New questionnaire
-          </Button>
-        )}
-
-        {creating && canWrite && (
-          <div className="card space-y-3">
-            <Field label="Name" required>
-              <Input value={name} maxLength={160} onChange={(e) => setName(e.target.value)} placeholder="e.g. Acme Corp security review" />
-            </Field>
-            <Field label="Questions" hint="One per line.">
-              <Textarea rows={6} value={questionsText} onChange={(e) => setQuestionsText(e.target.value)} placeholder={"Do you encrypt data at rest?\nDo you enforce MFA?\n..."} />
-            </Field>
-            <Button onClick={create} loading={pending} fullWidth>Create</Button>
-          </div>
-        )}
-
-        <div className="card p-0">
-          <div className="border-b border-border px-4 py-3 text-sm font-semibold text-foreground">
-            Questionnaires ({questionnaires.length})
-          </div>
-          {questionnaires.length === 0 ? (
-            <div className="px-4 py-6 text-center text-xs text-muted-foreground">None yet.</div>
-          ) : (
-            <ul className="divide-y divide-border">
-              {questionnaires.map((q) => {
-                const its = itemsFor(q.id);
-                const ans = its.filter((it) => it.answer && it.answer.trim()).length;
-                return (
-                  <li key={q.id}>
-                    <button
-                      onClick={() => setSelectedId(q.id)}
-                      className={`flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm hover:bg-secondary ${selectedId === q.id ? "bg-secondary" : ""}`}
-                    >
-                      <span className="min-w-0 truncate">{q.name}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground">{ans}/{its.length}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+    <WorkspaceLayout
+      sidebar={
+        <>
+          {canWrite && (
+            <Button variant="accent" fullWidth onClick={() => setCreating((v) => !v)} leftIcon={<Plus className="h-4 w-4" />}>
+              New questionnaire
+            </Button>
           )}
-        </div>
-      </div>
 
-      {/* Right: selected questionnaire */}
-      <div>
-        {selected ? (
+          {creating && canWrite && (
+            <div className="card space-y-3">
+              <Field label="Name" required>
+                <Input value={name} maxLength={160} onChange={(e) => setName(e.target.value)} placeholder="e.g. Acme Corp security review" />
+              </Field>
+              <Field label="Questions" hint="One per line.">
+                <Textarea rows={6} value={questionsText} onChange={(e) => setQuestionsText(e.target.value)} placeholder={"Do you encrypt data at rest?\nDo you enforce MFA?\n..."} />
+              </Field>
+              <Button onClick={create} loading={pending} fullWidth>Create</Button>
+            </div>
+          )}
+
+          <SidebarListPanel title={`Questionnaires (${questionnaires.length})`} isEmpty={questionnaires.length === 0}>
+            {questionnaires.map((q) => {
+              const its = itemsFor(q.id);
+              const ans = its.filter((it) => it.answer && it.answer.trim()).length;
+              return (
+                <SidebarListButton key={q.id} selected={selectedId === q.id} onClick={() => setSelectedId(q.id)}>
+                  <span className="min-w-0 truncate">{q.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{ans}/{its.length}</span>
+                </SidebarListButton>
+              );
+            })}
+          </SidebarListPanel>
+        </>
+      }
+    >
+      {selected ? (
           <div className="space-y-4">
             <div className="card flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -229,12 +220,11 @@ export function QuestionnaireWorkspace({
             </div>
           </div>
         ) : (
-          <div className="card flex h-full min-h-64 items-center justify-center text-sm text-muted-foreground">
+          <WorkspaceDetailEmpty>
             Select a questionnaire, or create one from a pasted list of questions.
-          </div>
+          </WorkspaceDetailEmpty>
         )}
-      </div>
-    </div>
+    </WorkspaceLayout>
   );
 }
 

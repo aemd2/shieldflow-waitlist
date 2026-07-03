@@ -12,7 +12,7 @@ import {
 import { computeScore, countStatuses } from "@/lib/score";
 import { computeAlerts } from "@/lib/monitoring";
 import { PrintButton } from "@/components/reports/PrintButton";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageShell } from "@/components/ui/page";
 
 export const dynamic = "force-dynamic";
 
@@ -65,17 +65,13 @@ export default async function ReportsPage() {
   });
 
   return (
-    <div className="space-y-6">
-      {/* Toolbar — hidden when printing */}
-      <div className="print:hidden">
-        <PageHeader
-          title="Audit report"
-          subtitle="A one-page compliance snapshot to share with auditors and prospects. Save it as a PDF."
-          actions={<PrintButton />}
-        />
-      </div>
-
-      {/* The printable report */}
+    <PageShell
+      layout="stack"
+      headerClassName="print:hidden"
+      title="Audit report"
+      subtitle="A one-page compliance snapshot to share with auditors and prospects. Save it as a PDF."
+      actions={<PrintButton />}
+    >
       <article className="report mx-auto max-w-4xl rounded-lg border border-border bg-white p-8 text-sm text-foreground print:max-w-none print:rounded-none print:border-0 print:p-0">
         {/* Header */}
         <header className="mb-6 flex items-start justify-between border-b border-border pb-4">
@@ -217,7 +213,7 @@ export default async function ReportsPage() {
           This report reflects self-attested compliance status and is not a substitute for a formal audit.
         </footer>
       </article>
-    </div>
+    </PageShell>
   );
 }
 

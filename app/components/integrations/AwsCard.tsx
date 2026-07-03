@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { RefreshCw, Unplug, Cloud } from "lucide-react";
 import { connectAWS, syncAWS, disconnectAWS } from "@/app/actions/aws";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/Button";
 
 export function AwsCard({
   status,
@@ -85,13 +86,16 @@ export function AwsCard({
           </p>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={sync} disabled={busy !== null} className="btn-primary">
-            <RefreshCw className={`mr-2 h-4 w-4 ${busy === "sync" ? "animate-spin" : ""}`} />
+          <Button
+            onClick={sync}
+            disabled={busy !== null}
+            leftIcon={<RefreshCw className={`h-4 w-4 ${busy === "sync" ? "animate-spin" : ""}`} />}
+          >
             {busy === "sync" ? "Syncing..." : "Sync now"}
-          </button>
-          <button onClick={disconnect} disabled={busy !== null} className="btn-outline">
-            <Unplug className="mr-2 h-4 w-4" /> Disconnect
-          </button>
+          </Button>
+          <Button variant="outline" onClick={disconnect} disabled={busy !== null} leftIcon={<Unplug className="h-4 w-4" />}>
+            Disconnect
+          </Button>
           {lastSyncedAt && (
             <span className="text-xs text-muted-foreground">
               Last synced {new Date(lastSyncedAt).toLocaleString()}
@@ -128,10 +132,15 @@ export function AwsCard({
         autoComplete="off"
         className="input"
       />
-      <button type="submit" disabled={busy !== null} className="btn-accent w-full sm:w-auto">
-        <Cloud className="mr-2 inline h-4 w-4" />
+      <Button
+        type="submit"
+        variant="accent"
+        disabled={busy !== null}
+        className="w-full sm:w-auto"
+        leftIcon={<Cloud className="h-4 w-4" />}
+      >
         {busy === "connect" ? "Verifying..." : needsReconnect ? "Reconnect" : "Connect"}
-      </button>
+      </Button>
       <p className="text-xs text-muted-foreground">
         Create an IAM user with the AWS-managed{" "}
         <code className="font-mono">IAMReadOnlyAccess</code> policy, then an access key. ShieldFlow

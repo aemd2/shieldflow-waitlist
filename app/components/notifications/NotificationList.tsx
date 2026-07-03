@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ListCard, ListRow } from "@/components/ui/ListCard";
+import { FeedLayout } from "@/components/ui/layouts";
 import { timeAgo, formatDateTime } from "@/lib/format";
 import type { Notification } from "@/lib/db/queries";
 
@@ -55,19 +56,22 @@ export function NotificationList({ notifications }: { notifications: Notificatio
   }
 
   return (
-    <div className="space-y-3">
-      {hasUnread && (
-        <div className="flex justify-end">
-          <Button
-            variant="outline"
-            onClick={markAll}
-            disabled={pending}
-            leftIcon={<CheckCheck className="h-4 w-4" />}
-          >
-            Mark all read
-          </Button>
-        </div>
-      )}
+    <FeedLayout
+      toolbar={
+        hasUnread ? (
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              onClick={markAll}
+              disabled={pending}
+              leftIcon={<CheckCheck className="h-4 w-4" />}
+            >
+              Mark all read
+            </Button>
+          </div>
+        ) : undefined
+      }
+    >
       <ListCard>
         {notifications.map((n) => (
           <ListRow key={n.id} className={n.read_at ? "" : "bg-secondary/40"}>
@@ -96,6 +100,6 @@ export function NotificationList({ notifications }: { notifications: Notificatio
           </ListRow>
         ))}
       </ListCard>
-    </div>
+    </FeedLayout>
   );
 }

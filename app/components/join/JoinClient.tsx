@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { acceptInvite } from "@/app/actions/team";
 import { createBrowserSupabase } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/Button";
 
 export function JoinClient({ token, email }: { token: string; email: string }) {
   const [loading, setLoading] = useState(false);
@@ -53,9 +54,9 @@ export function JoinClient({ token, email }: { token: string; email: string }) {
           </div>
         )}
 
-        <button onClick={accept} disabled={loading} className="btn-primary w-full">
+        <Button onClick={accept} loading={loading} fullWidth>
           {loading ? "Joining…" : "Accept invitation"}
-        </button>
+        </Button>
 
         {!loading && (
           <button

@@ -11,6 +11,12 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import {
+  WorkspaceLayout,
+  SidebarListPanel,
+  SidebarListButton,
+  WorkspaceDetailEmpty,
+} from "@/components/ui/layouts";
+import {
   createAccessReview,
   decideAccessItem,
   completeAccessReview,
@@ -113,70 +119,55 @@ export function AccessReviewWorkspace({
   const isOpen = selected?.status === "open";
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
-      {/* Left: list + create */}
-      <div className="space-y-4">
-        {canWrite && (
-          <Button variant="accent" fullWidth onClick={() => setCreating((v) => !v)} leftIcon={<Plus className="h-4 w-4" />}>
-            New review
-          </Button>
-        )}
-
-        {creating && canWrite && (
-          <div className="card space-y-3">
-            <Field label="Name" required>
-              <Input value={name} maxLength={160} onChange={(e) => setName(e.target.value)} placeholder="Q3 access review" />
-            </Field>
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="Source">
-                <Input value={source} maxLength={80} onChange={(e) => setSource(e.target.value)} placeholder="Okta / Google / Manual" />
-              </Field>
-              <Field label="Reviewer">
-                <Input type="email" value={reviewer} maxLength={254} onChange={(e) => setReviewer(e.target.value)} placeholder="you@co.com" />
-              </Field>
-            </div>
-            <Field label="People / accounts" hint="One per line: email — access level.">
-              <Textarea rows={6} value={subjectsText} onChange={(e) => setSubjectsText(e.target.value)} placeholder={"alice@acme.com — Admin\nbob@acme.com — Member\nci-bot — Deploy key"} />
-            </Field>
-            <Button onClick={create} loading={pending} fullWidth>Create review</Button>
-          </div>
-        )}
-
-        <div className="card p-0">
-          <div className="border-b border-border px-4 py-3 text-sm font-semibold text-foreground">
-            Reviews ({reviews.length})
-          </div>
-          {reviews.length === 0 ? (
-            <div className="px-4 py-6 text-center text-xs text-muted-foreground">None yet.</div>
-          ) : (
-            <ul className="divide-y divide-border">
-              {reviews.map((r) => {
-                const its = itemsFor(r.id);
-                const d = its.filter((it) => it.decision !== "pending").length;
-                return (
-                  <li key={r.id}>
-                    <button
-                      onClick={() => setSelectedId(r.id)}
-                      className={`flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm hover:bg-secondary ${selectedId === r.id ? "bg-secondary" : ""}`}
-                    >
-                      <span className="min-w-0 truncate">{r.name}</span>
-                      {r.status === "completed" ? (
-                        <Badge variant="success">Done</Badge>
-                      ) : (
-                        <span className="shrink-0 text-xs text-muted-foreground">{d}/{its.length}</span>
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+    <WorkspaceLayout
+      sidebar={
+        <>
+          {canWrite && (
+            <Button variant="accent" fullWidth onClick={() => setCreating((v) => !v)} leftIcon={<Plus className="h-4 w-4" />}>
+              New review
+            </Button>
           )}
-        </div>
-      </div>
 
-      {/* Right: selected review */}
-      <div>
-        {selected ? (
+          {creating && canWrite && (
+            <div className="card space-y-3">
+              <Field label="Name" required>
+                <Input value={name} maxLength={160} onChange={(e) => setName(e.target.value)} placeholder="Q3 access review" />
+              </Field>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Source">
+                  <Input value={source} maxLength={80} onChange={(e) => setSource(e.target.value)} placeholder="Okta / Google / Manual" />
+                </Field>
+                <Field label="Reviewer">
+                  <Input type="email" value={reviewer} maxLength={254} onChange={(e) => setReviewer(e.target.value)} placeholder="you@co.com" />
+                </Field>
+              </div>
+              <Field label="People / accounts" hint="One per line: email — access level.">
+                <Textarea rows={6} value={subjectsText} onChange={(e) => setSubjectsText(e.target.value)} placeholder={"alice@acme.com — Admin\nbob@acme.com — Member\nci-bot — Deploy key"} />
+              </Field>
+              <Button onClick={create} loading={pending} fullWidth>Create review</Button>
+            </div>
+          )}
+
+          <SidebarListPanel title={`Reviews (${reviews.length})`} isEmpty={reviews.length === 0}>
+            {reviews.map((r) => {
+              const its = itemsFor(r.id);
+              const d = its.filter((it) => it.decision !== "pending").length;
+              return (
+                <SidebarListButton key={r.id} selected={selectedId === r.id} onClick={() => setSelectedId(r.id)}>
+                  <span className="min-w-0 truncate">{r.name}</span>
+                  {r.status === "completed" ? (
+                    <Badge variant="success">Done</Badge>
+                  ) : (
+                    <span className="shrink-0 text-xs text-muted-foreground">{d}/{its.length}</span>
+                  )}
+                </SidebarListButton>
+              );
+            })}
+          </SidebarListPanel>
+        </>
+      }
+    >
+      {selected ? (
           <div className="space-y-4">
             <div className="card flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -249,11 +240,10 @@ export function AccessReviewWorkspace({
             </div>
           </div>
         ) : (
-          <div className="card flex h-full min-h-64 items-center justify-center text-sm text-muted-foreground">
+          <WorkspaceDetailEmpty>
             Select a review, or start one from a pasted list of people and their access.
-          </div>
+          </WorkspaceDetailEmpty>
         )}
-      </div>
-    </div>
+    </WorkspaceLayout>
   );
 }

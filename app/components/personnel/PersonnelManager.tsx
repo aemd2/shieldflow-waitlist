@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ListCard, ListRow } from "@/components/ui/ListCard";
+import { ManagerLayout } from "@/components/ui/layouts";
 import type { Person, TrainingRecord } from "@/lib/db/queries";
 
 const NETWORK = "Network problem — check your connection and try again.";
@@ -127,11 +128,11 @@ export function PersonnelManager({
         {canWrite && (
           <div className="flex shrink-0 items-center gap-1">
             {p.status === "active" ? (
-              <button onClick={() => act(() => offboardPerson(p.id), "Offboarded")} disabled={pending} className="rounded-md p-2 text-amber-700 hover:bg-amber-50" title="Offboard">
+              <button onClick={() => act(() => offboardPerson(p.id), "Offboarded")} disabled={pending} className="rounded-md p-2 text-warning hover:bg-warning-muted" title="Offboard">
                 <UserMinus className="h-4 w-4" />
               </button>
             ) : (
-              <button onClick={() => act(() => reactivatePerson(p.id), "Reactivated")} disabled={pending} className="rounded-md p-2 text-emerald-700 hover:bg-emerald-50" title="Reactivate">
+              <button onClick={() => act(() => reactivatePerson(p.id), "Reactivated")} disabled={pending} className="rounded-md p-2 text-success hover:bg-success-muted" title="Reactivate">
                 <UserPlus className="h-4 w-4" />
               </button>
             )}
@@ -148,15 +149,15 @@ export function PersonnelManager({
   }
 
   return (
-    <div className="space-y-4">
-      {canWrite && (
-        <div className="flex justify-end">
+    <ManagerLayout
+      toolbar={
+        canWrite ? (
           <Button variant="accent" onClick={openNew} disabled={pending} leftIcon={<Plus className="h-4 w-4" />}>
             Add person
           </Button>
-        </div>
-      )}
-
+        ) : undefined
+      }
+    >
       {editing && (
         <form onSubmit={submit} className="card space-y-4">
           <h2 className="text-sm font-semibold text-foreground">{editing === "new" ? "New person" : "Edit person"}</h2>
@@ -196,6 +197,6 @@ export function PersonnelManager({
           )}
         </>
       )}
-    </div>
+    </ManagerLayout>
   );
 }

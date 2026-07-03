@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Send, Unplug, MessageSquare } from "lucide-react";
 import { connectSlack, sendComplianceDigest, disconnectSlack } from "@/app/actions/slack";
 import { useToast } from "@/components/ui/Toast";
+import { Button, buttonClasses } from "@/components/ui/Button";
 
 export function SlackCard({
   status,
@@ -69,13 +70,12 @@ export function SlackCard({
           </p>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={digest} disabled={busy !== null} className="btn-primary">
-            <Send className="mr-2 h-4 w-4" />
+          <Button onClick={digest} disabled={busy !== null} leftIcon={<Send className="h-4 w-4" />}>
             {busy === "digest" ? "Sending..." : "Send digest now"}
-          </button>
-          <button onClick={disconnect} disabled={busy !== null} className="btn-outline">
-            <Unplug className="mr-2 h-4 w-4" /> Disconnect
-          </button>
+          </Button>
+          <Button variant="outline" onClick={disconnect} disabled={busy !== null} leftIcon={<Unplug className="h-4 w-4" />}>
+            Disconnect
+          </Button>
           {lastSyncedAt && (
             <span className="text-xs text-muted-foreground">
               Last digest {new Date(lastSyncedAt).toLocaleString()}
@@ -90,9 +90,9 @@ export function SlackCard({
   if (needsReconnect) {
     return (
       <div className="space-y-3">
-        <p className="text-xs text-amber-600">Webhook was removed — reconnect to resume digests.</p>
+        <p className="text-xs text-warning">Webhook was removed — reconnect to resume digests.</p>
         {oauthEnabled ? (
-          <a href="/api/integrations/slack/start" className="btn-accent inline-flex items-center">
+          <a href="/api/integrations/slack/start" className={buttonClasses("accent")}>
             <MessageSquare className="mr-2 h-4 w-4" /> Reconnect with Slack
           </a>
         ) : (
@@ -106,9 +106,9 @@ export function SlackCard({
               autoComplete="off"
               className="input min-w-0 flex-1"
             />
-            <button type="submit" disabled={busy !== null} className="btn-accent shrink-0">
+            <Button type="submit" variant="accent" disabled={busy !== null} className="shrink-0">
               {busy === "connect" ? "Testing..." : "Reconnect"}
-            </button>
+            </Button>
           </form>
         )}
       </div>
@@ -121,7 +121,7 @@ export function SlackCard({
     return (
       <a
         href="/api/integrations/slack/start"
-        className="btn-accent inline-flex items-center"
+        className={buttonClasses("accent")}
       >
         <MessageSquare className="mr-2 h-4 w-4" />
         Add to Slack
@@ -145,9 +145,9 @@ export function SlackCard({
           autoComplete="off"
           className="input min-w-0 flex-1"
         />
-        <button type="submit" disabled={busy !== null} className="btn-accent shrink-0">
+        <Button type="submit" variant="accent" disabled={busy !== null} className="shrink-0">
           {busy === "connect" ? "Testing..." : "Connect"}
-        </button>
+        </Button>
       </div>
       <p className="text-xs text-muted-foreground">
         In Slack: create an app →{" "}

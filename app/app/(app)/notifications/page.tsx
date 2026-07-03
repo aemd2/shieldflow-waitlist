@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, listNotifications } from "@/lib/db/queries";
 import { NotificationList } from "@/components/notifications/NotificationList";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageShell } from "@/components/ui/page";
 
 export default async function NotificationsPage() {
   const supabase = await createServerSupabase();
@@ -15,12 +15,12 @@ export default async function NotificationsPage() {
   const notifications = await listNotifications(supabase, user.id, company.id);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Notifications"
-        subtitle="Updates about your controls, integrations and team."
-      />
+    <PageShell
+      layout="feed"
+      title="Notifications"
+      subtitle="Updates about your controls, integrations and team."
+    >
       <NotificationList notifications={notifications} />
-    </div>
+    </PageShell>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
 import { Markdown } from "@/components/ui/Markdown";
+import { Button } from "@/components/ui/Button";
 
 interface Msg {
   role: "user" | "assistant";
@@ -97,21 +98,22 @@ export function Chat({
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 && (
           <div className="space-y-3 py-8 text-center">
             <p className="text-sm text-muted-foreground">Ask the Co-Pilot anything about your compliance.</p>
             <div className="flex flex-wrap justify-center gap-2">
               {SUGGESTIONS.map((s) => (
-                <button
+                <Button
                   key={s}
                   onClick={() => send(s)}
                   disabled={!aiEnabled}
-                  className="btn-outline text-xs"
+                  size="sm"
+                  variant="outline"
                 >
                   {s}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -161,9 +163,9 @@ export function Chat({
           maxLength={2000}
           className="input flex-1"
         />
-        <button type="submit" disabled={!aiEnabled || streaming || !input.trim()} className="btn-primary">
+        <Button type="submit" disabled={!aiEnabled || streaming || !input.trim()} aria-label="Send">
           <Send className="h-4 w-4" />
-        </button>
+        </Button>
       </form>
     </div>
   );

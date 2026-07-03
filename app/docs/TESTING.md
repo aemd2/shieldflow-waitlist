@@ -133,6 +133,10 @@ Use this as your “is the app perfect?” scorecard. Run **P0** before any demo
 - [x] Supabase auth dashboard checklist (§14) ✅ **done** (6/25/2026 — SMTP configured, secure password change on, min length 8)
 - [x] **Full adversarial pass (§18–§36)** — try to break every surface ✅ **tested** (6/24/2026 — all 4 non-negotiables passed: tenant isolation, SSRF, audit log, JWT)
 - [x] **Premium adversarial pass (§D1–§D6)** — checks, encryption, auditor ✅ **tested** (6/24/2026 — D1.2, D2.1, D2.2, D3.3, D3.4 all passed)
+- [x] **Policy approval + acknowledgement** (PREMIUM_TEST_PLAN §4) ✅ **tested** (7/2/2026 — approve/publish/ack flow, version reset, auditor excluded from count, notification deep-link)
+- [x] **Risk register** (PREMIUM_TEST_PLAN §5) ✅ **tested** (7/2/2026 — library pre-fill, inherent→residual badges, heat-map, dashboard alerts off residual)
+- [x] **Vendors assessment** (PREMIUM_TEST_PLAN §6) ✅ **tested** (7/2/2026 — CRUD, edit/delete, Mark reviewed today, review-overdue + SOC 2 alerts)
+- [ ] **Security questionnaire AI** (PREMIUM_TEST_PLAN §7) ⏭️ **skipped** (7/2/2026 — still needs more work; defer until next iteration)
 - [ ] **Race & footgun pass (§D6)** — disconnect-mid-sync, mixed keys, owner-lockout ⏭️ Deferred — low risk for beta
 
 ---

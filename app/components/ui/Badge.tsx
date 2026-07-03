@@ -6,11 +6,13 @@ export type BadgeVariant = "neutral" | "success" | "warning" | "high" | "critica
 
 const VARIANT: Record<BadgeVariant, string> = {
   neutral: "border-border bg-secondary text-muted-foreground",
-  success: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  warning: "border-amber-200 bg-amber-50 text-amber-700",
+  success: "border-success-border bg-success-muted text-success",
+  warning: "border-warning-border bg-warning-muted text-warning",
+  // "high" sits between warning and critical on the severity ramp — the one
+  // deliberate non-token shade, and it lives only here.
   high: "border-orange-200 bg-orange-50 text-orange-700",
-  critical: "border-red-200 bg-red-50 text-red-700",
-  info: "border-sky-200 bg-sky-50 text-sky-700",
+  critical: "border-destructive/30 bg-destructive/10 text-destructive",
+  info: "border-info-border bg-info-muted text-info",
 };
 
 export function Badge({

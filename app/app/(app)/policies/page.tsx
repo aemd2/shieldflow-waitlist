@@ -11,7 +11,7 @@ import {
 } from "@/lib/db/queries";
 import { isGroqConfigured } from "@/lib/groq";
 import { PolicyWorkspace } from "@/components/policies/PolicyGenerator";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageShell, Alert } from "@/components/ui/page";
 
 export default async function PoliciesPage({
   searchParams,
@@ -44,20 +44,20 @@ export default async function PoliciesPage({
     policyParam && policies.some((p) => p.id === policyParam) ? policyParam : null;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Policies"
-        subtitle="Generate audit-ready policy documents with AI, then edit and finalize."
-      />
-
-      {!isGroqConfigured() && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          AI is not configured yet. Add a <code>GROQ_API_KEY</code> to{" "}
-          <code>.env.local</code> to enable policy generation. You can still view and edit
-          existing policies.
-        </div>
-      )}
-
+    <PageShell
+      layout="workspace"
+      title="Policies"
+      subtitle="Generate audit-ready policy documents with AI, then edit and finalize."
+      alert={
+        !isGroqConfigured() ? (
+          <Alert variant="warning">
+            AI is not configured yet. Add a <code>GROQ_API_KEY</code> to{" "}
+            <code>.env.local</code> to enable policy generation. You can still view and edit
+            existing policies.
+          </Alert>
+        ) : undefined
+      }
+    >
       <PolicyWorkspace
         frameworks={frameworks}
         policies={policies}
@@ -70,6 +70,6 @@ export default async function PoliciesPage({
         currentUserId={user.id}
         initialPolicyId={initialPolicyId}
       />
-    </div>
+    </PageShell>
   );
 }

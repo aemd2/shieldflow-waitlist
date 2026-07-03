@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Rocket, ArrowRight, X } from "lucide-react";
+import { buttonClasses } from "@/components/ui/Button";
 
 const DISMISS_KEY = "sprintBannerDismissed";
 
@@ -42,7 +43,7 @@ export function SprintBanner({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <Link href="/getting-started" className="btn-primary inline-flex">
+        <Link href="/getting-started" className={buttonClasses("primary")}>
           Continue
           <ArrowRight className="ml-2 h-4 w-4" />
         </Link>

@@ -11,13 +11,13 @@ const STYLE: Record<AlertSeverity, { cls: string; Icon: typeof Info }> = {
 export function AlertsPanel({ alerts }: { alerts: Alert[] }) {
   return (
     <section className="card p-0">
-      <div className="flex items-center justify-between border-b border-border px-6 py-3">
+      <div className="flex items-center justify-between border-b border-border px-5 py-3">
         <h2 className="text-sm font-semibold text-foreground">Monitoring &amp; alerts</h2>
         <span className="text-xs text-muted-foreground">{alerts.length} active</span>
       </div>
 
       {alerts.length === 0 ? (
-        <div className="px-6 py-8 text-center text-sm text-muted-foreground">
+        <div className="px-5 py-8 text-center text-sm text-muted-foreground">
           ✓ All clear — no issues detected.
         </div>
       ) : (
@@ -25,7 +25,7 @@ export function AlertsPanel({ alerts }: { alerts: Alert[] }) {
           {alerts.map((a) => {
             const { cls, Icon } = STYLE[a.severity];
             const body = (
-              <div className={`flex items-start gap-3 px-6 py-3 ${a.controlId ? "hover:bg-secondary" : ""}`}>
+              <div className={`flex items-start gap-3 px-5 py-3 ${a.controlId ? "hover:bg-secondary" : ""}`}>
                 <span className={`mt-0.5 rounded-md border p-1 ${cls}`}>
                   <Icon className="h-4 w-4" />
                 </span>

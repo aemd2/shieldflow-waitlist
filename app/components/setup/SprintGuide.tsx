@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Check, Rocket, ArrowRight, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { buttonClasses } from "@/components/ui/Button";
 import type { SprintPhase, SprintResult } from "@/lib/setup";
 
 export interface OutstandingControl {
@@ -129,7 +130,7 @@ function PhaseCard({
         </div>
         <p className="mt-1 text-sm text-muted-foreground">{phase.blurb}</p>
         {state !== "done" && (
-          <Link href={phase.ctaHref} className="btn-primary mt-3 inline-flex w-auto">
+          <Link href={phase.ctaHref} className={cn(buttonClasses("primary"), "mt-3 w-auto")}>
             {phase.ctaLabel}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Link>

@@ -19,7 +19,7 @@ export function FormSection({
 }) {
   return (
     <fieldset className={cn("space-y-3", className)}>
-      <legend className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <legend className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </legend>
       {hint && <p className="-mt-2 text-xs text-muted-foreground">{hint}</p>}

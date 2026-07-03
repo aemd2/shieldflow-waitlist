@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ListCard, ListRow } from "@/components/ui/ListCard";
+import { ManagerLayout } from "@/components/ui/layouts";
 import { TASK_STATUSES, TASK_PRIORITIES, TASK_RECURRENCE } from "@/lib/validation";
 import type { Task, TaskPriority, TaskStatus, TaskRecurrence, TeamMember } from "@/lib/db/queries";
 
@@ -152,15 +153,15 @@ export function TaskManager({
   const set = (k: keyof FormState) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   return (
-    <div className="space-y-4">
-      {canWrite && (
-        <div className="flex justify-end">
+    <ManagerLayout
+      toolbar={
+        canWrite ? (
           <Button variant="accent" onClick={openNew} disabled={pending} leftIcon={<Plus className="h-4 w-4" />}>
             Add task
           </Button>
-        </div>
-      )}
-
+        ) : undefined
+      }
+    >
       {editing && (
         <form onSubmit={submit} className="card space-y-4">
           <h2 className="text-sm font-semibold text-foreground">
@@ -270,7 +271,7 @@ export function TaskManager({
           )}
         </>
       )}
-    </div>
+    </ManagerLayout>
   );
 }
 

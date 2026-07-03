@@ -7,7 +7,7 @@ import {
   getCallerAccess,
 } from "@/lib/db/queries";
 import { PersonnelManager } from "@/components/personnel/PersonnelManager";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageShell } from "@/components/ui/page";
 
 export default async function PersonnelPage() {
   const supabase = await createServerSupabase();
@@ -25,12 +25,12 @@ export default async function PersonnelPage() {
   const canWrite = access?.canWrite ?? false;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Personnel"
-        subtitle="Who works here — joiners and leavers, roles, and security-training status (matched to training records by email). The roster auditors ask for."
-      />
+    <PageShell
+      layout="manager"
+      title="Personnel"
+      subtitle="Who works here — joiners and leavers, roles, and security-training status (matched to training records by email). The roster auditors ask for."
+    >
       <PersonnelManager people={people} training={training} canWrite={canWrite} />
-    </div>
+    </PageShell>
   );
 }

@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ListCard, ListRow } from "@/components/ui/ListCard";
+import { ManagerLayout } from "@/components/ui/layouts";
 import {
   VENDOR_RISKS,
   VENDOR_STATUSES,
@@ -172,15 +173,15 @@ export function VendorManager({ vendors, canWrite = true }: { vendors: Vendor[];
   const set = (k: keyof FormState) => (v: string) => setForm((f) => ({ ...f, [k]: v }) as FormState);
 
   return (
-    <div className="space-y-4">
-      {canWrite && (
-        <div className="flex justify-end">
+    <ManagerLayout
+      toolbar={
+        canWrite ? (
           <Button variant="accent" onClick={openNew} disabled={pending} leftIcon={<Plus className="h-4 w-4" />}>
             Add vendor
           </Button>
-        </div>
-      )}
-
+        ) : undefined
+      }
+    >
       {editing && (
         <form onSubmit={submit} className="card space-y-4">
           <h2 className="text-sm font-semibold text-foreground">
@@ -288,7 +289,7 @@ export function VendorManager({ vendors, canWrite = true }: { vendors: Vendor[];
                     )}
                     {canWrite && (
                       <>
-                        <button onClick={() => review(v.id)} className="rounded-md p-2 text-emerald-700 hover:bg-emerald-50" title="Mark reviewed today" disabled={pending}>
+                        <button onClick={() => review(v.id)} className="rounded-md p-2 text-success hover:bg-success-muted" title="Mark reviewed today" disabled={pending}>
                           <CalendarCheck className="h-4 w-4" />
                         </button>
                         <button onClick={() => openEdit(v)} className="rounded-md p-2 hover:bg-secondary" title="Edit" disabled={pending}>
@@ -306,6 +307,6 @@ export function VendorManager({ vendors, canWrite = true }: { vendors: Vendor[];
           </ListCard>
         )
       )}
-    </div>
+    </ManagerLayout>
   );
 }

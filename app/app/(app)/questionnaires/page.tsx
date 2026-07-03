@@ -8,7 +8,7 @@ import {
 } from "@/lib/db/queries";
 import { isGroqConfigured } from "@/lib/groq";
 import { QuestionnaireWorkspace } from "@/components/questionnaires/QuestionnaireWorkspace";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageShell } from "@/components/ui/page";
 
 export default async function QuestionnairesPage() {
   const supabase = await createServerSupabase();
@@ -26,17 +26,17 @@ export default async function QuestionnairesPage() {
   const canWrite = access?.canWrite ?? false;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Security questionnaires"
-        subtitle="Paste a customer or RFP security questionnaire, draft answers with AI grounded only in your compliance data, review what needs a human, and export to CSV."
-      />
+    <PageShell
+      layout="workspace"
+      title="Security questionnaires"
+      subtitle="Paste a customer or RFP security questionnaire, draft answers with AI grounded only in your compliance data, review what needs a human, and export to CSV."
+    >
       <QuestionnaireWorkspace
         questionnaires={questionnaires}
         items={items}
         aiEnabled={isGroqConfigured()}
         canWrite={canWrite}
       />
-    </div>
+    </PageShell>
   );
 }

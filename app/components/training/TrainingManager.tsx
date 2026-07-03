@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/Select";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ListCard, ListRow } from "@/components/ui/ListCard";
+import { ManagerLayout } from "@/components/ui/layouts";
 import { TRAINING_STATUSES } from "@/lib/validation";
 import type { TrainingRecord, TrainingStatus } from "@/lib/db/queries";
 
@@ -116,15 +117,15 @@ export function TrainingManager({
   const set = (k: keyof FormState) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   return (
-    <div className="space-y-4">
-      {canWrite && (
-        <div className="flex justify-end">
+    <ManagerLayout
+      toolbar={
+        canWrite ? (
           <Button variant="accent" onClick={openNew} disabled={pending} leftIcon={<Plus className="h-4 w-4" />}>
             Add training
           </Button>
-        </div>
-      )}
-
+        ) : undefined
+      }
+    >
       {editing && (
         <form onSubmit={submit} className="card space-y-4">
           <h2 className="text-sm font-semibold text-foreground">
@@ -196,6 +197,6 @@ export function TrainingManager({
           </ListCard>
         )
       )}
-    </div>
+    </ManagerLayout>
   );
 }

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, listVendors, getCallerAccess } from "@/lib/db/queries";
 import { VendorManager } from "@/components/vendors/VendorManager";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageShell } from "@/components/ui/page";
 
 export default async function VendorsPage() {
   const supabase = await createServerSupabase();
@@ -19,13 +19,12 @@ export default async function VendorsPage() {
   const canWrite = access?.canWrite ?? false;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Vendor risk"
-        subtitle="Track third-party vendors, their risk level, and review status."
-      />
-
+    <PageShell
+      layout="manager"
+      title="Vendor risk"
+      subtitle="Track third-party vendors, their risk level, and review status."
+    >
       <VendorManager vendors={vendors} canWrite={canWrite} />
-    </div>
+    </PageShell>
   );
 }

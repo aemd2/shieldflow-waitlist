@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Globe, ExternalLink } from "lucide-react";
 import { updateTrustSettings } from "@/app/actions/settings";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/Button";
 
 function slugify(name: string): string {
   return name
@@ -83,9 +84,9 @@ export function TrustSettings({
       </label>
 
       <div className="flex items-center gap-3">
-        <button type="submit" disabled={pending} className="btn-primary">
+        <Button type="submit" loading={pending}>
           {pending ? "Saving..." : "Save"}
-        </button>
+        </Button>
         {enabled && initialEnabled && (
           <a
             href={publicUrl}

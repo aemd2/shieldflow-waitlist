@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui/Button";
 
 // Public, anonymous lead-capture form on the Trust Center page. Self-contained
 // (the public page has no ToastProvider) — it shows its own inline status.
@@ -78,9 +79,9 @@ export function TrustAccessForm({ slug }: { slug: string }) {
         maxLength={2000}
       />
       <div className="flex items-center gap-3">
-        <button type="submit" disabled={state === "sending"} className="btn-primary">
+        <Button type="submit" loading={state === "sending"}>
           {state === "sending" ? "Sending…" : "Request access"}
-        </button>
+        </Button>
         {state === "error" && <span className="text-sm text-destructive">{note}</span>}
       </div>
     </form>

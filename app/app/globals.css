@@ -24,6 +24,24 @@
   --brand-navy: oklch(0.18 0.06 255);
   --brand-emerald: oklch(0.72 0.18 158);
 
+  /* Semantic status tokens — one shade set for every "passing / attention /
+     informational" signal app-wide. Components use text-success, bg-warning-muted,
+     border-success-border etc. instead of ad-hoc emerald or amber classes, so a
+     status reads identically on every page (and re-skins from here alone).
+     Success shares the brand-emerald hue; danger stays --destructive. */
+  --success: oklch(0.55 0.14 158);
+  --success-foreground: oklch(0.98 0.005 240);
+  --success-muted: oklch(0.96 0.04 158);
+  --success-border: oklch(0.86 0.09 158);
+  --warning: oklch(0.55 0.14 60);
+  --warning-foreground: oklch(0.98 0.005 240);
+  --warning-muted: oklch(0.98 0.025 90);
+  --warning-border: oklch(0.87 0.11 85);
+  --info: oklch(0.55 0.12 250);
+  --info-foreground: oklch(0.98 0.005 240);
+  --info-muted: oklch(0.96 0.015 250);
+  --info-border: oklch(0.86 0.05 250);
+
   /* Marketing-only tokens (hero gradients + glow) — used by the landing page and /thanks. */
   --brand-navy-deep: oklch(0.12 0.05 255);
   --brand-emerald-bright: oklch(0.78 0.2 155);
@@ -127,6 +145,12 @@
   }
   .btn-danger {
     @apply btn bg-destructive text-destructive-foreground shadow-[var(--shadow-sm)] hover:opacity-90;
+  }
+  /* Small button — declared AFTER .btn so the cascade (not class order) wins;
+     cn() is a plain joiner with no tailwind-merge, so order in className can't
+     be relied on to resolve h-9 vs h-8 conflicts. */
+  .btn-sm {
+    @apply h-8 px-3 text-xs;
   }
 
   /* Inputs / selects / textareas. */

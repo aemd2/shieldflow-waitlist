@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ListCard, ListRow } from "@/components/ui/ListCard";
+import { ManagerLayout } from "@/components/ui/layouts";
 import { RiskHeatmap } from "@/components/risks/RiskHeatmap";
 import { RISK_LEVELS, RISK_STATUSES } from "@/lib/validation";
 import { RISK_LIBRARY } from "@/lib/risk-library";
@@ -181,15 +182,16 @@ export function RiskManager({
     <div className="space-y-4">
       <RiskHeatmap risks={risks} />
 
-      {canWrite && (
-        <div className="flex justify-end">
-          <Button variant="accent" onClick={openNew} disabled={pending} leftIcon={<Plus className="h-4 w-4" />}>
-            Add risk
-          </Button>
-        </div>
-      )}
-
-      {editing && (
+      <ManagerLayout
+        toolbar={
+          canWrite ? (
+            <Button variant="accent" onClick={openNew} disabled={pending} leftIcon={<Plus className="h-4 w-4" />}>
+              Add risk
+            </Button>
+          ) : undefined
+        }
+      >
+        {editing && (
         <form onSubmit={submit} className="card space-y-4">
           <h2 className="text-sm font-semibold text-foreground">
             {editing === "new" ? "New risk" : "Edit risk"}
@@ -347,6 +349,7 @@ export function RiskManager({
           </ListCard>
         )
       )}
+      </ManagerLayout>
     </div>
   );
 }

@@ -15,7 +15,7 @@ import { NotificationPrefs } from "@/components/notifications/NotificationPrefs"
 import { SubprocessorManager } from "@/components/settings/SubprocessorManager";
 import { TrustRequests } from "@/components/settings/TrustRequests";
 import { SsoSettings } from "@/components/settings/SsoSettings";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageShell } from "@/components/ui/page";
 
 export default async function SettingsPage() {
   const supabase = await createServerSupabase();
@@ -45,9 +45,7 @@ export default async function SettingsPage() {
   const ssoDomains = isOwner ? await listSsoDomains(supabase, company.id).catch(() => []) : [];
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Settings" subtitle={`Workspace settings for ${company.name}.`} />
-
+    <PageShell layout="stack" title="Settings" subtitle={`Workspace settings for ${company.name}.`}>
       <TeamSettings
         isOwner={isOwner}
         ownerUserId={company.owner_user_id}
@@ -71,6 +69,6 @@ export default async function SettingsPage() {
           <SsoSettings domains={ssoDomains} />
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -3,15 +3,14 @@ import { redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, listAuditEvents } from "@/lib/db/queries";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageShell, FilterChips } from "@/components/ui/page";
+import { buttonClasses } from "@/components/ui/Button";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
-import { cn } from "@/lib/cn";
 
 const PAGE_SIZE = 20;
 
 export const dynamic = "force-dynamic";
 
-// Server-rendered filter chips → the `target_type` each one narrows to.
 const FILTERS: { label: string; type?: string }[] = [
   { label: "All" },
   { label: "Controls", type: "control" },
@@ -48,7 +47,6 @@ export default async function ActivityPage({
     pageSize: PAGE_SIZE,
   });
 
-  // Preserve the active filter chip across page links.
   const pageHref = (p: number) => {
     const params = new URLSearchParams();
     if (activeType) params.set("type", activeType);
@@ -57,55 +55,42 @@ export default async function ActivityPage({
     return qs ? `/activity?${qs}` : "/activity";
   };
 
+  const filterChips = FILTERS.map((f) => ({
+    label: f.label,
+    value: f.type,
+    href: f.type ? `/activity?type=${f.type}` : "/activity",
+  }));
+
+  const pagination =
+    page > 1 || hasMore ? (
+      <div className="flex items-center justify-between">
+        {page > 1 ? (
+          <Link href={pageHref(page - 1)} className={buttonClasses("outline", "sm")}>
+            <ChevronLeft className="mr-1 h-3 w-3" /> Newer
+          </Link>
+        ) : (
+          <span />
+        )}
+        <span className="text-xs text-muted-foreground">Page {page}</span>
+        {hasMore ? (
+          <Link href={pageHref(page + 1)} className={buttonClasses("outline", "sm")}>
+            Older <ChevronRight className="ml-1 h-3 w-3" />
+          </Link>
+        ) : (
+          <span />
+        )}
+      </div>
+    ) : undefined;
+
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Activity log"
-        subtitle="Every change in your workspace — who did it and when. Append-only and tamper-evident."
-      />
-
-      <nav className="flex flex-wrap gap-2">
-        {FILTERS.map((f) => {
-          const isActive = f.type === activeType;
-          const href = f.type ? `/activity?type=${f.type}` : "/activity";
-          return (
-            <Link
-              key={f.label}
-              href={href}
-              className={cn(
-                "rounded-full px-3 py-1 text-sm transition-colors",
-                isActive
-                  ? "bg-secondary font-medium text-foreground"
-                  : "text-muted-foreground hover:bg-secondary",
-              )}
-            >
-              {f.label}
-            </Link>
-          );
-        })}
-      </nav>
-
+    <PageShell
+      layout="feed"
+      title="Activity log"
+      subtitle="Every change in your workspace — who did it and when. Append-only and tamper-evident."
+      toolbar={<FilterChips items={filterChips} activeValue={activeType} />}
+      footer={pagination}
+    >
       <ActivityFeed events={events} />
-
-      {(page > 1 || hasMore) && (
-        <div className="flex items-center justify-between">
-          {page > 1 ? (
-            <Link href={pageHref(page - 1)} className="btn-outline text-xs">
-              <ChevronLeft className="mr-1 h-3 w-3" /> Newer
-            </Link>
-          ) : (
-            <span />
-          )}
-          <span className="text-xs text-muted-foreground">Page {page}</span>
-          {hasMore ? (
-            <Link href={pageHref(page + 1)} className="btn-outline text-xs">
-              Older <ChevronRight className="ml-1 h-3 w-3" />
-            </Link>
-          ) : (
-            <span />
-          )}
-        </div>
-      )}
-    </div>
+    </PageShell>
   );
 }

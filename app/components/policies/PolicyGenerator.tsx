@@ -6,6 +6,13 @@ import { Sparkles, Download, Save, Trash2, Eye, Pencil, ShieldCheck, Send, Check
 import { Markdown } from "@/components/ui/Markdown";
 import { useToast } from "@/components/ui/Toast";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import {
+  WorkspaceLayout,
+  SidebarListPanel,
+  SidebarListButton,
+  WorkspaceDetailEmpty,
+} from "@/components/ui/layouts";
 import {
   createPolicy,
   savePolicy,
@@ -112,98 +119,94 @@ export function PolicyWorkspace({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-      {/* Left: generator + list */}
-      <div className="space-y-6">
-        {canWrite && (
-          <div className="card space-y-4">
-            <h2 className="text-sm font-semibold text-foreground">Generate a policy</h2>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">Policy type</label>
-              <select
-                value={policyType}
-                onChange={(e) => setPolicyType(e.target.value as (typeof POLICY_TYPES)[number])}
-                className="input"
-              >
-                {POLICY_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-            {frameworks.length > 0 && (
+    <WorkspaceLayout
+      sidebarWidth="lg"
+      sidebar={
+        <>
+          {canWrite && (
+            <div className="card space-y-4">
+              <h2 className="text-sm font-semibold text-foreground">Generate a policy</h2>
               <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">Framework</label>
-                <select value={frameworkId} onChange={(e) => setFrameworkId(e.target.value)} className="input">
-                  {frameworks.map((f) => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Policy type</label>
+                <select
+                  value={policyType}
+                  onChange={(e) => setPolicyType(e.target.value as (typeof POLICY_TYPES)[number])}
+                  className="input"
+                >
+                  {POLICY_TYPES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
               </div>
-            )}
-            <button onClick={generate} disabled={!aiEnabled || generating} className="btn-primary w-full">
-              <Sparkles className="mr-2 h-4 w-4" />
-              {generating ? "Generating..." : "Generate with AI"}
-            </button>
-          </div>
-        )}
-
-        <div className="card p-0">
-          <div className="border-b border-border px-4 py-3 text-sm font-semibold text-foreground">
-            Your policies ({policies.length})
-          </div>
-          {policies.length === 0 ? (
-            <div className="px-4 py-6 text-center text-xs text-muted-foreground">No policies yet.</div>
-          ) : (
-            <ul className="divide-y divide-border">
-              {policies.map((p) => {
-                const lc = lifecycle(p);
-                return (
-                  <li key={p.id}>
-                    <button
-                      onClick={() => setSelectedId(p.id)}
-                      className={`flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm hover:bg-secondary ${
-                        selectedLive?.id === p.id ? "bg-secondary" : ""
-                      }`}
-                    >
-                      <span className="min-w-0 truncate">{p.title}</span>
-                      <span className="flex shrink-0 items-center gap-1">
-                        {p.published_at && (
-                          <span className="text-xs text-muted-foreground">
-                            {ackedCount(p)}/{memberCount}
-                          </span>
-                        )}
-                        <Badge variant={lc.variant}>{lc.label}</Badge>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+              {frameworks.length > 0 && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Framework</label>
+                  <select value={frameworkId} onChange={(e) => setFrameworkId(e.target.value)} className="input">
+                    {frameworks.map((f) => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <Button
+                onClick={generate}
+                disabled={!aiEnabled}
+                loading={generating}
+                fullWidth
+                leftIcon={<Sparkles className="h-4 w-4" />}
+              >
+                {generating ? "Generating..." : "Generate with AI"}
+              </Button>
+            </div>
           )}
-        </div>
-      </div>
 
-      {/* Right: editor */}
-      <div>
-        {selectedLive ? (
-          <PolicyEditor
-            key={`${selectedLive.id}-${selectedLive.version}`}
-            policy={selectedLive}
-            canWrite={canWrite}
-            canApprove={canApprove}
-            isAuditor={isAuditor}
-            acked={ackedCount(selectedLive)}
-            memberCount={memberCount}
-            mine={iAcknowledged(selectedLive)}
-            onChanged={() => router.refresh()}
-          />
-        ) : (
-          <div className="card flex h-full min-h-64 items-center justify-center text-sm text-muted-foreground">
-            Select a policy to view or edit, or generate a new one.
-          </div>
-        )}
-      </div>
-    </div>
+          <SidebarListPanel
+            title={`Your policies (${policies.length})`}
+            isEmpty={policies.length === 0}
+            emptyMessage="No policies yet."
+          >
+            {policies.map((p) => {
+              const lc = lifecycle(p);
+              return (
+                <SidebarListButton
+                  key={p.id}
+                  selected={selectedLive?.id === p.id}
+                  onClick={() => setSelectedId(p.id)}
+                >
+                  <span className="min-w-0 truncate">{p.title}</span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    {p.published_at && (
+                      <span className="text-xs text-muted-foreground">
+                        {ackedCount(p)}/{memberCount}
+                      </span>
+                    )}
+                    <Badge variant={lc.variant}>{lc.label}</Badge>
+                  </span>
+                </SidebarListButton>
+              );
+            })}
+          </SidebarListPanel>
+        </>
+      }
+    >
+      {selectedLive ? (
+        <PolicyEditor
+          key={`${selectedLive.id}-${selectedLive.version}`}
+          policy={selectedLive}
+          canWrite={canWrite}
+          canApprove={canApprove}
+          isAuditor={isAuditor}
+          acked={ackedCount(selectedLive)}
+          memberCount={memberCount}
+          mine={iAcknowledged(selectedLive)}
+          onChanged={() => router.refresh()}
+        />
+      ) : (
+        <WorkspaceDetailEmpty>
+          Select a policy to view or edit, or generate a new one.
+        </WorkspaceDetailEmpty>
+      )}
+    </WorkspaceLayout>
   );
 }
 
@@ -332,7 +335,7 @@ function PolicyEditor({
         {optimisticPolicy.published_at && (
           <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
             <div
-              className={`h-full transition-all ${fullyAcked ? "bg-[var(--brand-emerald)]" : "bg-amber-500"}`}
+              className={`h-full transition-all ${fullyAcked ? "bg-[var(--brand-emerald)]" : "bg-warning"}`}
               style={{ width: `${memberCount > 0 ? Math.min(100, Math.round((optimisticAck.acked / memberCount) * 100)) : 0}%` }}
             />
           </div>
@@ -340,26 +343,26 @@ function PolicyEditor({
 
         <div className="flex flex-wrap items-center gap-2">
           {canApprove && !optimisticPolicy.approved_at && (
-            <button onClick={approve} disabled={pending} className="btn-primary text-xs">
-              <ShieldCheck className="mr-1 h-3 w-3" /> Approve
-            </button>
+            <Button size="sm" onClick={approve} disabled={pending} leftIcon={<ShieldCheck className="h-3 w-3" />}>
+              Approve
+            </Button>
           )}
           {canApprove && optimisticPolicy.approved_at && !optimisticPolicy.published_at && (
-            <button onClick={publish} disabled={pending} className="btn-primary text-xs">
-              <Send className="mr-1 h-3 w-3" /> Publish for acknowledgement
-            </button>
+            <Button size="sm" onClick={publish} disabled={pending} leftIcon={<Send className="h-3 w-3" />}>
+              Publish for acknowledgement
+            </Button>
           )}
           {/* Acknowledgement is an internal-workforce attestation — auditors are
               external reviewers and never acknowledge, so neither branch applies. */}
           {optimisticPolicy.published_at && !isAuditor && (
             optimisticAck.mine ? (
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-success">
                 <Check className="h-4 w-4" /> You acknowledged this version
               </span>
             ) : (
-              <button onClick={acknowledge} disabled={pending} className="btn-accent text-xs">
-                <Check className="mr-1 h-3 w-3" /> I acknowledge this policy
-              </button>
+              <Button size="sm" variant="accent" onClick={acknowledge} disabled={pending} leftIcon={<Check className="h-3 w-3" />}>
+                I acknowledge this policy
+              </Button>
             )
           )}
         </div>
@@ -374,14 +377,15 @@ function PolicyEditor({
           )}
           <div className="flex items-center gap-1">
             {canWrite && (
-              <button
+              <Button
+                size="sm"
+                variant="outline"
                 onClick={() => setMode(mode === "preview" ? "edit" : "preview")}
-                className="btn-outline text-xs"
               >
                 {mode === "preview" ? <><Pencil className="mr-1 h-3 w-3" />Edit</> : <><Eye className="mr-1 h-3 w-3" />Preview</>}
-              </button>
+              </Button>
             )}
-            <button onClick={download} className="btn-outline text-xs"><Download className="mr-1 h-3 w-3" />.md</button>
+            <Button size="sm" variant="outline" onClick={download} leftIcon={<Download className="h-3 w-3" />}>.md</Button>
             {canWrite && (
               <button onClick={remove} disabled={pending} className="rounded-md p-2 text-destructive hover:bg-destructive/10">
                 <Trash2 className="h-4 w-4" />
@@ -412,10 +416,9 @@ function PolicyEditor({
                 <option value="final">Final</option>
               </select>
             </label>
-            <button onClick={save} disabled={pending} className="btn-primary">
-              <Save className="mr-2 h-4 w-4" />
+            <Button onClick={save} loading={pending} leftIcon={<Save className="h-4 w-4" />}>
               {pending ? "Saving..." : "Save"}
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="border-t border-border pt-4 text-xs text-muted-foreground">

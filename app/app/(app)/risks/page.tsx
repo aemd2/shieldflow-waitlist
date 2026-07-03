@@ -8,7 +8,7 @@ import {
   listRiskControlLinks,
 } from "@/lib/db/queries";
 import { RiskManager } from "@/components/risks/RiskManager";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageShell } from "@/components/ui/page";
 
 export default async function RisksPage() {
   const supabase = await createServerSupabase();
@@ -28,13 +28,12 @@ export default async function RisksPage() {
   const controlOptions = controls.map((c) => ({ id: c.id, code: c.code, title: c.title }));
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Risk register"
-        subtitle="Track your organisation's risks — likelihood, impact, and how you're treating them. High-impact risks surface on the dashboard."
-      />
-
+    <PageShell
+      layout="manager"
+      title="Risk register"
+      subtitle="Track your organisation's risks — likelihood, impact, and how you're treating them. High-impact risks surface on the dashboard."
+    >
       <RiskManager risks={risks} canWrite={canWrite} controls={controlOptions} links={links} />
-    </div>
+    </PageShell>
   );
 }

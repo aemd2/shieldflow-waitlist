@@ -1,4 +1,5 @@
 import { signOut } from "@/app/actions/auth";
+import { Button } from "@/components/ui/Button";
 import { MobileNav } from "./MobileNav";
 import type { NavRole } from "./nav-items";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
@@ -24,7 +25,7 @@ export function Topbar({
         {companyName && <MobileNav companyName={companyName} role={role} sprintReady={sprintReady} />}
         <div className="truncate text-sm text-muted-foreground">{email}</div>
         {readOnly && (
-          <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+          <span className="shrink-0 rounded-full border border-warning-border bg-warning-muted px-2 py-0.5 text-xs font-medium text-warning">
             Read-only · Auditor
           </span>
         )}
@@ -32,7 +33,7 @@ export function Topbar({
       <div className="flex items-center gap-2">
         {companyName && <NotificationBell unread={unread} />}
         <form action={signOut}>
-          <button type="submit" className="btn-outline text-xs">Sign out</button>
+          <Button type="submit" size="sm" variant="outline">Sign out</Button>
         </form>
       </div>
     </header>

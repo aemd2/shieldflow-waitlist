@@ -16,6 +16,7 @@ import { CriticalityBadge } from "@/components/controls/CriticalityBadge";
 import { ControlMetaForm } from "@/components/controls/ControlMetaForm";
 import { EvidenceUploader } from "@/components/evidence/EvidenceUploader";
 import { EvidenceList } from "@/components/evidence/EvidenceList";
+import { PageShell, Alert } from "@/components/ui/page";
 
 export default async function ControlDetailPage({
   params,
@@ -60,28 +61,24 @@ export default async function ControlDetailPage({
         : "Not started";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
-        &larr; Back to dashboard
-      </Link>
-
+    <PageShell
+      layout="stack"
+      width="narrow"
+      title={control.title}
+      subtitle={`${framework ? `${framework.name} · ` : ""}${control.category ?? "Control"} · ${control.code}`}
+      actions={<CriticalityBadge criticality={control.criticality} />}
+      banner={
+        <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
+          &larr; Back to dashboard
+        </Link>
+      }
+    >
       <div className="card space-y-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {framework ? `${framework.name} · ` : ""}
-              {control.category ?? "Control"} &middot; {control.code}
-            </span>
-            <CriticalityBadge criticality={control.criticality} />
-          </div>
-          <h1 className="mt-1 text-2xl font-semibold text-foreground">{control.title}</h1>
-        </div>
-
         {control.description && (
           <p className="text-sm leading-relaxed text-muted-foreground">{control.description}</p>
         )}
 
-        <div className="border-t border-border pt-4">
+        <div className={control.description ? "border-t border-border pt-4" : undefined}>
           <div className="mb-2 text-sm font-medium">Status</div>
           {canWrite ? (
             <StatusPicker controlId={control.id} current={control.status} />
@@ -89,10 +86,10 @@ export default async function ControlDetailPage({
             <div className="text-sm text-muted-foreground">{statusLabel}</div>
           )}
           {control.status === "complete" && hasFailingCheck && (
-            <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <Alert variant="warning" className="mt-3 text-xs">
               This control is marked complete, but an automated check below is failing. Review the
               evidence or fix the underlying setting.
-            </div>
+            </Alert>
           )}
         </div>
       </div>
@@ -164,13 +161,13 @@ export default async function ControlDetailPage({
         )}
         <EvidenceList items={evidence} controlId={control.id} canWrite={canWrite} />
       </div>
-    </div>
+    </PageShell>
   );
 }
 
 function CheckRow({ check }: { check: ControlCheck }) {
   const style = {
-    pass: "border-emerald-300 bg-emerald-50 text-emerald-800",
+    pass: "border-success-border bg-success-muted text-success",
     fail: "border-destructive/30 bg-destructive/10 text-destructive",
     inconclusive: "border-border bg-secondary text-muted-foreground",
   }[check.result];

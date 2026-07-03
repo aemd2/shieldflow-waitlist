@@ -17,7 +17,7 @@ export type CheckResult = "pass" | "fail" | "inconclusive";
 // next to the manual status so "marked Complete" and "a test is failing" are
 // both visible at a glance — the pattern Vanta/Drata use.
 const HEALTH: Record<CheckResult, { text: string; cls: string }> = {
-  pass: { text: "Checks passing", cls: "border-emerald-300 bg-emerald-50 text-emerald-700" },
+  pass: { text: "Checks passing", cls: "border-success-border bg-success-muted text-success" },
   fail: { text: "Check failing", cls: "border-destructive/30 bg-destructive/10 text-destructive" },
   inconclusive: { text: "Check inconclusive", cls: "border-border bg-secondary text-muted-foreground" },
 };
@@ -52,7 +52,7 @@ export function ControlList({
     <div className="space-y-6">
       {Object.entries(byCategory).map(([category, items]) => (
         <section key={category} className="card p-0">
-          <div className="border-b border-border px-6 py-3 text-sm font-semibold text-foreground">
+          <div className="border-b border-border px-5 py-3 text-sm font-semibold text-foreground">
             {category}
           </div>
           <ul className="divide-y divide-border">

@@ -6,6 +6,7 @@ import { Users, Copy, Trash2 } from "lucide-react";
 import { createInvite, revokeInvite, removeMember } from "@/app/actions/team";
 import { useToast } from "@/components/ui/Toast";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import type { TeamMember, PendingInvite } from "@/lib/db/queries";
 
 function roleLabel(role: string): string {
@@ -207,9 +208,9 @@ export function TeamSettings({
               <option value="admin">Admin</option>
               <option value="auditor">Auditor (read-only)</option>
             </select>
-            <button type="submit" disabled={pending} className="btn-primary">
+            <Button type="submit" loading={pending}>
               {pending ? "Working..." : "Create invite"}
-            </button>
+            </Button>
           </div>
           {role === "auditor" && (
             <div className="flex items-center gap-2">

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
+import { CardTitle } from "@/components/ui/Card";
 import { ControlList, type CheckResult } from "@/components/dashboard/ControlList";
 import type { ControlWithStatus, Framework, Criticality } from "@/lib/db/queries";
 import type { ControlStatus } from "@/lib/score";
@@ -37,7 +38,7 @@ export function ControlsExplorer({
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-foreground">Controls</h2>
+        <CardTitle className="text-sm">Controls</CardTitle>
         <div className="flex flex-wrap gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Check, Sparkles, Lock } from "lucide-react";
 import { startCheckout, openBillingPortal } from "@/app/actions/billing";
 import { useToast } from "@/components/ui/Toast";
+import { Button, buttonClasses } from "@/components/ui/Button";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import {
   applyFoundingDiscount,
@@ -135,13 +136,13 @@ export function PlanCards({
               Status: {STATUS_LABELS[subscriptionStatus ?? ""] ?? subscriptionStatus}
             </div>
           </div>
-          <button
+          <Button
+            variant="outline"
             onClick={managePortal}
             disabled={busy !== null || !stripeEnabled}
-            className="btn-outline"
           >
             {busy === "portal" ? "Opening..." : "Manage subscription"}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -224,7 +225,7 @@ export function PlanCards({
                 </span>
               )}
 
-              <h2 className="text-base font-semibold text-foreground">{p.name}</h2>
+              <h2 className="text-sm font-semibold text-foreground">{p.name}</h2>
               <p className="mt-0.5 text-xs text-muted-foreground">{p.blurb}</p>
 
               <div className="mt-3 flex items-baseline gap-2">
@@ -253,22 +254,22 @@ export function PlanCards({
                 ))}
               </ul>
 
-              <button
+              <Button
                 onClick={handleClick}
                 disabled={busy !== null || !stripeEnabled || isCurrent}
-                className={`mt-5 ${
-                  "popular" in p && p.popular ? "btn-accent" : "btn-primary"
-                } w-full`}
+                variant={"popular" in p && p.popular ? "accent" : "primary"}
+                fullWidth
+                className="mt-5"
               >
                 {buttonLabel()}
-              </button>
+              </Button>
             </div>
           );
         })}
 
         {/* Custom — bespoke scope, so it's a talk-to-us card, not Stripe checkout. */}
         <div className="card flex flex-col">
-          <h2 className="text-base font-semibold text-foreground">Custom</h2>
+          <h2 className="text-sm font-semibold text-foreground">Custom</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Tailored to your team, frameworks, and contract.
           </p>
@@ -291,7 +292,7 @@ export function PlanCards({
           </ul>
           <a
             href="mailto:sales@shieldflow.com?subject=ShieldFlow%20custom%20plan%20enquiry"
-            className="btn-outline mt-5 w-full"
+            className={`${buttonClasses("outline")} mt-5 w-full`}
           >
             Contact us
           </a>

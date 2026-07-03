@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, listTraining, getCallerAccess } from "@/lib/db/queries";
 import { TrainingManager } from "@/components/training/TrainingManager";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageShell } from "@/components/ui/page";
 
 export default async function TrainingPage() {
   const supabase = await createServerSupabase();
@@ -19,13 +19,12 @@ export default async function TrainingPage() {
   const canWrite = access?.canWrite ?? false;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Employee training"
-        subtitle="Track security-awareness training completion across your team. Overdue assignments surface on the dashboard."
-      />
-
+    <PageShell
+      layout="manager"
+      title="Employee training"
+      subtitle="Track security-awareness training completion across your team. Overdue assignments surface on the dashboard."
+    >
       <TrainingManager records={records} canWrite={canWrite} />
-    </div>
+    </PageShell>
   );
 }

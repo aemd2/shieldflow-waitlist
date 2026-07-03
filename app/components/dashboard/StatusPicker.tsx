@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateControlStatus } from "@/app/actions/controls";
+import { Button } from "@/components/ui/Button";
 import type { ControlStatus } from "@/lib/score";
 
 const OPTIONS: { value: ControlStatus; label: string }[] = [
@@ -41,19 +42,15 @@ export function StatusPicker({
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
         {OPTIONS.map((opt) => (
-          <button
+          <Button
             key={opt.value}
             type="button"
             disabled={pending}
             onClick={() => onChange(opt.value)}
-            className={
-              value === opt.value
-                ? "btn-accent"
-                : "btn-outline"
-            }
+            variant={value === opt.value ? "accent" : "outline"}
           >
             {opt.label}
-          </button>
+          </Button>
         ))}
       </div>
       {error && <div className="text-xs text-destructive">{error}</div>}

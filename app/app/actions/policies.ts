@@ -238,7 +238,9 @@ export async function publishPolicy(id: string) {
         type: "policy",
         title: `Acknowledge: ${pol.title as string}`,
         body: "A policy was published and needs your acknowledgement.",
-        link: "/policies",
+        // Deep-link so the list stays visible on the left and the right pane
+        // opens the policy that needs acknowledgement (not a blank placeholder).
+        link: `/policies?policy=${id}`,
       });
     }
   } catch {

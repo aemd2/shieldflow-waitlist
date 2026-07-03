@@ -19,8 +19,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
-import { ListCard, ListRow } from "@/components/ui/ListCard";
+import { ListRow } from "@/components/ui/ListCard";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { DateGroupedList } from "@/components/ui/DateGroupedList";
 import { timeAgo, formatDateTime, dateGroupLabel } from "@/lib/format";
 import type { AuditEvent } from "@/lib/db/queries";
 
@@ -190,43 +191,35 @@ export function ActivityFeed({ events }: { events: AuditEvent[] }) {
   }
 
   return (
-    <div className="space-y-5">
-      {groups.map((group) => (
-        <div key={group.label}>
-          <div className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {group.label}
-          </div>
-          <ListCard>
-            {group.items.map((e) => {
-              const f = formatEvent(e);
-              const Icon = f.icon;
-              const actor = e.actor_email ?? "System";
-              return (
-                <ListRow key={e.id} className="items-start">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <span className="mt-0.5 shrink-0 rounded-full bg-secondary p-1.5 text-muted-foreground">
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    <p className="min-w-0 break-words text-sm text-muted-foreground">
-                      {strong(actor)} {f.predicate}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <Badge variant={f.variant}>{f.category}</Badge>
-                    <time
-                      dateTime={e.created_at}
-                      title={formatDateTime(e.created_at)}
-                      className="shrink-0 whitespace-nowrap text-right text-xs tabular-nums text-muted-foreground"
-                    >
-                      {timeAgo(e.created_at)}
-                    </time>
-                  </div>
-                </ListRow>
-              );
-            })}
-          </ListCard>
-        </div>
-      ))}
-    </div>
+    <DateGroupedList
+      groups={groups}
+      renderItem={(e) => {
+        const f = formatEvent(e);
+        const Icon = f.icon;
+        const actor = e.actor_email ?? "System";
+        return (
+          <ListRow key={e.id} className="items-start">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="mt-0.5 shrink-0 rounded-full bg-secondary p-1.5 text-muted-foreground">
+                <Icon className="h-4 w-4" />
+              </span>
+              <p className="min-w-0 break-words text-sm text-muted-foreground">
+                {strong(actor)} {f.predicate}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <Badge variant={f.variant}>{f.category}</Badge>
+              <time
+                dateTime={e.created_at}
+                title={formatDateTime(e.created_at)}
+                className="shrink-0 whitespace-nowrap text-right text-xs tabular-nums text-muted-foreground"
+              >
+                {timeAgo(e.created_at)}
+              </time>
+            </div>
+          </ListRow>
+        );
+      }}
+    />
   );
 }

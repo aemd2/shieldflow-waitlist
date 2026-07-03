@@ -441,7 +441,9 @@ export async function listPolicyAcknowledgements(
   return (data ?? []) as PolicyAck[];
 }
 
-/** Number of people on the team — the denominator for policy acknowledgement. */
+/** Teammates who must acknowledge published policies (owner/admin/member).
+ *  Auditors are read-only external reviewers — excluded from the denominator,
+ *  matching publish notifications and the acknowledge action gate. */
 export async function getCompanyMemberCount(
   supabase: SupabaseClient,
   companyId: string,
@@ -449,7 +451,8 @@ export async function getCompanyMemberCount(
   const { count, error } = await supabase
     .from("company_members")
     .select("user_id", { count: "exact", head: true })
-    .eq("company_id", companyId);
+    .eq("company_id", companyId)
+    .neq("role", "auditor");
   if (error) return 0;
   return count ?? 0;
 }

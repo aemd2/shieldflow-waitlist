@@ -3,7 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, listCopilotMessages } from "@/lib/db/queries";
 import { isGroqConfigured } from "@/lib/groq";
 import { Chat } from "@/components/copilot/Chat";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageShell, Alert } from "@/components/ui/page";
 
 export default async function CopilotPage() {
   const supabase = await createServerSupabase();
@@ -16,25 +16,24 @@ export default async function CopilotPage() {
   const history = await listCopilotMessages(supabase, company.id, user.id, 50);
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-8rem)] max-w-3xl flex-col">
-      <div className="mb-4">
-        <PageHeader
-          title="Compliance Co-Pilot"
-          subtitle="Ask about your controls, gaps, and what to do next. Grounded in your live data."
-        />
-      </div>
-
-      {!isGroqConfigured() && (
-        <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          AI is not configured yet. Add a <code>GROQ_API_KEY</code> to <code>.env.local</code> to
-          start chatting.
-        </div>
-      )}
-
+    <PageShell
+      layout="stack"
+      width="fill"
+      title="Compliance Co-Pilot"
+      subtitle="Ask about your controls, gaps, and what to do next. Grounded in your live data."
+      alert={
+        !isGroqConfigured() ? (
+          <Alert variant="warning">
+            AI is not configured yet. Add a <code>GROQ_API_KEY</code> to <code>.env.local</code> to
+            start chatting.
+          </Alert>
+        ) : undefined
+      }
+    >
       <Chat
         initialMessages={history.map((m) => ({ role: m.role, content: m.content }))}
         aiEnabled={isGroqConfigured()}
       />
-    </div>
+    </PageShell>
   );
 }

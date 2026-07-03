@@ -5,7 +5,7 @@ import { isStripeConfigured } from "@/lib/stripe";
 import { reconcileCheckout, reconcilePortalReturn } from "@/lib/billing-sync";
 import { currentFoundingTier } from "@/lib/founding-server";
 import { PlanCards } from "@/components/billing/PlanCards";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageShell, Alert } from "@/components/ui/page";
 
 export default async function BillingPage({
   searchParams,
@@ -41,25 +41,25 @@ export default async function BillingPage({
   const founding = subscription ? null : await currentFoundingTier().catch(() => null);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Billing"
-        subtitle={`Plans for ${company.name}. Cancel anytime from the billing portal.`}
-      />
-
-      {!isStripeConfigured() && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Billing isn&apos;t configured yet — add Stripe test keys to enable checkout. The rest
-          of the app works normally.
-        </div>
-      )}
-
+    <PageShell
+      layout="stack"
+      title="Billing"
+      subtitle={`Plans for ${company.name}. Cancel anytime from the billing portal.`}
+      alert={
+        !isStripeConfigured() ? (
+          <Alert variant="warning">
+            Billing isn&apos;t configured yet — add Stripe test keys to enable checkout. The rest
+            of the app works normally.
+          </Alert>
+        ) : undefined
+      }
+    >
       <PlanCards
         currentPlan={subscription?.plan ?? null}
         subscriptionStatus={subscription?.status ?? null}
         stripeEnabled={isStripeConfigured()}
         founding={founding}
       />
-    </div>
+    </PageShell>
   );
 }

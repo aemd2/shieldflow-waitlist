@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { RefreshCw, Unplug, GitBranch } from "lucide-react";
 import { connectGitHub, syncGitHub, disconnectGitHub } from "@/app/actions/github";
 import { useToast } from "@/components/ui/Toast";
+import { Button, buttonClasses } from "@/components/ui/Button";
 
 export function GitHubCard({
   status,
@@ -75,13 +76,16 @@ export function GitHubCard({
           </p>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={sync} disabled={busy !== null} className="btn-primary">
-            <RefreshCw className={`mr-2 h-4 w-4 ${busy === "sync" ? "animate-spin" : ""}`} />
+          <Button
+            onClick={sync}
+            disabled={busy !== null}
+            leftIcon={<RefreshCw className={`h-4 w-4 ${busy === "sync" ? "animate-spin" : ""}`} />}
+          >
             {busy === "sync" ? "Syncing..." : "Sync now"}
-          </button>
-          <button onClick={disconnect} disabled={busy !== null} className="btn-outline">
-            <Unplug className="mr-2 h-4 w-4" /> Disconnect
-          </button>
+          </Button>
+          <Button variant="outline" onClick={disconnect} disabled={busy !== null} leftIcon={<Unplug className="h-4 w-4" />}>
+            Disconnect
+          </Button>
           {lastSyncedAt && (
             <span className="text-xs text-muted-foreground">
               Last synced {new Date(lastSyncedAt).toLocaleString()}
@@ -96,10 +100,10 @@ export function GitHubCard({
   if (needsReconnect) {
     return (
       <div className="space-y-3">
-        <p className="text-xs text-amber-600">Access was revoked — reconnect to resume syncing.</p>
+        <p className="text-xs text-warning">Access was revoked — reconnect to resume syncing.</p>
         {oauthEnabled ? (
           // Re-run the OAuth flow to get a fresh token.
-          <a href="/api/integrations/github/start" className="btn-accent inline-flex items-center">
+          <a href="/api/integrations/github/start" className={buttonClasses("accent")}>
             <GitBranch className="mr-2 h-4 w-4" /> Reconnect with GitHub
           </a>
         ) : (
@@ -113,9 +117,9 @@ export function GitHubCard({
               autoComplete="off"
               className="input min-w-0 flex-1"
             />
-            <button type="submit" disabled={busy !== null} className="btn-accent shrink-0">
+            <Button type="submit" variant="accent" disabled={busy !== null} className="shrink-0">
               {busy === "connect" ? "Verifying..." : "Reconnect"}
-            </button>
+            </Button>
           </form>
         )}
       </div>
@@ -128,7 +132,7 @@ export function GitHubCard({
     return (
       <a
         href="/api/integrations/github/start"
-        className="btn-accent inline-flex items-center"
+        className={buttonClasses("accent")}
       >
         <GitBranch className="mr-2 h-4 w-4" />
         Connect with GitHub
@@ -152,9 +156,9 @@ export function GitHubCard({
           autoComplete="off"
           className="input min-w-0 flex-1"
         />
-        <button type="submit" disabled={busy !== null} className="btn-accent shrink-0">
+        <Button type="submit" variant="accent" disabled={busy !== null} className="shrink-0">
           {busy === "connect" ? "Verifying..." : "Connect"}
-        </button>
+        </Button>
       </div>
       <p className="text-xs text-muted-foreground">
         Create one at{" "}

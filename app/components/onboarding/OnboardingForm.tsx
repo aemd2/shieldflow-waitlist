@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createCompanyAndOnboard } from "@/app/actions/onboarding";
+import { Button } from "@/components/ui/Button";
 import type { Framework } from "@/lib/db/queries";
 
 export function OnboardingForm({ frameworks }: { frameworks: Framework[] }) {
@@ -61,9 +62,9 @@ export function OnboardingForm({ frameworks }: { frameworks: Framework[] }) {
         </div>
       )}
 
-      <button type="submit" disabled={pending || !selected} className="btn-primary w-full">
+      <Button type="submit" disabled={!selected} loading={pending} fullWidth>
         {pending ? "Setting up..." : "Create workspace"}
-      </button>
+      </Button>
     </form>
   );
 }

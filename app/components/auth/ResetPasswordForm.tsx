@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/Button";
 
 export function ResetPasswordForm() {
   const router = useRouter();
@@ -81,9 +82,9 @@ export function ResetPasswordForm() {
         </div>
       )}
 
-      <button type="submit" disabled={loading} className="btn-primary w-full">
+      <Button type="submit" loading={loading} fullWidth>
         {loading ? "Saving..." : "Set new password"}
-      </button>
+      </Button>
     </form>
   );
 }
