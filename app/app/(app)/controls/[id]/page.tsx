@@ -63,7 +63,6 @@ export default async function ControlDetailPage({
   return (
     <PageShell
       layout="stack"
-      width="narrow"
       title={control.title}
       subtitle={`${framework ? `${framework.name} · ` : ""}${control.category ?? "Control"} · ${control.code}`}
       actions={<CriticalityBadge criticality={control.criticality} />}
