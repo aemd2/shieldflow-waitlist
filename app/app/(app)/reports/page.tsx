@@ -72,7 +72,7 @@ export default async function ReportsPage() {
       subtitle="A one-page compliance snapshot to share with auditors and prospects. Save it as a PDF."
       actions={<PrintButton />}
     >
-      <article className="report mx-auto max-w-4xl rounded-lg border border-border bg-white p-8 text-sm text-foreground print:max-w-none print:rounded-none print:border-0 print:p-0">
+      <article className="report w-full rounded-lg border border-border bg-white p-4 text-sm text-foreground sm:p-8 print:max-w-none print:rounded-none print:border-0 print:p-0">
         {/* Header */}
         <header className="mb-6 flex items-start justify-between border-b border-border pb-4">
           <div>
