@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/Button";
 import { MobileNav } from "./MobileNav";
 import type { NavRole } from "./nav-items";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { CopilotTriggerButton } from "@/components/copilot/CopilotTriggerButton";
 
 export function Topbar({
   email,
@@ -31,6 +32,7 @@ export function Topbar({
         )}
       </div>
       <div className="flex items-center gap-2">
+        {companyName && <CopilotTriggerButton />}
         {companyName && <NotificationBell unread={unread} />}
         <form action={signOut}>
           <Button type="submit" size="sm" variant="outline">Sign out</Button>

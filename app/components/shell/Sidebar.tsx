@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BrandMark } from "@/components/BrandMark";
 import { visibleNavSections, type NavRole } from "./nav-items";
+import { useCopilotPanel } from "@/components/copilot/CopilotPanelProvider";
 
 export function Sidebar({
   companyName,
@@ -16,6 +17,7 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const sections = visibleNavSections(role, sprintReady);
+  const { toggle: toggleCopilot } = useCopilotPanel();
   return (
     <aside className="hidden h-full w-60 shrink-0 flex-col overflow-y-auto border-r border-border bg-card p-4 md:flex print:hidden">
       <div className="mb-6 flex shrink-0 items-center gap-2">
@@ -36,10 +38,21 @@ export function Sidebar({
             <div className="space-y-1">
               {section.items.map(({ href, label, icon: Icon }) => {
                 const active = pathname === href || pathname.startsWith(href + "/");
+                // Co-Pilot opens the docked panel instead of navigating — the
+                // href stays real underneath (middle-click / no-JS still work).
+                const isCopilot = href === "/copilot";
                 return (
                   <Link
                     key={href}
                     href={href}
+                    onClick={
+                      isCopilot
+                        ? (e) => {
+                            e.preventDefault();
+                            toggleCopilot();
+                          }
+                        : undefined
+                    }
                     className={`flex items-center gap-2 rounded-md px-3 py-2 transition-colors ${
                       active ? "bg-secondary font-medium text-foreground" : "hover:bg-secondary"
                     }`}
