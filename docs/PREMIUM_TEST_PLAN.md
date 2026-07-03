@@ -53,6 +53,25 @@ the result you should see.** Anything else = a bug; note it and tell me.
       the cron **twice** → a member gets an **"Automated monitoring update"** drift
       notification. ✅
 
+## 2b · Integrations — every connector, one by one
+
+`/integrations` lists 10 connectable providers. Full step-by-step per connector (token
+format checks, sync, CSV in evidence, revoke/reconnect, secret-never-in-source checks)
+already live in `docs/TESTING.md §9.1–9.10` — work through each here and tick it off.
+Redirect-URI mismatches (like the Slack one hit 7/3/2026) are an app-config problem, not
+code — fix in the provider's own developer console, not here.
+
+- [ ] **GitHub** (§9.1) — OAuth connect or PAT paste, Sync, CSV in evidence. ✅
+- [ ] **Slack** (§9.2) — Add to Slack, digest send, revoke/reconnect. ✅
+- [ ] **Google Workspace** (§9.3) — OAuth connect, Sync, admin-only sync check. ✅
+- [ ] **AWS** (§9.4) — access key connect, Sync, CSV in evidence. ✅
+- [ ] **Okta** (§9.5) — domain + API token, Sync, SSRF guard on bad domain. ✅
+- [ ] **GitLab** (§9.6) — PAT connect, Sync, CSV in evidence. ✅
+- [ ] **Jira** (§9.7) — site + email + token, Sync, SSRF guard on bad site. ✅
+- [ ] **Linear** (§9.8) — API key connect, Sync, CSV in evidence. ✅
+- [ ] **Cloudflare** (§9.9) — API token connect, Sync, CSV in evidence. ✅
+- [ ] **Google Cloud** (§9.10) — service-account JSON paste, Sync, CSV in evidence. ✅
+
 ## 3 · Tasks
 
 - [ ] `/tasks` → add a task (title, assignee = B, due date, priority) → B gets a **task**

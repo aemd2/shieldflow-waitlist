@@ -10,6 +10,7 @@ import {
 import { PageShell, DateGroupedList } from "@/components/ui/page";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ListRow } from "@/components/ui/ListCard";
+import { EvidenceDownloadButton } from "@/components/evidence/EvidenceDownloadButton";
 import { timeAgo, formatDateTime, dateGroupLabel } from "@/lib/format";
 import type { Evidence } from "@/lib/db/queries";
 
@@ -85,6 +86,7 @@ export default async function EvidencePage() {
                   >
                     {timeAgo(ev.created_at)}
                   </time>
+                  <EvidenceDownloadButton evidenceId={ev.id} />
                 </div>
               </ListRow>
             );
