@@ -36,6 +36,9 @@ async function companyOrError(): Promise<
 }
 
 function toRow(d: z.infer<typeof taskSchema>) {
+  // Both sides of the link must be present, or neither — a type with no id
+  // (or vice versa) is treated as unlinked rather than stored half-set.
+  const linked = d.linked_type && d.linked_id;
   return {
     title: d.title,
     description: d.description || null,
@@ -44,6 +47,8 @@ function toRow(d: z.infer<typeof taskSchema>) {
     status: d.status,
     due_date: d.due_date || null,
     recurrence: d.recurrence,
+    linked_type: linked ? d.linked_type : null,
+    linked_id: linked ? d.linked_id : null,
   };
 }
 
@@ -159,7 +164,7 @@ export async function completeTask(id: string) {
 
   const { data: task } = await res.supabase
     .from("tasks")
-    .select("title, description, assignee_email, priority, due_date, recurrence")
+    .select("title, description, assignee_email, priority, due_date, recurrence, linked_type, linked_id")
     .eq("company_id", res.company.id)
     .eq("id", id)
     .maybeSingle();
@@ -180,8 +185,9 @@ export async function completeTask(id: string) {
 
   // A recurring task spawns its next instance on completion.
   const recurrence = (task.recurrence as TaskRecurrence) ?? "none";
+  let nextDue: string | null = null;
   if (recurrence !== "none") {
-    const nextDue = advanceDue((task.due_date as string | null) ?? null, recurrence);
+    nextDue = advanceDue((task.due_date as string | null) ?? null, recurrence);
     const next = {
       company_id: res.company.id,
       created_by: res.userId,
@@ -192,6 +198,8 @@ export async function completeTask(id: string) {
       status: "todo",
       due_date: nextDue,
       recurrence,
+      linked_type: (task.linked_type as string | null) ?? null,
+      linked_id: (task.linked_id as string | null) ?? null,
     };
     const { error: spawnErr } = await res.supabase.from("tasks").insert(next);
     if (!spawnErr) {
@@ -200,12 +208,14 @@ export async function completeTask(id: string) {
         assignee_email: next.assignee_email,
         due_date: next.due_date,
       });
+    } else {
+      nextDue = null; // spawn failed — don't claim a next occurrence exists
     }
   }
 
   revalidatePath("/tasks");
   revalidatePath("/dashboard");
-  return { ok: true };
+  return { ok: true, title: task.title as string, nextDue };
 }
 
 export async function deleteTask(id: string) {

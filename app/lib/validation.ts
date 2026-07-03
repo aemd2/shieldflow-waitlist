@@ -416,6 +416,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
 export const TASK_STATUSES = ["todo", "in_progress", "done"] as const;
 export const TASK_PRIORITIES = ["low", "medium", "high"] as const;
 export const TASK_RECURRENCE = ["none", "weekly", "monthly", "quarterly", "annually"] as const;
+export const TASK_LINK_TYPES = ["control", "risk", "vendor", "policy"] as const;
 
 export const taskSchema = z.object({
   title: z.string().trim().min(2, "Task title is too short").max(200),
@@ -437,6 +438,8 @@ export const taskSchema = z.object({
     .optional()
     .or(z.literal("")),
   recurrence: z.enum(TASK_RECURRENCE),
+  linked_type: z.enum(TASK_LINK_TYPES).optional().or(z.literal("")),
+  linked_id: z.string().uuid().optional().or(z.literal("")),
 });
 
 /** One category's delivery preference (validated server-side in the prefs action). */

@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, Trash2, Check, RotateCw } from "lucide-react";
+import Link from "next/link";
+import { Plus, Pencil, Trash2, Check, RotateCw, Link2 } from "lucide-react";
 import { createTask, updateTask, deleteTask, completeTask } from "@/app/actions/tasks";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
@@ -39,6 +40,19 @@ const RECURRENCE_LABEL: Record<TaskRecurrence, string> = {
   annually: "Annually",
 };
 
+export type TaskLinkType = "control" | "risk" | "vendor" | "policy";
+export interface Linkable {
+  type: TaskLinkType;
+  id: string;
+  label: string;
+}
+const LINK_GROUP_LABEL: Record<TaskLinkType, string> = {
+  control: "Controls",
+  risk: "Risks",
+  vendor: "Vendors",
+  policy: "Policies",
+};
+
 interface FormState {
   title: string;
   description: string;
@@ -47,6 +61,8 @@ interface FormState {
   status: TaskStatus;
   due_date: string;
   recurrence: TaskRecurrence;
+  linked_type: TaskLinkType | "";
+  linked_id: string;
 }
 
 const EMPTY: FormState = {
@@ -57,6 +73,8 @@ const EMPTY: FormState = {
   status: "todo",
   due_date: "",
   recurrence: "none",
+  linked_type: "",
+  linked_id: "",
 };
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
@@ -73,10 +91,12 @@ export function TaskManager({
   tasks,
   canWrite = true,
   members = [],
+  linkables = [],
 }: {
   tasks: Task[];
   canWrite?: boolean;
   members?: TeamMember[];
+  linkables?: Linkable[];
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -87,6 +107,7 @@ export function TaskManager({
 
   const active = tasks.filter((t) => t.status !== "done");
   const done = tasks.filter((t) => t.status === "done");
+  const linkableByKey = new Map(linkables.map((l) => [`${l.type}:${l.id}`, l]));
 
   function openNew() {
     setForm(EMPTY);
@@ -101,6 +122,8 @@ export function TaskManager({
       status: t.status,
       due_date: t.due_date ?? "",
       recurrence: t.recurrence,
+      linked_type: (t.linked_type as TaskLinkType | null) ?? "",
+      linked_id: t.linked_id ?? "",
     });
     setEditing(t.id);
   }
@@ -124,10 +147,17 @@ export function TaskManager({
 
   function complete(id: string) {
     start(async () => {
-      const res = await completeTask(id).catch(() => ({ error: NETWORK }));
+      const res = await completeTask(id).catch(
+        () => ({ error: NETWORK }) as Awaited<ReturnType<typeof completeTask>>,
+      );
       if (res?.error) toast("error", res.error);
       else {
-        toast("success", "Task completed");
+        toast(
+          "success",
+          res.nextDue
+            ? `Task completed — "${res.title}" repeats, next due ${res.nextDue}`
+            : "Task completed",
+        );
         router.refresh();
       }
     });
@@ -202,6 +232,28 @@ export function TaskManager({
                 placeholder="What needs to be done?"
               />
             </Field>
+            <Field label="Link to" hint="Ties this task to the control, risk, vendor, or policy it remediates.">
+              <Select
+                value={form.linked_type && form.linked_id ? `${form.linked_type}:${form.linked_id}` : ""}
+                onChange={(e) => {
+                  const [type, linkId] = e.target.value.split(":") as [TaskLinkType | "", string];
+                  setForm((f) => ({ ...f, linked_type: type, linked_id: type ? linkId : "" }));
+                }}
+              >
+                <option value="">Not linked</option>
+                {(["control", "risk", "vendor", "policy"] as const).map((type) => {
+                  const items = linkables.filter((l) => l.type === type);
+                  if (items.length === 0) return null;
+                  return (
+                    <optgroup key={type} label={LINK_GROUP_LABEL[type]}>
+                      {items.map((l) => (
+                        <option key={l.id} value={`${l.type}:${l.id}`}>{l.label}</option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
+              </Select>
+            </Field>
           </FormSection>
 
           <FormSection label="Schedule">
@@ -247,6 +299,7 @@ export function TaskManager({
                   task={t}
                   canWrite={canWrite}
                   pending={pending}
+                  linked={t.linked_type && t.linked_id ? linkableByKey.get(`${t.linked_type}:${t.linked_id}`) : undefined}
                   onComplete={() => complete(t.id)}
                   onEdit={() => openEdit(t)}
                   onRemove={() => remove(t.id)}
@@ -267,6 +320,7 @@ export function TaskManager({
                     task={t}
                     canWrite={canWrite}
                     pending={pending}
+                    linked={t.linked_type && t.linked_id ? linkableByKey.get(`${t.linked_type}:${t.linked_id}`) : undefined}
                     onComplete={() => {}}
                     onEdit={() => openEdit(t)}
                     onRemove={() => remove(t.id)}
@@ -285,6 +339,7 @@ function TaskRow({
   task,
   canWrite,
   pending,
+  linked,
   onComplete,
   onEdit,
   onRemove,
@@ -292,6 +347,7 @@ function TaskRow({
   task: Task;
   canWrite: boolean;
   pending: boolean;
+  linked?: Linkable;
   onComplete: () => void;
   onEdit: () => void;
   onRemove: () => void;
@@ -326,6 +382,21 @@ function TaskRow({
             </>
           )}
           {task.assignee_email && <> · {task.assignee_email}</>}
+          {linked && (
+            <>
+              {" · "}
+              <span className="inline-flex items-center gap-1">
+                <Link2 className="h-3 w-3" />
+                {linked.type === "control" ? (
+                  <Link href={`/controls/${linked.id}`} className="underline hover:text-foreground">
+                    {linked.label}
+                  </Link>
+                ) : (
+                  <span>{LINK_GROUP_LABEL[linked.type].replace(/s$/, "")}: {linked.label}</span>
+                )}
+              </span>
+            </>
+          )}
         </div>
       </div>
       {canWrite && (

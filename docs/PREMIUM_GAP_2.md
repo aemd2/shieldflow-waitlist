@@ -89,6 +89,22 @@ architecture item" situation.
     would need a scheduled check (the hourly `pg_cron` job we already run is a natural place to
     add this); evidence-upload would be a one-line addition at the existing upload call site.
     Scoped, low-risk, deferred per "testing first" — not built.
+- ~~G11 · Task traceability~~ — **done 2026-07-03**: found during §3 testing that `tasks` already
+  had `linked_type`/`linked_id` columns (migration `0019_tasks.sql`) but nothing ever wrote, read,
+  or displayed them — every task was freestanding, unlike Vanta's Action Tracker (tasks map back
+  to the risk/control) or Drata's split risk-tasks/control-tasks (explicitly for audit
+  traceability). Wired end to end: `taskSchema` validates `linked_type`/`linked_id`, the task form
+  has a "Link to" picker (controls/risks/vendors/policies), the row shows a linked-item chip
+  (deep-links to `/controls/:id`), and recurring spawns carry the link forward.
+- **G12 · Auto-created remediation tasks** — Secureframe auto-generates a task when a vendor risk
+  score crosses a threshold; Vanta's "Create Task" lives directly on a risk. ShieldFlow now has
+  the linking (G11) but nothing yet *originates* a task from a risk/vendor page — a user has to
+  go to `/tasks` and pick the link manually. Natural next step: a "Create remediation task" button
+  on an open risk (with a treatment plan) and on an under-review/SOC-2-expired vendor, pre-filled
+  and pre-linked. Not built.
+- **G13 · Overdue severity tiering** — the dashboard's "Tasks overdue" alert is binary (overdue or
+  not). Sprinto's alerts are described as tiered and time-bound so a 2-day-late item doesn't read
+  the same as a 60-day-late one. Would need a "days overdue" bucket on the alert card. Not built.
 
 ### P2 — breadth to add when customers ask
 
