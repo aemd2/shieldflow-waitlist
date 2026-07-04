@@ -105,6 +105,23 @@ architecture item" situation.
 - **G13 · Overdue severity tiering** — the dashboard's "Tasks overdue" alert is binary (overdue or
   not). Sprinto's alerts are described as tiered and time-bound so a 2-day-late item doesn't read
   the same as a 60-day-late one. Would need a "days overdue" bucket on the alert card. Not built.
+- **G14 · Access reviews — auto-pulled roster + scheduling** — found during §8 testing. Today
+  `/access-reviews` (migration `0024_access_reviews.sql`) is 100% manual: paste a list of
+  people/access one per line, decide Keep/Revoke per row, Complete & file evidence. Vanta and
+  Drata both auto-pull the roster from connected identity/cloud integrations (Okta, Google
+  Workspace, AWS, GitHub) instead of typing it, and both support scheduling a recurring review
+  (e.g. quarterly) rather than a one-off "New review" click each time.
+  - *Why it's not a quick wire-up (unlike G11):* traced `lib/okta.ts` and the Google Workspace
+    sync — both only ever compute **aggregate counts** for the evidence CSV ("N users, M with
+    MFA"); no per-user row is persisted anywhere today. Auto-pull needs a real feature: store the
+    raw per-user list from a sync (new table or JSON column), then let "New review" pre-fill its
+    subjects from the most recent snapshot of a chosen integration instead of a paste box.
+  - *Smaller, cheaper slice if we want a quick win first:* recurring/scheduled reviews alone —
+    `access_reviews` has no `recurrence` column (unlike `tasks`, which already had one before
+    G11). Adding one and reusing the same spawn-on-complete pattern from `completeTask` would get
+    "quarterly access review, auto-generated" without touching the roster-source problem.
+  - Not built — scoping conversation needed before starting (real schema/architecture work, not
+    a bug fix).
 
 ### P2 — breadth to add when customers ask
 
