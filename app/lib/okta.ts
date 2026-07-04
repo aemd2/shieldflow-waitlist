@@ -77,6 +77,21 @@ export interface OktaSecurityReport {
   passwordRequiresComplexity: boolean;
 }
 
+export interface OktaUser {
+  email: string;
+  status: string;
+}
+
+/** Raw per-user list (email + status) — for pre-filling an access review roster, not a full security report. */
+export async function fetchUsersRaw(host: string, token: string): Promise<OktaUser[]> {
+  const res = await oktaGet(host, `/api/v1/users?limit=${MAX_USERS}`, token);
+  check(res);
+  const users = (await res.json()) as Array<{ status: string; profile?: { email?: string } }>;
+  return users
+    .filter((u) => u.profile?.email)
+    .map((u) => ({ email: u.profile!.email as string, status: u.status }));
+}
+
 export async function fetchUserSecurity(host: string, token: string): Promise<OktaSecurityReport> {
   // Users (single capped page).
   const usersRes = await oktaGet(host, `/api/v1/users?limit=${MAX_USERS}`, token);

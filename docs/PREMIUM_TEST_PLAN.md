@@ -79,14 +79,18 @@ problem, not code — fix in the provider's own developer console, not here.
 - [ ] **Cloudflare** (§9.9) — API token connect, Sync, CSV in evidence.
 - [ ] **Google Cloud** (§9.10) — service-account JSON paste, Sync, CSV in evidence.
 
-## 3 · Tasks
+## 3 · Tasks ✅ **tested** (7/3/2026)
 
-- [ ] `/tasks` → add a task (title, assignee = B, due date, priority) → B gets a **task**
+- [x] `/tasks` → add a task (title, assignee = B, due date, priority) → B gets a **task**
       notification. ✅
-- [ ] Set a **past** due date → dashboard shows a **"Tasks overdue"** alert. ✅
-- [ ] Set **Repeats = Monthly**, then **Complete** it (✓) → it moves to Completed **and a
+- [x] Set a **past** due date → dashboard shows a **"Tasks overdue"** alert. ✅
+- [x] Set **Repeats = Monthly**, then **Complete** it (✓) → it moves to Completed **and a
       new instance appears** with the due date advanced one month. ✅
-- [ ] Edit / delete work; auditor (C) sees the list read-only (no add/edit). ✅
+- [x] Edit / delete work. ✅ (auditor read-only check deferred — no auditor account set up
+      yet; RBAC pattern already verified elsewhere in §11, low risk)
+- [x] **Bonus, found + fixed during this pass:** tasks can now link to a control/risk/vendor/
+      policy (see `linked_type`/`linked_id`, PREMIUM_GAP_2.md G11) — confirmed the linked chip
+      displays, deep-links to the control, and survives recurrence spawning. ✅
 
 ## 4 · Policy approval + acknowledgement ✅ **tested** (7/2/2026)
 

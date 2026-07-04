@@ -2,12 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, Check, X, ShieldCheck } from "lucide-react";
+import { Plus, Trash2, Check, X, ShieldCheck, Download } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
@@ -22,10 +23,17 @@ import {
   decideAccessItem,
   completeAccessReview,
   deleteAccessReview,
+  pullRosterFrom,
+  type RosterProvider,
 } from "@/app/actions/access-reviews";
 import type { AccessReview, AccessReviewItem, AccessDecision } from "@/lib/db/queries";
 
 const NETWORK = "Network problem — check your connection and try again.";
+
+export interface RosterProviderInfo {
+  provider: RosterProvider;
+  label: string;
+}
 
 /** Parse a pasted "subject — access" line into its parts (em-dash, pipe, spaced
  * hyphen, or comma separate the two; anything else is all subject). */
@@ -37,14 +45,25 @@ function parseSubject(line: string): { subject: string; access: string } {
   return { subject: line.trim(), access: "" };
 }
 
+/** "Q3 2026 access review" — a sensible starting point, not a requirement. */
+function defaultReviewName(): string {
+  const now = new Date();
+  const quarter = Math.floor(now.getMonth() / 3) + 1;
+  return `Q${quarter} ${now.getFullYear()} access review`;
+}
+
 export function AccessReviewWorkspace({
   reviews,
   items,
   canWrite = true,
+  rosterProviders = [],
+  currentUserEmail = "",
 }: {
   reviews: AccessReview[];
   items: AccessReviewItem[];
   canWrite?: boolean;
+  rosterProviders?: RosterProviderInfo[];
+  currentUserEmail?: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -55,10 +74,38 @@ export function AccessReviewWorkspace({
   const [source, setSource] = useState("");
   const [reviewer, setReviewer] = useState("");
   const [subjectsText, setSubjectsText] = useState("");
+  const [pullingFrom, setPullingFrom] = useState<RosterProvider | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(reviews[0]?.id ?? null);
 
   const selected = reviews.find((r) => r.id === selectedId) ?? null;
   const itemsFor = (rid: string) => items.filter((it) => it.review_id === rid);
+
+  function openCreate() {
+    setCreating((v) => {
+      const opening = !v;
+      if (opening) {
+        setName((n) => n || defaultReviewName());
+        setReviewer((r) => r || currentUserEmail);
+      }
+      return opening;
+    });
+  }
+
+  function pullFrom(providerInfo: RosterProviderInfo) {
+    setPullingFrom(providerInfo.provider);
+    start(async () => {
+      const res = await pullRosterFrom(providerInfo.provider).catch(() => ({ error: NETWORK }));
+      setPullingFrom(null);
+      if (!res || "error" in res) {
+        toast("error", res?.error ?? NETWORK);
+        return;
+      }
+      const lines = res.rows.map((r) => `${r.subject} — ${r.access}`).join("\n");
+      setSubjectsText((prev) => (prev.trim() ? `${prev}\n${lines}` : lines));
+      setSource((s) => s || providerInfo.label);
+      toast("success", `Pulled ${res.rows.length} ${res.rows.length === 1 ? "person" : "people"} from ${providerInfo.label}`);
+    });
+  }
 
   function create() {
     const subjects = subjectsText
@@ -123,7 +170,7 @@ export function AccessReviewWorkspace({
     <WorkspaceLayout
       header={
         canWrite ? (
-          <Button variant="accent" onClick={() => setCreating((v) => !v)} leftIcon={<Plus className="h-4 w-4" />}>
+          <Button variant="accent" onClick={openCreate} leftIcon={<Plus className="h-4 w-4" />}>
             New review
           </Button>
         ) : undefined
@@ -137,15 +184,41 @@ export function AccessReviewWorkspace({
               </Field>
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Source">
-                  <Input value={source} maxLength={80} onChange={(e) => setSource(e.target.value)} placeholder="Okta / Google / Manual" />
+                  <Select value={source} onChange={(e) => setSource(e.target.value)}>
+                    <option value="">Manual</option>
+                    {rosterProviders.map((p) => (
+                      <option key={p.provider} value={p.label}>{p.label}</option>
+                    ))}
+                    <option value="Other">Other</option>
+                  </Select>
                 </Field>
                 <Field label="Reviewer">
                   <Input type="email" value={reviewer} maxLength={254} onChange={(e) => setReviewer(e.target.value)} placeholder="you@co.com" />
                 </Field>
               </div>
-              <Field label="People / accounts" hint="One per line: email — access level.">
+              <Field
+                label="People / accounts"
+                hint="One per line: email — access level. Pull a real roster below instead of typing it by hand."
+              >
                 <Textarea rows={6} value={subjectsText} onChange={(e) => setSubjectsText(e.target.value)} placeholder={"alice@acme.com — Admin\nbob@acme.com — Member\nci-bot — Deploy key"} />
               </Field>
+              {rosterProviders.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {rosterProviders.map((p) => (
+                    <Button
+                      key={p.provider}
+                      type="button"
+                      variant="outline"
+                      onClick={() => pullFrom(p)}
+                      loading={pullingFrom === p.provider}
+                      disabled={pending && pullingFrom !== p.provider}
+                      leftIcon={<Download className="h-3.5 w-3.5" />}
+                    >
+                      Pull from {p.label}
+                    </Button>
+                  ))}
+                </div>
+              )}
               <Button onClick={create} loading={pending} fullWidth>Create review</Button>
             </div>
           )}

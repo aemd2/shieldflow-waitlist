@@ -9,8 +9,14 @@ import { logEvent } from "@/lib/audit";
 import { csvSafe } from "@/lib/csv";
 import { newUuid } from "@/lib/uuid";
 import { accessReviewCreateSchema, accessReviewDecisionSchema } from "@/lib/validation";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { decryptSecret, encryptIfConfigured } from "@/lib/crypto";
+import { fetchUsersRaw as fetchOktaUsersRaw, OktaError } from "@/lib/okta";
+import { fetchWorkspaceUsers, refreshAccessToken, GoogleError } from "@/lib/google";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";
+const ROSTER_PROVIDERS = ["okta", "google_workspace"] as const;
+export type RosterProvider = (typeof ROSTER_PROVIDERS)[number];
 
 async function companyOrError(): Promise<
   | { company: Company; supabase: Awaited<ReturnType<typeof createServerSupabase>>; userId: string }
@@ -28,6 +34,90 @@ async function companyOrError(): Promise<
   } catch {
     return { error: DB_ERROR };
   }
+}
+
+/**
+ * Live, on-demand roster pull for the "New review" form — no persistence, no
+ * schema change. Reuses the exact credential-decrypt path each provider's own
+ * sync already uses, so review creation never re-implements token handling.
+ * Rate-limited separately from Sync so the two don't fight over one budget.
+ */
+export async function pullRosterFrom(provider: RosterProvider) {
+  if (!ROSTER_PROVIDERS.includes(provider)) return { error: "Unsupported source." };
+
+  const res = await companyOrError();
+  if ("error" in res) return { error: res.error };
+  const { supabase, company } = res;
+
+  if (!checkRateLimit(`access-review-pull:${company.id}:${provider}`, 3, 60_000)) {
+    return { error: "Pulled recently — try again in a minute." };
+  }
+
+  const { data: integ } = await supabase
+    .from("integrations")
+    .select("id, access_token, refresh_token, token_expires_at, status, metadata")
+    .eq("company_id", company.id)
+    .eq("provider", provider)
+    .maybeSingle();
+  if (!integ || integ.status === "disconnected") {
+    return { error: "That integration isn't connected yet." };
+  }
+
+  try {
+    if (provider === "okta") {
+      const meta = (integ.metadata ?? {}) as { host?: string };
+      let creds: { host: string; token: string };
+      try {
+        creds = JSON.parse(decryptSecret(integ.access_token as string));
+      } catch {
+        return { error: "Stored credentials are corrupt — please reconnect Okta." };
+      }
+      const users = await fetchOktaUsersRaw(creds.host ?? meta.host ?? "", creds.token);
+      return {
+        ok: true as const,
+        rows: users.map((u) => ({ subject: u.email, access: cap(u.status) })),
+      };
+    }
+
+    // google_workspace
+    let accessToken: string;
+    try {
+      accessToken = decryptSecret(integ.access_token as string);
+    } catch {
+      return { error: "Stored Google credentials are unreadable — please reconnect." };
+    }
+    const expiresAt = integ.token_expires_at ? new Date(integ.token_expires_at as string).getTime() : 0;
+    if (expiresAt < Date.now() + 60_000) {
+      if (!integ.refresh_token) return { error: "Google access expired. Please reconnect the integration." };
+      const fresh = await refreshAccessToken(decryptSecret(integ.refresh_token as string));
+      accessToken = fresh.access_token;
+      const ttl = Number.isFinite(fresh.expires_in) ? fresh.expires_in : 3600;
+      await supabase
+        .from("integrations")
+        .update({
+          access_token: encryptIfConfigured(fresh.access_token),
+          token_expires_at: new Date(Date.now() + ttl * 1000).toISOString(),
+          status: "connected",
+        })
+        .eq("id", integ.id);
+    }
+    const users = await fetchWorkspaceUsers(accessToken);
+    return {
+      ok: true as const,
+      rows: users.map((u) => ({
+        subject: u.primaryEmail,
+        access: `${u.isAdmin ? "Admin" : "Member"}${u.suspended ? ", suspended" : ""}${u.isEnrolledIn2Sv ? "" : ", 2FA off"}`,
+      })),
+    };
+  } catch (err) {
+    if (err instanceof OktaError || err instanceof GoogleError) return { error: err.userMessage };
+    return { error: "Couldn't pull the roster. Please try again." };
+  }
+}
+
+function cap(s: string): string {
+  const lower = s.toLowerCase();
+  return lower ? lower[0].toUpperCase() + lower.slice(1) : s;
 }
 
 export async function createAccessReview(input: unknown) {
