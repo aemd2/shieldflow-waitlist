@@ -135,8 +135,27 @@ architecture item" situation.
   if the integration is later disconnected) and recurring/scheduled reviews (`access_reviews` has
   no `recurrence` column, unlike `tasks`). Real schema/architecture work — not built, scoping
   conversation needed first.
-
-### P2 — breadth to add when customers ask
+- ~~G15a · Personnel auto-created on Team invite~~ — **done 2026-07-05**: found while testing that
+  Team (`company_members`) and Personnel were fully disconnected — a workspace's Team members had
+  no matching Personnel rows at all. Researched Vanta and Drata's docs: both treat Personnel as the
+  source of truth, with app access layered **on top of** a personnel record (Drata: "when employee
+  records are created, everyone is granted an EMPLOYEE role"). Scoped to the narrowest slice:
+  `accept_invite` (migration `0031`, the first migration to version this function — it and two
+  siblings existed only in the live DB before, outside any tracked migration) now also inserts a
+  `personnel` row, name guessed from the invitee's email local part (no real name is available at
+  invite-acceptance time), editable afterward like any normal row.
+- **G15b · Personnel auto-creation — remaining paths** — deliberately deferred, narrowed down from
+  a broader first attempt that a safety check correctly flagged as exceeding what was approved
+  (it bundled unrelated RPCs plus a backfill spanning every company in the shared database, not
+  just one workspace). Three pieces left, each its own decision:
+  1. **SSO auto-join** (`join_company_via_sso`) — same shape as an invite (someone new joining a
+     Team), not yet wired to create a Personnel row.
+  2. **Owner/company provisioning** (`create_company_with_framework`) — a brand-new signup's owner
+     doesn't get a Personnel row either, so the owner remains a permanent gap in "every Team member
+     has Personnel" unless this is added.
+  3. **Backfill for existing members** — the 3 pre-existing Team members in the test workspace this
+     was found in are still not in Personnel; nothing retroactive ran. If ever done, must be scoped
+     to one `company_id` at a time (explicitly approved per company), never a database-wide sweep.
 
 - **G6 · Framework breadth** — FedRAMP, HITRUST, NIST CSF / 800-53, CMMC, TISAX, plus
   **custom frameworks**. Regional variants: relabel **UK GDPR**, add **Cyber Essentials** (UK
