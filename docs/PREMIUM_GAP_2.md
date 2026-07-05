@@ -156,6 +156,17 @@ architecture item" situation.
   3. **Backfill for existing members** — the 3 pre-existing Team members in the test workspace this
      was found in are still not in Personnel; nothing retroactive ran. If ever done, must be scoped
      to one `company_id` at a time (explicitly approved per company), never a database-wide sweep.
+- ~~G16 · Delete UX — undo toast instead of a blocking confirm~~ — **done 2026-07-05**: found while
+  fixing the access-review delete bug that the confirm()-modal-then-delete pattern (used everywhere
+  via `useConfirm`) is also the root cause class of that bug (a dialog awaited inside a shared
+  `useTransition`, whose `pending` flag every button on the page was gated on). Researched delete-UX
+  best practice: for a reversible action, an undo toast beats a blocking "are you sure?" dialog —
+  one click instead of two, and structurally can't have this bug class at all (no dialog, nothing
+  to await inside a transition). `Toast.tsx` now supports an optional action button
+  (`toast(kind, message, { label, onClick })`, lingers 5s); `AccessReviewWorkspace.tsx`'s delete
+  hides the row immediately, shows "Deleted — Undo", and only calls the server action if the 5s
+  window passes without Undo. Same swap flagged for Tasks/Personnel/Risks/Vendors/Questionnaires —
+  each still uses the older confirm-modal pattern for delete, not yet migrated.
 
 - **G6 · Framework breadth** — FedRAMP, HITRUST, NIST CSF / 800-53, CMMC, TISAX, plus
   **custom frameworks**. Regional variants: relabel **UK GDPR**, add **Cyber Essentials** (UK

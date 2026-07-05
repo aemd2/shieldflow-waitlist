@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, Check, X, MinusCircle, ShieldCheck } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
@@ -45,7 +44,6 @@ export function AccessReviewWorkspace({
 }) {
   const router = useRouter();
   const toast = useToast();
-  const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [creating, setCreating] = useState(false);
   // Optimistically hidden after a confirmed delete — the sidebar updates
@@ -77,26 +75,40 @@ export function AccessReviewWorkspace({
     });
   }
 
-  // The confirm dialog is awaited OUTSIDE the transition — otherwise the whole
-  // page's buttons sit disabled the entire time the dialog is open, and a
-  // hung router.refresh() from any prior action leaves `pending` stuck true,
-  // permanently dead-locking every disabled={pending} button on the page.
-  async function removeReview(id: string) {
-    const ok = await confirm({
-      title: "Delete access review",
-      message: "This removes the review and its rows. This cannot be undone.",
-      confirmLabel: "Delete",
-      danger: true,
+  // Deleting a review is reversible in the UI for a few seconds, so this
+  // skips the blocking "are you sure?" modal entirely (best practice for
+  // reversible actions — see docs/PREMIUM_GAP_2.md) in favor of an undo
+  // toast: hide immediately, only actually call the server if the 5s window
+  // passes without the user clicking Undo. Also sidesteps the whole class of
+  // bug fixed in 6076a06 (a confirm dialog blocking a shared pending flag).
+  function removeReview(id: string) {
+    const review = reviews.find((r) => r.id === id);
+    if (!review) return;
+
+    setDeletedIds((prev) => [...prev, id]);
+    if (selectedId === id) setSelectedId(null);
+
+    let undone = false;
+    toast("success", `Deleted "${review.name}"`, {
+      label: "Undo",
+      onClick: () => {
+        undone = true;
+        setDeletedIds((prev) => prev.filter((x) => x !== id));
+      },
     });
-    if (!ok) return;
-    start(async () => {
-      const res = await deleteAccessReview(id).catch(() => ({ error: NETWORK }));
-      if (res?.error) return toast("error", res.error);
-      toast("success", "Deleted");
-      setDeletedIds((prev) => [...prev, id]);
-      if (selectedId === id) setSelectedId(null);
-      router.refresh();
-    });
+
+    setTimeout(() => {
+      if (undone) return;
+      start(async () => {
+        const res = await deleteAccessReview(id).catch(() => ({ error: NETWORK }));
+        if (res?.error) {
+          toast("error", res.error);
+          setDeletedIds((prev) => prev.filter((x) => x !== id)); // restore — the delete didn't actually happen
+        } else {
+          router.refresh();
+        }
+      });
+    }, 5000);
   }
 
   const selItems = selected ? itemsFor(selected.id) : [];
@@ -172,10 +184,6 @@ export function AccessReviewWorkspace({
                 </Button>
               )}
               {canWrite && (
-                // Deliberately NOT disabled={pending}: opening the confirm
-                // dialog must stay possible even if an unrelated action's
-                // refresh is still in flight (the dialog + idempotent server
-                // action make a double-fire harmless).
                 <button onClick={() => removeReview(selected.id)} className="rounded-md p-2 text-destructive hover:bg-destructive/10" title="Delete review">
                   <Trash2 className="h-4 w-4" />
                 </button>
