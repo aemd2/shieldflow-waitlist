@@ -12,6 +12,20 @@ export interface DraftSystem {
   provider: string | null; // set only for integration-backed systems
 }
 
+/** Common systems offered as type-ahead suggestions in the custom-system box.
+ * Free text still wins — this only speeds up the names people type most. */
+const COMMON_SYSTEMS = [
+  "GitHub", "GitLab", "Bitbucket",
+  "AWS", "Google Cloud", "Azure", "Vercel", "Cloudflare", "DigitalOcean",
+  "Okta", "Google Workspace", "Microsoft 365", "Microsoft Entra ID", "1Password", "LastPass",
+  "Slack", "Microsoft Teams", "Zoom", "Notion", "Confluence", "LinkedIn",
+  "Jira", "Linear", "Asana", "Trello", "ClickUp",
+  "Salesforce", "HubSpot", "Stripe", "QuickBooks", "Xero",
+  "Datadog", "Sentry", "PagerDuty", "Supabase", "Firebase", "MongoDB Atlas",
+  "Figma", "Adobe Creative Cloud", "Canva",
+  "Zendesk", "Intercom", "Twilio", "SendGrid", "Mailchimp",
+];
+
 export function SystemPicker({
   rosterProviders,
   systems,
@@ -54,7 +68,8 @@ export function SystemPicker({
         <Input
           value={customName}
           maxLength={120}
-          placeholder="Add a system, e.g. GitHub, AWS, Salesforce"
+          list="system-name-suggestions"
+          placeholder="Start typing — GitHub, LinkedIn, AWS…"
           onChange={(e) => setCustomName(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -63,6 +78,11 @@ export function SystemPicker({
             }
           }}
         />
+        <datalist id="system-name-suggestions">
+          {COMMON_SYSTEMS.filter((n) => !systems.some((s) => s.name.toLowerCase() === n.toLowerCase())).map((n) => (
+            <option key={n} value={n} />
+          ))}
+        </datalist>
         <Button type="button" variant="outline" onClick={addCustom} leftIcon={<Plus className="h-4 w-4" />}>
           Add
         </Button>

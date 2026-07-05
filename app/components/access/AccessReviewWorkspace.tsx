@@ -21,6 +21,7 @@ import {
   type RosterProviderInfo,
 } from "@/app/actions/access-reviews";
 import { AccessReviewCreateForm } from "./AccessReviewCreateForm";
+import type { PersonSuggestion } from "./SystemRosterEditor";
 import type { AccessReview, AccessReviewItem, AccessReviewSystem, AccessDecision } from "@/lib/db/queries";
 
 const NETWORK = "Network problem — check your connection and try again.";
@@ -32,6 +33,7 @@ export function AccessReviewWorkspace({
   canWrite = true,
   rosterProviders = [],
   currentUserEmail = "",
+  personnelSuggestions = [],
 }: {
   reviews: AccessReview[];
   systems: AccessReviewSystem[];
@@ -39,6 +41,7 @@ export function AccessReviewWorkspace({
   canWrite?: boolean;
   rosterProviders?: RosterProviderInfo[];
   currentUserEmail?: string;
+  personnelSuggestions?: PersonSuggestion[];
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -132,6 +135,7 @@ export function AccessReviewWorkspace({
         <AccessReviewCreateForm
           rosterProviders={rosterProviders}
           currentUserEmail={currentUserEmail}
+          personnelSuggestions={personnelSuggestions}
           onDone={() => setCreating(false)}
           onCreated={(id) => setSelectedId(id)}
         />

@@ -7,6 +7,7 @@ import {
   listAccessReviewItems,
   getCallerAccess,
   listIntegrations,
+  listPersonnel,
 } from "@/lib/db/queries";
 import { AccessReviewWorkspace } from "@/components/access/AccessReviewWorkspace";
 import type { RosterProviderInfo } from "@/app/actions/access-reviews";
@@ -25,14 +26,21 @@ export default async function AccessReviewsPage() {
   const company = await getCompanyForUser(supabase, user.id);
   if (!company) redirect("/onboarding");
 
-  const [reviews, systems, items, access, integrations] = await Promise.all([
+  const [reviews, systems, items, access, integrations, personnel] = await Promise.all([
     listAccessReviews(supabase, company.id),
     listAccessReviewSystems(supabase, company.id),
     listAccessReviewItems(supabase, company.id),
     getCallerAccess(supabase, company.id, user.id),
     listIntegrations(supabase, company.id).catch(() => []),
+    listPersonnel(supabase, company.id).catch(() => []),
   ]);
   const canWrite = access?.canWrite ?? false;
+
+  // Autocomplete source for the roster "quick add" — the company's own HR
+  // roster is the fastest way to fill a manual/custom system's accounts.
+  const suggestions = personnel
+    .filter((p) => p.email)
+    .map((p) => ({ name: p.name, email: p.email as string, role: p.role_title }));
 
   // Only identity-directory integrations can populate a roster (Okta, Google
   // Workspace) — GitHub/AWS/etc. are infra, not "who has access" sources.
@@ -53,6 +61,7 @@ export default async function AccessReviewsPage() {
         canWrite={canWrite}
         rosterProviders={rosterProviders}
         currentUserEmail={user.email ?? ""}
+        personnelSuggestions={suggestions}
       />
     </PageShell>
   );

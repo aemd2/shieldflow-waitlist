@@ -9,7 +9,7 @@ import { FormSection } from "@/components/ui/FormSection";
 import { Input } from "@/components/ui/Input";
 import { createAccessReview, type RosterProviderInfo } from "@/app/actions/access-reviews";
 import { SystemPicker, type DraftSystem } from "./SystemPicker";
-import { SystemRosterEditor, type DraftRosterRow } from "./SystemRosterEditor";
+import { SystemRosterEditor, type DraftRosterRow, type PersonSuggestion } from "./SystemRosterEditor";
 
 const NETWORK = "Network problem — check your connection and try again.";
 
@@ -27,11 +27,13 @@ function defaultReviewName(systemNames: string[]): string {
 export function AccessReviewCreateForm({
   rosterProviders,
   currentUserEmail,
+  personnelSuggestions = [],
   onDone,
   onCreated,
 }: {
   rosterProviders: RosterProviderInfo[];
   currentUserEmail: string;
+  personnelSuggestions?: PersonSuggestion[];
   onDone: () => void;
   onCreated: (id: string) => void;
 }) {
@@ -129,6 +131,7 @@ export function AccessReviewCreateForm({
                 provider={s.provider}
                 rows={rosters[s.key] ?? []}
                 onRowsChange={(rows) => setRosters((r) => ({ ...r, [s.key]: rows }))}
+                suggestions={personnelSuggestions}
               />
             ))}
           </div>
@@ -148,7 +151,22 @@ export function AccessReviewCreateForm({
             />
           </Field>
           <Field label="Reviewer">
-            <Input type="email" value={reviewer} maxLength={254} onChange={(e) => setReviewer(e.target.value)} placeholder="you@co.com" />
+            <Input
+              type="email"
+              value={reviewer}
+              maxLength={254}
+              list="reviewer-email-suggestions"
+              onChange={(e) => setReviewer(e.target.value)}
+              placeholder="Start typing a name or email"
+            />
+            <datalist id="reviewer-email-suggestions">
+              {currentUserEmail && <option value={currentUserEmail} />}
+              {personnelSuggestions
+                .filter((p) => p.email !== currentUserEmail)
+                .map((p) => (
+                  <option key={p.email} value={p.email}>{p.name}</option>
+                ))}
+            </datalist>
           </Field>
         </div>
       </FormSection>
