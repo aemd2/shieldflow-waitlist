@@ -48,9 +48,13 @@ export function AccessReviewWorkspace({
   const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [creating, setCreating] = useState(false);
+  // Optimistically hidden after a confirmed delete — the sidebar updates
+  // instantly instead of waiting on router.refresh()'s server round-trip.
+  const [deletedIds, setDeletedIds] = useState<string[]>([]);
+  const visibleReviews = reviews.filter((r) => !deletedIds.includes(r.id));
   const [selectedId, setSelectedId] = useState<string | null>(reviews[0]?.id ?? null);
 
-  const selected = reviews.find((r) => r.id === selectedId) ?? null;
+  const selected = visibleReviews.find((r) => r.id === selectedId) ?? null;
   const itemsFor = (rid: string) => items.filter((it) => it.review_id === rid);
   const systemsFor = (rid: string) => systems.filter((s) => s.review_id === rid);
 
@@ -73,18 +77,23 @@ export function AccessReviewWorkspace({
     });
   }
 
-  function removeReview(id: string) {
+  // The confirm dialog is awaited OUTSIDE the transition — otherwise the whole
+  // page's buttons sit disabled the entire time the dialog is open, and a
+  // hung router.refresh() from any prior action leaves `pending` stuck true,
+  // permanently dead-locking every disabled={pending} button on the page.
+  async function removeReview(id: string) {
+    const ok = await confirm({
+      title: "Delete access review",
+      message: "This removes the review and its rows. This cannot be undone.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     start(async () => {
-      const ok = await confirm({
-        title: "Delete access review",
-        message: "This removes the review and its rows. This cannot be undone.",
-        confirmLabel: "Delete",
-        danger: true,
-      });
-      if (!ok) return;
       const res = await deleteAccessReview(id).catch(() => ({ error: NETWORK }));
       if (res?.error) return toast("error", res.error);
       toast("success", "Deleted");
+      setDeletedIds((prev) => [...prev, id]);
       if (selectedId === id) setSelectedId(null);
       router.refresh();
     });
@@ -106,8 +115,8 @@ export function AccessReviewWorkspace({
         ) : undefined
       }
       sidebar={
-        <SidebarListPanel title={`Reviews (${reviews.length})`} isEmpty={reviews.length === 0}>
-          {reviews.map((r) => {
+        <SidebarListPanel title={`Reviews (${visibleReviews.length})`} isEmpty={visibleReviews.length === 0}>
+          {visibleReviews.map((r) => {
             const its = itemsFor(r.id);
             const d = its.filter((it) => it.decision !== "pending").length;
             return (
@@ -163,7 +172,11 @@ export function AccessReviewWorkspace({
                 </Button>
               )}
               {canWrite && (
-                <button onClick={() => removeReview(selected.id)} disabled={pending} className="rounded-md p-2 text-destructive hover:bg-destructive/10" title="Delete review">
+                // Deliberately NOT disabled={pending}: opening the confirm
+                // dialog must stay possible even if an unrelated action's
+                // refresh is still in flight (the dialog + idempotent server
+                // action make a double-fire harmless).
+                <button onClick={() => removeReview(selected.id)} className="rounded-md p-2 text-destructive hover:bg-destructive/10" title="Delete review">
                   <Trash2 className="h-4 w-4" />
                 </button>
               )}
