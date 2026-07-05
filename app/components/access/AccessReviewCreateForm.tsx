@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { FormSection } from "@/components/ui/FormSection";
 import { Input } from "@/components/ui/Input";
+import { Typeahead } from "@/components/ui/Typeahead";
 import { createAccessReview, type RosterProviderInfo } from "@/app/actions/access-reviews";
 import { SystemPicker, type DraftSystem } from "./SystemPicker";
 import { SystemRosterEditor, type DraftRosterRow, type PersonSuggestion } from "./SystemRosterEditor";
@@ -151,22 +152,20 @@ export function AccessReviewCreateForm({
             />
           </Field>
           <Field label="Reviewer">
-            <Input
+            <Typeahead
               type="email"
               value={reviewer}
+              onChange={setReviewer}
+              onSelect={(o) => setReviewer(o.value)}
+              options={[
+                ...(currentUserEmail ? [{ value: currentUserEmail, label: `${currentUserEmail} (you)` }] : []),
+                ...personnelSuggestions
+                  .filter((p) => p.email !== currentUserEmail)
+                  .map((p) => ({ value: p.email, label: p.name, sublabel: p.email })),
+              ]}
               maxLength={254}
-              list="reviewer-email-suggestions"
-              onChange={(e) => setReviewer(e.target.value)}
               placeholder="Start typing a name or email"
             />
-            <datalist id="reviewer-email-suggestions">
-              {currentUserEmail && <option value={currentUserEmail} />}
-              {personnelSuggestions
-                .filter((p) => p.email !== currentUserEmail)
-                .map((p) => (
-                  <option key={p.email} value={p.email}>{p.name}</option>
-                ))}
-            </datalist>
           </Field>
         </div>
       </FormSection>

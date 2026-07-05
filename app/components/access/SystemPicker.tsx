@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { Typeahead } from "@/components/ui/Typeahead";
 import type { RosterProviderInfo } from "@/app/actions/access-reviews";
 
 export interface DraftSystem {
@@ -41,10 +41,10 @@ export function SystemPicker({
 }) {
   const [customName, setCustomName] = useState("");
 
-  function addCustom() {
-    const name = customName.trim();
-    if (!name) return;
-    onAddCustom(name);
+  function addCustom(name = customName) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    onAddCustom(trimmed);
     setCustomName("");
   }
 
@@ -65,12 +65,15 @@ export function SystemPicker({
       )}
 
       <div className="flex gap-2">
-        <Input
+        <Typeahead
           value={customName}
+          onChange={setCustomName}
+          onSelect={(o) => addCustom(o.value)}
+          options={COMMON_SYSTEMS.filter((n) => !systems.some((s) => s.name.toLowerCase() === n.toLowerCase())).map(
+            (n) => ({ value: n }),
+          )}
           maxLength={120}
-          list="system-name-suggestions"
           placeholder="Start typing — GitHub, LinkedIn, AWS…"
-          onChange={(e) => setCustomName(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -78,12 +81,7 @@ export function SystemPicker({
             }
           }}
         />
-        <datalist id="system-name-suggestions">
-          {COMMON_SYSTEMS.filter((n) => !systems.some((s) => s.name.toLowerCase() === n.toLowerCase())).map((n) => (
-            <option key={n} value={n} />
-          ))}
-        </datalist>
-        <Button type="button" variant="outline" onClick={addCustom} leftIcon={<Plus className="h-4 w-4" />}>
+        <Button type="button" variant="outline" onClick={() => addCustom()} leftIcon={<Plus className="h-4 w-4" />}>
           Add
         </Button>
       </div>

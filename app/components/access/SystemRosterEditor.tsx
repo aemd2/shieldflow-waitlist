@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { Download, Upload, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { Typeahead } from "@/components/ui/Typeahead";
 import { Textarea } from "@/components/ui/Textarea";
 import { useToast } from "@/components/ui/Toast";
 import { pullRosterFrom, parseUploadedRosterCsv, type RosterProvider } from "@/app/actions/access-reviews";
@@ -64,36 +64,28 @@ export function SystemRosterEditor({
   const [pulling, setPulling] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [query, setQuery] = useState("");
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const addedEmails = new Set(rows.map((r) => r.subject.toLowerCase()));
-  const matches =
-    query.trim().length === 0
-      ? []
-      : suggestions
-          .filter((p) => !addedEmails.has(p.email.toLowerCase()))
-          .filter(
-            (p) =>
-              p.name.toLowerCase().includes(query.toLowerCase()) ||
-              p.email.toLowerCase().includes(query.toLowerCase()),
-          )
-          .slice(0, 6);
+  const suggestionOptions = suggestions
+    .filter((p) => !addedEmails.has(p.email.toLowerCase()))
+    .map((p) => ({ value: p.email, label: p.name, sublabel: p.role ? `${p.email} · ${p.role}` : p.email }));
 
-  function addPerson(p: PersonSuggestion) {
-    onRowsChange([...rows, { subject: p.email, access: p.role ?? "" }]);
+  function addPerson(email: string) {
+    const p = suggestions.find((s) => s.email === email);
+    onRowsChange([...rows, { subject: email, access: p?.role ?? "" }]);
     setQuery("");
-    setShowSuggestions(false);
   }
 
-  /** Enter with no dropdown match just adds whatever was typed, same as the
-   * paste box below — suggestions speed things up but never gate manual entry. */
+  /** Enter with no matching suggestion just adds whatever was typed, same as
+   * the paste box below — suggestions speed things up, never gate manual entry. */
   function submitQuery() {
+    const match = suggestionOptions.find((o) => o.value.toLowerCase() === query.trim().toLowerCase());
+    if (match) return addPerson(match.value);
     const parsed = parseSubjectLine(query.trim());
     if (!parsed.subject) return;
     onRowsChange([...rows, parsed]);
     setQuery("");
-    setShowSuggestions(false);
   }
 
   function pull() {
@@ -194,49 +186,23 @@ export function SystemRosterEditor({
       </div>
 
       {suggestions.length > 0 && (
-        <div className="relative">
-          <div className="flex gap-2">
-            <Input
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setShowSuggestions(true);
-              }}
-              onFocus={() => setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  if (matches.length > 0) addPerson(matches[0]);
-                  else submitQuery();
-                }
-              }}
-              placeholder="Start typing a name or email — pick a person, or keep typing to add them as-is"
-            />
-            <Button type="button" variant="outline" leftIcon={<UserPlus className="h-3.5 w-3.5" />} onClick={submitQuery}>
-              Add
-            </Button>
-          </div>
-          {showSuggestions && matches.length > 0 && (
-            <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-md border border-border bg-background shadow-md">
-              {matches.map((p) => (
-                <li key={p.email}>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => addPerson(p)}
-                    className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-secondary"
-                  >
-                    <span className="font-medium text-foreground">{p.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {p.email}
-                      {p.role && ` · ${p.role}`}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+        <div className="flex gap-2">
+          <Typeahead
+            value={query}
+            onChange={setQuery}
+            onSelect={(o) => addPerson(o.value)}
+            options={suggestionOptions}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                submitQuery();
+              }
+            }}
+            placeholder="Start typing a name or email — pick a person, or keep typing to add them as-is"
+          />
+          <Button type="button" variant="outline" leftIcon={<UserPlus className="h-3.5 w-3.5" />} onClick={submitQuery}>
+            Add
+          </Button>
         </div>
       )}
 
