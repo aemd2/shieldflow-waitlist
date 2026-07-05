@@ -3,11 +3,13 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import {
   getCompanyForUser,
   listAccessReviews,
+  listAccessReviewSystems,
   listAccessReviewItems,
   getCallerAccess,
   listIntegrations,
 } from "@/lib/db/queries";
-import { AccessReviewWorkspace, type RosterProviderInfo } from "@/components/access/AccessReviewWorkspace";
+import { AccessReviewWorkspace } from "@/components/access/AccessReviewWorkspace";
+import type { RosterProviderInfo } from "@/app/actions/access-reviews";
 import { PageShell } from "@/components/ui/page";
 
 const ROSTER_LABELS: Record<string, string> = {
@@ -23,8 +25,9 @@ export default async function AccessReviewsPage() {
   const company = await getCompanyForUser(supabase, user.id);
   if (!company) redirect("/onboarding");
 
-  const [reviews, items, access, integrations] = await Promise.all([
+  const [reviews, systems, items, access, integrations] = await Promise.all([
     listAccessReviews(supabase, company.id),
+    listAccessReviewSystems(supabase, company.id),
     listAccessReviewItems(supabase, company.id),
     getCallerAccess(supabase, company.id, user.id),
     listIntegrations(supabase, company.id).catch(() => []),
@@ -45,6 +48,7 @@ export default async function AccessReviewsPage() {
     >
       <AccessReviewWorkspace
         reviews={reviews}
+        systems={systems}
         items={items}
         canWrite={canWrite}
         rosterProviders={rosterProviders}

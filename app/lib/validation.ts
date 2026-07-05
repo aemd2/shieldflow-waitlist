@@ -317,21 +317,31 @@ export const questionnaireItemSchema = z.object({
 });
 
 // ---------- Access reviews ----------
-export const ACCESS_DECISIONS = ["pending", "keep", "revoke"] as const;
+export const ACCESS_DECISIONS = ["pending", "keep", "revoke", "out_of_scope"] as const;
+
+const accessReviewSubjectSchema = z.object({
+  subject: z.string().trim().min(1).max(300),
+  access: z.string().trim().max(300).optional().or(z.literal("")),
+});
+
+const accessReviewSystemInputSchema = z.object({
+  name: z.string().trim().min(1, "Give the system a name").max(120),
+  // Matches integrations.IntegrationProvider when this system's roster was
+  // pulled from a connected integration; omitted for manual/CSV/pasted systems.
+  provider: z.string().trim().max(40).optional().or(z.literal("")),
+  items: z
+    .array(accessReviewSubjectSchema)
+    .min(1, "Add at least one person or account for this system")
+    .max(500, "That's a lot for one system — split it into two reviews."),
+});
 
 export const accessReviewCreateSchema = z.object({
   name: z.string().trim().min(2, "Give the review a name").max(160),
-  source: z.string().trim().max(80).optional().or(z.literal("")),
   reviewer_email: z.string().trim().email("Enter a valid email").max(254).optional().or(z.literal("")),
-  subjects: z
-    .array(
-      z.object({
-        subject: z.string().trim().min(1).max(300),
-        access: z.string().trim().max(300).optional().or(z.literal("")),
-      }),
-    )
-    .min(1, "Add at least one person or account")
-    .max(500, "That's a lot — split it into two reviews."),
+  systems: z
+    .array(accessReviewSystemInputSchema)
+    .min(1, "Add at least one system to review")
+    .max(20, "That's a lot of systems for one review — split it up."),
 });
 
 export const accessReviewDecisionSchema = z.object({
@@ -339,6 +349,9 @@ export const accessReviewDecisionSchema = z.object({
   decision: z.enum(ACCESS_DECISIONS),
   note: z.string().trim().max(500).optional().or(z.literal("")),
 });
+
+// Roster CSV upload template — intentionally narrow (2 columns), not a general importer.
+export const ROSTER_CSV_TEMPLATE = "subject,access\nalice@acme.com,Admin\nbob@acme.com,Member\n";
 
 // ---------- Trust Center depth ----------
 export const TRUST_REQUEST_STATUSES = ["new", "approved", "declined"] as const;

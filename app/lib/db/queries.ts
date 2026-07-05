@@ -909,7 +909,7 @@ export async function listQuestionnaireItems(
 // ---------- Access reviews ----------
 
 export type AccessReviewStatus = "open" | "completed";
-export type AccessDecision = "pending" | "keep" | "revoke";
+export type AccessDecision = "pending" | "keep" | "revoke" | "out_of_scope";
 
 export interface AccessReview {
   id: string;
@@ -925,9 +925,22 @@ export interface AccessReview {
   created_at: string;
 }
 
+/** One in-scope system within a review (e.g. GitHub, Okta, "Internal Admin
+ * Panel") — a review spans many of these, each owning its own item roster.
+ * provider matches integrations.provider when auto-pulled; null for manual. */
+export interface AccessReviewSystem {
+  id: string;
+  review_id: string;
+  company_id: string;
+  name: string;
+  provider: string | null;
+  created_at: string;
+}
+
 export interface AccessReviewItem {
   id: string;
   review_id: string;
+  system_id: string;
   company_id: string;
   subject: string;
   access: string | null;
@@ -948,6 +961,20 @@ export async function listAccessReviews(
     .limit(100);
   if (error) throw error;
   return (data ?? []) as AccessReview[];
+}
+
+export async function listAccessReviewSystems(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<AccessReviewSystem[]> {
+  const { data, error } = await supabase
+    .from("access_review_systems")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: true })
+    .limit(2000);
+  if (error) throw error;
+  return (data ?? []) as AccessReviewSystem[];
 }
 
 export async function listAccessReviewItems(

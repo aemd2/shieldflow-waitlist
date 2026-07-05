@@ -141,12 +141,25 @@ problem, not code — fix in the provider's own developer console, not here.
 
 ## 8 · Access reviews
 
-- [ ] `/access-reviews` → **New review** → name, source, paste people one per line
-      ("alice@co.com — Admin"). ✅
-- [ ] Mark **Keep / Revoke** on each row; **Complete & file evidence** is disabled until
-      all are decided. ✅
-- [ ] Complete it → a **CSV evidence record** appears in the **Evidence vault** and the
-      review is read-only/Completed. We **never** revoke real access. ✅
+Restructured 7/3/2026 after testing surfaced real UX friction — see G14a/G14b in
+`PREMIUM_GAP_2.md`. A review now spans **multiple in-scope systems** (checkboxes for
+connected Okta/Google Workspace + an "add a custom system" input), each with its own
+roster populated via **Pull** (connected systems), **Upload CSV** (downloadable
+template), or **paste** — not one shared free-text box. Name auto-derives from the
+chosen systems + quarter until edited; Reviewer defaults to the current user.
+
+- [ ] `/access-reviews` → **New review** → check a connected system (if you have
+      Okta/Google Workspace connected) and/or add a custom system by name → for each,
+      **Pull roster** / **Upload CSV** (try **Download template** first) / paste a line
+      ("alice@co.com — Admin"). Confirm the **Name** field auto-fills from the systems
+      you picked (e.g. "GitHub — Q3 2026 access review") and still edits normally.
+- [ ] Create the review → detail pane groups accounts **by system** with a per-system
+      decided count.
+- [ ] Mark **Keep / Revoke / Out of scope** on each row; **Complete & file evidence** is
+      disabled until every row across every system is decided.
+- [ ] Complete it → a **CSV evidence record** appears in the **Evidence vault**, grouped
+      by system (`## SystemName` subheaders), and the review is read-only/Completed. We
+      **never** revoke real access.
 
 ## 9 · Trust Center depth
 

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, assertCanWrite, type Company } from "@/lib/db/queries";
 import { logEvent } from "@/lib/audit";
-import { csvSafe } from "@/lib/csv";
+import { csvSafe, parseRosterCsv } from "@/lib/csv";
 import { newUuid } from "@/lib/uuid";
 import { accessReviewCreateSchema, accessReviewDecisionSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -17,6 +17,11 @@ import { fetchWorkspaceUsers, refreshAccessToken, GoogleError } from "@/lib/goog
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";
 const ROSTER_PROVIDERS = ["okta", "google_workspace"] as const;
 export type RosterProvider = (typeof ROSTER_PROVIDERS)[number];
+export interface RosterProviderInfo {
+  provider: RosterProvider;
+  label: string;
+}
+const MAX_CSV_BYTES = 512 * 1024; // 512KB - generous for a 2-column roster
 
 async function companyOrError(): Promise<
   | { company: Company; supabase: Awaited<ReturnType<typeof createServerSupabase>>; userId: string }
@@ -132,35 +137,77 @@ export async function createAccessReview(input: unknown) {
     .insert({
       company_id: res.company.id,
       name: parsed.data.name,
-      source: parsed.data.source || null,
       reviewer_email: parsed.data.reviewer_email || null,
       created_by: res.userId,
     })
     .select("id")
     .single();
   if (error || !review) return { error: "Could not create the review. Please try again." };
+  const reviewId = review.id as string;
 
-  const items = parsed.data.subjects.map((s) => ({
-    review_id: review.id as string,
-    company_id: res.company.id,
-    subject: s.subject,
-    access: s.access || null,
-  }));
+  // Insert systems one at a time (capped at 20 by the schema, not a hot path)
+  // so each insert's own .select("id").single() gives an unambiguous id — a
+  // single bulk multi-row insert's RETURNING order isn't safe to build
+  // system-to-item foreign-key resolution on.
+  const systemIds: string[] = [];
+  for (const s of parsed.data.systems) {
+    const { data: sysRow, error: sysErr } = await res.supabase
+      .from("access_review_systems")
+      .insert({ review_id: reviewId, company_id: res.company.id, name: s.name, provider: s.provider || null })
+      .select("id")
+      .single();
+    if (sysErr || !sysRow) {
+      await res.supabase.from("access_reviews").delete().eq("id", reviewId); // compensate
+      return { error: "Could not save the systems. Please try again." };
+    }
+    systemIds.push(sysRow.id as string);
+  }
+
+  const items = parsed.data.systems.flatMap((s, idx) =>
+    s.items.map((it) => ({
+      review_id: reviewId,
+      system_id: systemIds[idx],
+      company_id: res.company.id,
+      subject: it.subject,
+      access: it.access || null,
+    })),
+  );
   const { error: itemsErr } = await res.supabase.from("access_review_items").insert(items);
   if (itemsErr) {
-    await res.supabase.from("access_reviews").delete().eq("id", review.id); // compensate
+    await res.supabase.from("access_reviews").delete().eq("id", reviewId); // compensate (cascades systems too)
     return { error: "Could not save the review rows. Please try again." };
   }
 
   await logEvent(res.supabase, res.company.id, "access_review.created", {
     type: "access_review",
-    id: review.id as string,
+    id: reviewId,
     label: parsed.data.name,
-    metadata: { subjects: parsed.data.subjects.length },
+    metadata: { systems: parsed.data.systems.length, subjects: items.length },
   });
 
   revalidatePath("/access-reviews");
-  return { ok: true, id: review.id as string };
+  return { ok: true, id: reviewId };
+}
+
+/**
+ * Parse an uploaded roster CSV (subject,access) for the create-review form.
+ * Client reads the File via file.text() and posts the raw string here — no
+ * Storage upload, no persistence; transient parse input, same trust tier as
+ * pasting text into the textarea it supplements.
+ */
+export async function parseUploadedRosterCsv(csvText: string) {
+  if (typeof csvText !== "string") return { error: "Invalid file." };
+  if (csvText.length === 0) return { error: "That file is empty." };
+  if (csvText.length > MAX_CSV_BYTES) return { error: "That file is too large (max 512KB)." };
+
+  const res = await companyOrError();
+  if ("error" in res) return { error: res.error };
+
+  const rows = parseRosterCsv(csvText);
+  if (rows.length === 0) return { error: "No rows found — check the file matches the template." };
+  if (rows.length > 500) return { error: "That's a lot of rows — split it into two systems." };
+
+  return { ok: true as const, rows };
 }
 
 export async function decideAccessItem(input: unknown) {
@@ -193,32 +240,49 @@ export async function completeAccessReview(id: string) {
 
   const { data: review } = await res.supabase
     .from("access_reviews")
-    .select("name, source, reviewer_email, status")
+    .select("name, reviewer_email, status")
     .eq("company_id", res.company.id)
     .eq("id", id)
     .maybeSingle();
   if (!review) return { error: "Review not found." };
   if (review.status === "completed") return { error: "This review is already completed." };
 
+  const { data: systems } = await res.supabase
+    .from("access_review_systems")
+    .select("id, name")
+    .eq("company_id", res.company.id)
+    .eq("review_id", id)
+    .order("created_at", { ascending: true });
+  const systemRows = (systems ?? []) as { id: string; name: string }[];
+  if (systemRows.length === 0) return { error: "This review has no systems." };
+
   const { data: items } = await res.supabase
     .from("access_review_items")
-    .select("subject, access, decision, note")
+    .select("subject, access, decision, note, system_id")
     .eq("company_id", res.company.id)
     .eq("review_id", id);
-  const rows = (items ?? []) as { subject: string; access: string | null; decision: string; note: string | null }[];
+  const rows = (items ?? []) as {
+    subject: string; access: string | null; decision: string; note: string | null; system_id: string;
+  }[];
   if (rows.length === 0) return { error: "This review has no rows." };
   if (rows.some((r) => r.decision === "pending")) {
-    return { error: "Decide keep or revoke on every row before completing." };
+    return { error: "Decide keep, revoke, or out-of-scope on every row before completing." };
   }
 
-  // Generate the evidence record: a frozen CSV of the attested decisions.
+  // Generate the evidence record: a frozen CSV of the attested decisions,
+  // grouped by system so the artifact mirrors what the reviewer actually saw.
   const lines = [
     `# Access review: ${review.name}`,
-    `# Source: ${review.source ?? "manual"} | Reviewer: ${review.reviewer_email ?? "—"} | Completed: ${new Date().toISOString()}`,
+    `# Systems: ${systemRows.map((s) => s.name).join(", ")} | Reviewer: ${review.reviewer_email ?? "—"} | Completed: ${new Date().toISOString()}`,
     ``,
-    `subject,access,decision,note`,
-    ...rows.map((r) => `${csvSafe(r.subject)},${csvSafe(r.access ?? "")},${csvSafe(r.decision)},${csvSafe(r.note ?? "")}`),
   ];
+  for (const sys of systemRows) {
+    const sysRows = rows.filter((r) => r.system_id === sys.id);
+    if (sysRows.length === 0) continue;
+    lines.push(`## ${sys.name}`, `subject,access,decision,note`);
+    lines.push(...sysRows.map((r) => `${csvSafe(r.subject)},${csvSafe(r.access ?? "")},${csvSafe(r.decision)},${csvSafe(r.note ?? "")}`));
+    lines.push(``);
+  }
   const csv = lines.join("\n");
   const fileName = `access-review-${new Date().toISOString().slice(0, 10)}.csv`;
   const path = `${res.company.id}/access-reviews/${newUuid()}-${fileName}`;

@@ -106,19 +106,35 @@ architecture item" situation.
   not). Sprinto's alerts are described as tiered and time-bound so a 2-day-late item doesn't read
   the same as a 60-day-late one. Would need a "days overdue" bucket on the alert card. Not built.
 - ~~G14a · Access reviews — live roster pull~~ — **done 2026-07-03**: found during §8 testing
-  that `/access-reviews` was 100% manual paste. Rather than wait for the full G14b architecture
-  below, added a live, on-demand pull: "Pull from Okta" / "Pull from Google Workspace" buttons
-  (shown only when that integration is actually connected) call the same per-user fetch each
-  provider's own sync uses (`fetchUsersRaw` — new — for Okta, existing `fetchWorkspaceUsers` for
-  Google Workspace) right at review-creation time and fill the People/accounts box with real
-  `email — status` rows the reviewer can still edit before creating. No persistence, no schema
-  change. Also: Reviewer now defaults to the current user, Name gets a smart "Q3 2026 access
-  review" default, and Source is a picker instead of free text.
-- **G14b · Access reviews — persisted roster history + scheduling** — the piece G14a doesn't
-  cover: a permanent per-user snapshot history (so a review reflects "who had access as of the
-  last full sync" even if the integration is later disconnected) and recurring/scheduled reviews
-  (`access_reviews` has no `recurrence` column, unlike `tasks`). Real schema/architecture work —
-  not built, scoping conversation needed first.
+  that `/access-reviews` was 100% manual paste. Added a live, on-demand pull reusing each
+  provider's own per-user fetch (`fetchUsersRaw` for Okta, `fetchWorkspaceUsers` for Google
+  Workspace). Superseded by G14c below, which moved this into a per-system picker instead of one
+  shared textarea.
+- ~~G14c · Access reviews — system-scoped restructure~~ — **done 2026-07-05**: after live-testing
+  G14a's shipped version, real UX friction surfaced (naming a review with no context, one
+  free-text "Source" when a review usually spans several systems, still-manual people entry for
+  anything not integrated). Researched Vanta's and Drata's actual field-by-field flow (help docs,
+  not guessed) and found both model a review as **multiple in-scope systems**, each auto-pulled if
+  connected or **CSV-template-uploaded** if not, with the reviewer screen grouped by system and a
+  third **Out of scope** decision state (Drata) alongside Keep/Revoke.
+
+  Restructured to match: new `access_review_systems` table (migration `0030`, one review → many
+  systems → many items — mirrors `0023_questionnaires.sql`'s parent→child→grandchild shape, not
+  the pure-link `risk_controls` table); `access_review_items.decision` widened to include
+  `out_of_scope`; new components `SystemPicker.tsx` (checkboxes for connected integrations + add-
+  a-custom-system input, mirrors `RiskManager.tsx`'s checkbox pattern), `SystemRosterEditor.tsx`
+  (Pull / Upload CSV with downloadable template / paste, per system), `AccessReviewCreateForm.tsx`
+  (orchestrates the above, auto-derives the review name from chosen systems + quarter until
+  edited); `AccessReviewWorkspace.tsx` detail view now groups accounts by system with
+  Keep/Revoke/Out-of-scope per row; `completeAccessReview`'s evidence CSV groups by system too.
+  Kept ShieldFlow's single-phase create-then-decide model — deliberately skipped Vanta's two-phase
+  draft→"Start Review" state machine with scheduled reviewer notifications, per the PRD's
+  simpler-than-Vanta/Drata positioning.
+- **G14b · Access reviews — persisted roster history + scheduling** — still open. A permanent
+  per-user snapshot history (so a review reflects "who had access as of the last full sync" even
+  if the integration is later disconnected) and recurring/scheduled reviews (`access_reviews` has
+  no `recurrence` column, unlike `tasks`). Real schema/architecture work — not built, scoping
+  conversation needed first.
 
 ### P2 — breadth to add when customers ask
 
