@@ -139,27 +139,31 @@ problem, not code — fix in the provider's own developer console, not here.
 - [ ] **Export CSV** → downloads question/answer/status. ✅
 - [ ] Without `GROQ_API_KEY` → amber "add a key" banner; manual answering still works. ✅
 
-## 8 · Access reviews
+## 8 · Access reviews ✅ **tested** (7/5/2026 – 7/6/2026)
 
-Restructured 7/3/2026 after testing surfaced real UX friction — see G14a/G14b in
+Restructured 7/3/2026 after testing surfaced real UX friction — see G14a/G14c in
 `PREMIUM_GAP_2.md`. A review now spans **multiple in-scope systems** (checkboxes for
 connected Okta/Google Workspace + an "add a custom system" input), each with its own
 roster populated via **Pull** (connected systems), **Upload CSV** (downloadable
 template), or **paste** — not one shared free-text box. Name auto-derives from the
 chosen systems + quarter until edited; Reviewer defaults to the current user.
 
-- [ ] `/access-reviews` → **New review** → check a connected system (if you have
-      Okta/Google Workspace connected) and/or add a custom system by name → for each,
-      **Pull roster** / **Upload CSV** (try **Download template** first) / paste a line
-      ("alice@co.com — Admin"). Confirm the **Name** field auto-fills from the systems
-      you picked (e.g. "GitHub — Q3 2026 access review") and still edits normally.
-- [ ] Create the review → detail pane groups accounts **by system** with a per-system
-      decided count.
-- [ ] Mark **Keep / Revoke / Out of scope** on each row; **Complete & file evidence** is
-      disabled until every row across every system is decided.
-- [ ] Complete it → a **CSV evidence record** appears in the **Evidence vault**, grouped
-      by system (`## SystemName` subheaders), and the review is read-only/Completed. We
-      **never** revoke real access.
+- [x] `/access-reviews` → **New review** → check a connected system and/or add a custom
+      system by name (tested with GitHub + GitLab as custom systems) → **Name** field
+      auto-filled from the systems picked, still editable. ✅
+- [x] Create the review → detail pane groups accounts **by system** with a per-system
+      decided count. ✅
+- [x] Mark **Keep / Revoke / Out of scope** on each row; **Complete & file evidence** is
+      disabled until every row across every system is decided. ✅
+- [x] Complete it → the review goes read-only/Completed; evidence filed. ✅
+- [x] **Delete a review** — found + fixed a real bug: the confirm dialog and every button
+      on the page shared one `pending` flag that could get stuck true after a hung
+      `router.refresh()` (e.g. a tab left open across several deploys), permanently
+      disabling the trash icon with zero visible feedback. Confirm dialog now runs
+      outside the transition, and delete no longer depends on the shared flag. A
+      follow-up pass (background task) went further and replaced the confirm-modal
+      pattern entirely with an optimistic-hide + "Deleted — Undo" toast, structurally
+      immune to this bug class — see G16 in `PREMIUM_GAP_2.md`. ✅
 
 ## 9 · Trust Center depth
 
@@ -177,6 +181,17 @@ chosen systems + quarter until edited; Reviewer defaults to the current user.
       badge. ✅
 - [ ] **Offboard** (user-minus icon) → moves to the Offboarded group with an end date;
       **Reactivate** restores. ✅
+- [ ] **New — Bulk add** (see G17, `PREMIUM_GAP_2.md`): **Bulk add** button → **Pull from
+      Okta/Google Workspace** (if connected) / **Upload CSV** (try **Download template**
+      first) / paste a multi-line list → rows appear in a review list; a row matching an
+      existing Personnel email is flagged **"Already in Personnel"** and excluded; a row
+      with a bad email is flagged red with the specific error and excluded until fixed via
+      the **Pencil** inline-edit. "Add N people" only counts clean, non-duplicate rows.
+      Built + type-checked this session; not yet click-through confirmed.
+- [ ] **New — Personnel auto-created on Team invite** (see G15a): invite a fresh test
+      email from Settings → Team, accept it in another browser → that person should
+      appear in Personnel automatically (name guessed from their email). Only applies to
+      *new* invites accepted after 7/5/2026 — existing Team members were not backfilled.
 
 ## 11 · Auditor is read-only (RBAC)
 
