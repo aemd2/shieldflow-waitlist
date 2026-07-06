@@ -45,7 +45,9 @@ architecture item" situation.
   Sprinto/Secureframe 100–150+.
 - *Target for our ICP:* ~10–12 that cover 80% of SMB stacks. Highest-value missing:
   1. **Identity provider — Okta / Microsoft Entra** (access, MFA, joiners/leavers evidence)
-  2. **HRIS — Gusto / Rippling / BambooHR** (personnel, onboarding/offboarding)
+  2. **HRIS — Gusto / Rippling / BambooHR** (personnel, onboarding/offboarding — the remaining gap
+     after G17's Personnel bulk-add; every competitor treats manual/CSV entry as the fallback, HRIS
+     sync as the real answer)
   3. **Ticketing — Jira / Linear** (change management + task evidence)
   4. **Cloud — Azure / GCP** (parity with AWS)
   5. **MDM — Kandji / Jamf** (endpoint/device checks)
@@ -167,6 +169,32 @@ architecture item" situation.
   hides the row immediately, shows "Deleted — Undo", and only calls the server action if the 5s
   window passes without Undo. Same swap flagged for Tasks/Personnel/Risks/Vendors/Questionnaires —
   each still uses the older confirm-modal pattern for delete, not yet migrated.
+- ~~G17 · Personnel — bulk add (pull / CSV / paste)~~ — **done 2026-07-06**: `/personnel` was
+  one-person-at-a-time only. Checked 7 competitors before building, not just Drata: **Vanta has no
+  bulk personnel import at all** (one-by-one or full IdP/HRIS sync only — bulk CSV exists only for
+  their vendors module); **Drata, Secureframe, Sprinto, Scrut, Thoropass** all offer some form of
+  bulk/CSV import as the "no HRIS yet" fallback; **OneTrust** centralizes it as one platform-wide
+  Bulk Import system rather than a per-module feature. So 6 of 7 offer this — it was a real gap, not
+  a nice-to-have.
+
+  Reused the pull/CSV-template/paste architecture already shipped for access reviews (`SystemPicker`
+  → `SystemRosterEditor` pattern) rather than inventing a new one: new `PersonnelBulkAdd.tsx` offers
+  **Pull from Okta/Google Workspace** (if connected — widened `fetchUsersRaw`/`fetchWorkspaceUsers`
+  to also return real names, not just emails, since neither requested that field before), **Upload
+  CSV** with a downloadable template, and **paste a whole list**. Two rounds of follow-up after
+  checking competitors more carefully:
+  1. Duplicate detection — Drata's *vendor* bulk-import (a close analogue) dedupes by a stable key
+     and shows what's excluded before committing; Personnel's first cut didn't. Now flags rows
+     matching an existing email as "Already in Personnel" and excludes them automatically.
+  2. Inline row editing — Secureframe's CSV import specifically lets you double-click a cell to fix
+     a validation error before committing, rather than losing the row or failing the whole batch.
+     Added the same idea: a Pencil icon turns any row into editable inputs with live validation
+     feedback; invalid rows are flagged red and excluded from the count/insert until fixed.
+
+  Net result: ahead of Vanta (no bulk option), matching Drata/Sprinto/Scrut/Thoropass (CSV fallback
+  pattern), matching Secureframe's inline-fix polish. **Remaining gap vs. all seven**: native HRIS
+  sync (BambooHR, Gusto, Rippling, Workday) — every competitor treats manual/CSV as the *fallback*,
+  not the ideal path. That's G1 (integration breadth), not a UI problem — no quick fix here.
 
 - **G6 · Framework breadth** — FedRAMP, HITRUST, NIST CSF / 800-53, CMMC, TISAX, plus
   **custom frameworks**. Regional variants: relabel **UK GDPR**, add **Cyber Essentials** (UK
