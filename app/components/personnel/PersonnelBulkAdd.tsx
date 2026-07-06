@@ -2,8 +2,9 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Upload, UserPlus } from "lucide-react";
+import { Download, Upload, UserPlus, Pencil, Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -12,7 +13,7 @@ import {
   createPeopleBulk,
 } from "@/app/actions/personnel";
 import type { RosterProviderInfo } from "@/app/actions/access-reviews";
-import { PERSONNEL_CSV_TEMPLATE } from "@/lib/validation";
+import { PERSONNEL_CSV_TEMPLATE, personnelBulkRowSchema } from "@/lib/validation";
 
 const NETWORK = "Network problem — check your connection and try again.";
 
@@ -56,11 +57,25 @@ export function PersonnelBulkAdd({
   const [pulling, setPulling] = useState<string | null>(null);
   const [rows, setRows] = useState<DraftPerson[]>([]);
   const [pasteText, setPasteText] = useState("");
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const existingSet = new Set(existingEmails.map((e) => e.toLowerCase()));
   const isDuplicate = (r: DraftPerson) => Boolean(r.email) && existingSet.has(r.email.toLowerCase());
   const dupeCount = rows.filter(isDuplicate).length;
+
+  // Secureframe's bulk-import shows validation errors inline and lets you fix
+  // a cell in place before committing, rather than silently rejecting or
+  // failing the whole batch on one bad row — same idea here.
+  function rowError(r: DraftPerson): string | null {
+    const parsed = personnelBulkRowSchema.safeParse({ ...r, started_at: "" });
+    return parsed.success ? null : (parsed.error.issues[0]?.message ?? "Fix this row");
+  }
+  const invalidCount = rows.filter((r) => !isDuplicate(r) && rowError(r) !== null).length;
+
+  function updateRow(idx: number, patch: Partial<DraftPerson>) {
+    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+  }
 
   function pull(provider: RosterProviderInfo) {
     setPulling(provider.provider);
@@ -123,10 +138,15 @@ export function PersonnelBulkAdd({
   // Matches the pattern Drata's own vendor bulk-import uses: dedupe by a
   // stable key (there, name/website; here, email) instead of trusting the
   // caller to have already checked, and never silently create a duplicate.
+  // Invalid rows are excluded the same way — fix them inline instead, or
+  // they're left in the list (not added) so nothing is lost silently.
   function save() {
-    const toAdd = rows.filter((r) => !isDuplicate(r));
+    const toAdd = rows.filter((r) => !isDuplicate(r) && rowError(r) === null);
     if (toAdd.length === 0) {
-      return toast("error", rows.length > 0 ? "Everyone here is already in Personnel." : "Add at least one person first.");
+      return toast(
+        "error",
+        rows.length > 0 ? "Fix the flagged rows (or remove them) before adding." : "Add at least one person first.",
+      );
     }
     start(async () => {
       const res = await createPeopleBulk({ people: toAdd }).catch(() => ({ error: NETWORK }));
@@ -135,7 +155,7 @@ export function PersonnelBulkAdd({
       toast(
         "success",
         `Added ${toAdd.length} ${toAdd.length === 1 ? "person" : "people"}` +
-          (skipped > 0 ? ` (${skipped} already existed, skipped)` : ""),
+          (skipped > 0 ? ` (${skipped} skipped — duplicate or needs a fix)` : ""),
       );
       onDone();
       router.refresh();
@@ -188,29 +208,61 @@ export function PersonnelBulkAdd({
 
       {rows.length > 0 && (
         <>
-          {dupeCount > 0 && (
+          {(dupeCount > 0 || invalidCount > 0) && (
             <p className="text-xs text-muted-foreground">
-              {dupeCount} {dupeCount === 1 ? "row matches" : "rows match"} someone already in Personnel —
-              marked below and skipped automatically, not added twice.
+              {dupeCount > 0 && `${dupeCount} already in Personnel`}
+              {dupeCount > 0 && invalidCount > 0 && " · "}
+              {invalidCount > 0 && `${invalidCount} need${invalidCount === 1 ? "s" : ""} a fix`}
+              {" — click "}
+              <Pencil className="inline h-3 w-3 align-text-top" /> to edit a row in place before adding.
             </p>
           )}
-          <ul className="max-h-56 space-y-1 overflow-y-auto text-sm">
+          <ul className="max-h-72 space-y-1 overflow-y-auto text-sm">
             {rows.map((r, idx) => {
               const dupe = isDuplicate(r);
+              const error = !dupe ? rowError(r) : null;
+
+              if (editingIdx === idx) {
+                return (
+                  <li key={idx} className="space-y-2 rounded border border-border bg-background p-3">
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <Input value={r.name} placeholder="Name" onChange={(e) => updateRow(idx, { name: e.target.value })} />
+                      <Input value={r.email} placeholder="Email" onChange={(e) => updateRow(idx, { email: e.target.value })} />
+                      <Input value={r.role_title} placeholder="Role" onChange={(e) => updateRow(idx, { role_title: e.target.value })} />
+                    </div>
+                    {rowError(r) && <p className="text-xs text-destructive">{rowError(r)}</p>}
+                    <div className="flex gap-2">
+                      <Button type="button" size="sm" onClick={() => setEditingIdx(null)} leftIcon={<Check className="h-3.5 w-3.5" />}>
+                        Done
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => removeRow(idx)}>
+                        Remove
+                      </Button>
+                    </div>
+                  </li>
+                );
+              }
+
               return (
                 <li
                   key={idx}
-                  className={`flex items-center justify-between gap-2 rounded px-3 py-2 ${dupe ? "bg-warning-muted" : "bg-secondary"}`}
+                  className={`flex items-center justify-between gap-2 rounded px-3 py-2 ${error ? "bg-destructive/10" : dupe ? "bg-warning-muted" : "bg-secondary"}`}
                 >
                   <span className="min-w-0 truncate">
-                    <span className="font-medium text-foreground">{r.name}</span>
+                    <span className="font-medium text-foreground">{r.name || "(no name)"}</span>
                     {r.email && <span className="text-muted-foreground"> · {r.email}</span>}
                     {r.role_title && <span className="text-muted-foreground"> · {r.role_title}</span>}
                     {dupe && <span className="ml-2 text-xs font-medium text-warning">Already in Personnel</span>}
+                    {error && <span className="ml-2 text-xs font-medium text-destructive">{error}</span>}
                   </span>
-                  <button type="button" onClick={() => removeRow(idx)} className="shrink-0 text-muted-foreground hover:text-destructive">
-                    ×
-                  </button>
+                  <span className="flex shrink-0 items-center gap-1">
+                    <button type="button" onClick={() => setEditingIdx(idx)} className="text-muted-foreground hover:text-foreground" title="Edit">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button type="button" onClick={() => removeRow(idx)} className="text-muted-foreground hover:text-destructive" title="Remove">
+                      ×
+                    </button>
+                  </span>
                 </li>
               );
             })}
@@ -221,7 +273,7 @@ export function PersonnelBulkAdd({
       <div className="flex gap-2">
         <Button onClick={save} loading={pending} leftIcon={<UserPlus className="h-4 w-4" />}>
           {(() => {
-            const n = rows.length - dupeCount;
+            const n = rows.filter((r) => !isDuplicate(r) && rowError(r) === null).length;
             return `Add ${n > 0 ? n : ""} ${n === 1 ? "person" : "people"}`;
           })()}
         </Button>
