@@ -44,7 +44,13 @@ export default async function PersonnelPage() {
       title="Personnel"
       subtitle="Who works here — joiners and leavers, roles, and security-training status (matched to training records by email). The roster auditors ask for."
     >
-      <PersonnelManager people={people} training={training} canWrite={canWrite} rosterProviders={rosterProviders} />
+      <PersonnelManager
+        people={people}
+        training={training}
+        canWrite={canWrite}
+        rosterProviders={rosterProviders}
+        currentUserEmail={user.email ?? ""}
+      />
     </PageShell>
   );
 }

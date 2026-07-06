@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Pencil, Trash2, UserMinus, UserPlus, Users } from "lucide-react";
 import {
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { FormSection } from "@/components/ui/FormSection";
 import { Input } from "@/components/ui/Input";
+import { Typeahead } from "@/components/ui/Typeahead";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ListCard, ListRow } from "@/components/ui/ListCard";
@@ -25,6 +26,23 @@ import type { RosterProviderInfo } from "@/app/actions/access-reviews";
 import type { Person, TrainingRecord } from "@/lib/db/queries";
 
 const NETWORK = "Network problem — check your connection and try again.";
+
+/** Common titles offered as type-ahead suggestions in the Role field — titles
+ * already used in this workspace's roster are merged in ahead of these, so a
+ * team's own naming convention wins. Free text always allowed. */
+const COMMON_ROLES = [
+  "Engineer", "Senior Engineer", "Staff Engineer", "Engineering Manager",
+  "Frontend Engineer", "Backend Engineer", "Full-stack Engineer",
+  "DevOps Engineer", "Security Engineer", "QA Engineer", "Data Engineer",
+  "CTO", "CEO", "COO", "CFO", "CISO",
+  "Product Manager", "Product Designer", "Designer", "UX Researcher",
+  "Data Analyst", "Data Scientist",
+  "Customer Success Manager", "Support Engineer", "Account Executive",
+  "Sales Manager", "Marketing Manager", "Content Manager",
+  "HR Manager", "People Ops", "Recruiter", "Office Manager",
+  "Finance Manager", "Legal Counsel", "Compliance Manager",
+  "IT Administrator", "Intern", "Contractor",
+];
 
 interface FormState {
   name: string;
@@ -39,11 +57,13 @@ export function PersonnelManager({
   training = [],
   canWrite = true,
   rosterProviders = [],
+  currentUserEmail = "",
 }: {
   people: Person[];
   training?: TrainingRecord[];
   canWrite?: boolean;
   rosterProviders?: RosterProviderInfo[];
+  currentUserEmail?: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -55,6 +75,49 @@ export function PersonnelManager({
 
   const active = people.filter((p) => p.status === "active");
   const offboarded = people.filter((p) => p.status === "offboarded");
+
+  // Role suggestions: this workspace's own titles first, then the common list.
+  const roleOptions = useMemo(() => {
+    const existing = Array.from(
+      new Set(people.map((p) => p.role_title).filter((r): r is string => Boolean(r))),
+    );
+    const merged = [
+      ...existing,
+      ...COMMON_ROLES.filter((r) => !existing.some((e) => e.toLowerCase() === r.toLowerCase())),
+    ];
+    return merged.map((r) => ({ value: r }));
+  }, [people]);
+
+  // Email domains this company actually uses (most frequent first), falling
+  // back to the signed-in user's own domain on an empty roster.
+  const emailDomains = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of people) {
+      const d = p.email?.split("@")[1]?.toLowerCase();
+      if (d) counts.set(d, (counts.get(d) ?? 0) + 1);
+    }
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([d]) => d);
+    const fallback = currentUserEmail.split("@")[1]?.toLowerCase();
+    if (sorted.length === 0 && fallback) sorted.push(fallback);
+    return sorted.slice(0, 3);
+  }, [people, currentUserEmail]);
+
+  // "alice" -> alice@acme.com per known domain; with Email empty but Name
+  // filled, derive the local part from the name ("Alex Doe" -> alex.doe).
+  function emailOptions(): { value: string }[] {
+    const typed = form.email.trim().toLowerCase();
+    if (typed.includes("@")) {
+      const [local, domainPart = ""] = typed.split("@");
+      if (!local) return [];
+      return emailDomains
+        .filter((d) => d.startsWith(domainPart))
+        .map((d) => ({ value: `${local}@${d}` }))
+        .filter((o) => o.value !== typed);
+    }
+    const local = typed || form.name.trim().toLowerCase().split(/\s+/).filter(Boolean).join(".");
+    if (!local) return [];
+    return emailDomains.map((d) => ({ value: `${local}@${d}` }));
+  }
 
   // Per-person training, matched by email.
   function trainingFor(p: Person): { total: number; completed: number } | null {
@@ -192,10 +255,26 @@ export function PersonnelManager({
                 <Input required maxLength={120} value={form.name} onChange={(e) => set("name")(e.target.value)} placeholder="Alex Doe" />
               </Field>
               <Field label="Email">
-                <Input type="email" maxLength={254} value={form.email} onChange={(e) => set("email")(e.target.value)} placeholder="alex@company.com" />
+                <Typeahead
+                  type="email"
+                  maxLength={254}
+                  value={form.email}
+                  onChange={set("email")}
+                  onSelect={(o) => set("email")(o.value)}
+                  options={emailOptions()}
+                  maxSuggestions={3}
+                  placeholder="alex@company.com"
+                />
               </Field>
               <Field label="Role / title">
-                <Input maxLength={120} value={form.role_title} onChange={(e) => set("role_title")(e.target.value)} placeholder="Engineer" />
+                <Typeahead
+                  maxLength={120}
+                  value={form.role_title}
+                  onChange={set("role_title")}
+                  onSelect={(o) => set("role_title")(o.value)}
+                  options={roleOptions}
+                  placeholder="Start typing — Engineer, Product Manager…"
+                />
               </Field>
               <Field label="Start date">
                 <Input type="date" value={form.started_at} onChange={(e) => set("started_at")(e.target.value)} />
