@@ -176,7 +176,11 @@ export function PersonnelManager({
       }
     >
       {bulkAdding && canWrite && (
-        <PersonnelBulkAdd rosterProviders={rosterProviders} onDone={() => setBulkAdding(false)} />
+        <PersonnelBulkAdd
+          rosterProviders={rosterProviders}
+          existingEmails={people.map((p) => p.email).filter((e): e is string => Boolean(e))}
+          onDone={() => setBulkAdding(false)}
+        />
       )}
 
       {editing && (

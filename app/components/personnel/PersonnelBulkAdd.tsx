@@ -43,9 +43,11 @@ function downloadTemplate() {
 
 export function PersonnelBulkAdd({
   rosterProviders,
+  existingEmails = [],
   onDone,
 }: {
   rosterProviders: RosterProviderInfo[];
+  existingEmails?: string[];
   onDone: () => void;
 }) {
   const router = useRouter();
@@ -55,6 +57,10 @@ export function PersonnelBulkAdd({
   const [rows, setRows] = useState<DraftPerson[]>([]);
   const [pasteText, setPasteText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const existingSet = new Set(existingEmails.map((e) => e.toLowerCase()));
+  const isDuplicate = (r: DraftPerson) => Boolean(r.email) && existingSet.has(r.email.toLowerCase());
+  const dupeCount = rows.filter(isDuplicate).length;
 
   function pull(provider: RosterProviderInfo) {
     setPulling(provider.provider);
@@ -114,12 +120,23 @@ export function PersonnelBulkAdd({
     setRows((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  // Matches the pattern Drata's own vendor bulk-import uses: dedupe by a
+  // stable key (there, name/website; here, email) instead of trusting the
+  // caller to have already checked, and never silently create a duplicate.
   function save() {
-    if (rows.length === 0) return toast("error", "Add at least one person first.");
+    const toAdd = rows.filter((r) => !isDuplicate(r));
+    if (toAdd.length === 0) {
+      return toast("error", rows.length > 0 ? "Everyone here is already in Personnel." : "Add at least one person first.");
+    }
     start(async () => {
-      const res = await createPeopleBulk({ people: rows }).catch(() => ({ error: NETWORK }));
+      const res = await createPeopleBulk({ people: toAdd }).catch(() => ({ error: NETWORK }));
       if (res?.error) return toast("error", res.error);
-      toast("success", `Added ${rows.length} ${rows.length === 1 ? "person" : "people"}`);
+      const skipped = rows.length - toAdd.length;
+      toast(
+        "success",
+        `Added ${toAdd.length} ${toAdd.length === 1 ? "person" : "people"}` +
+          (skipped > 0 ? ` (${skipped} already existed, skipped)` : ""),
+      );
       onDone();
       router.refresh();
     });
@@ -170,25 +187,43 @@ export function PersonnelBulkAdd({
       </div>
 
       {rows.length > 0 && (
-        <ul className="max-h-56 space-y-1 overflow-y-auto text-sm">
-          {rows.map((r, idx) => (
-            <li key={idx} className="flex items-center justify-between gap-2 rounded bg-secondary px-3 py-2">
-              <span className="min-w-0 truncate">
-                <span className="font-medium text-foreground">{r.name}</span>
-                {r.email && <span className="text-muted-foreground"> · {r.email}</span>}
-                {r.role_title && <span className="text-muted-foreground"> · {r.role_title}</span>}
-              </span>
-              <button type="button" onClick={() => removeRow(idx)} className="shrink-0 text-muted-foreground hover:text-destructive">
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          {dupeCount > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {dupeCount} {dupeCount === 1 ? "row matches" : "rows match"} someone already in Personnel —
+              marked below and skipped automatically, not added twice.
+            </p>
+          )}
+          <ul className="max-h-56 space-y-1 overflow-y-auto text-sm">
+            {rows.map((r, idx) => {
+              const dupe = isDuplicate(r);
+              return (
+                <li
+                  key={idx}
+                  className={`flex items-center justify-between gap-2 rounded px-3 py-2 ${dupe ? "bg-warning-muted" : "bg-secondary"}`}
+                >
+                  <span className="min-w-0 truncate">
+                    <span className="font-medium text-foreground">{r.name}</span>
+                    {r.email && <span className="text-muted-foreground"> · {r.email}</span>}
+                    {r.role_title && <span className="text-muted-foreground"> · {r.role_title}</span>}
+                    {dupe && <span className="ml-2 text-xs font-medium text-warning">Already in Personnel</span>}
+                  </span>
+                  <button type="button" onClick={() => removeRow(idx)} className="shrink-0 text-muted-foreground hover:text-destructive">
+                    ×
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
 
       <div className="flex gap-2">
         <Button onClick={save} loading={pending} leftIcon={<UserPlus className="h-4 w-4" />}>
-          Add {rows.length > 0 ? rows.length : ""} {rows.length === 1 ? "person" : "people"}
+          {(() => {
+            const n = rows.length - dupeCount;
+            return `Add ${n > 0 ? n : ""} ${n === 1 ? "person" : "people"}`;
+          })()}
         </Button>
         <Button type="button" variant="outline" onClick={onDone}>Cancel</Button>
       </div>
