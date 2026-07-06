@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, Trash2, UserMinus, UserPlus } from "lucide-react";
+import { Plus, Pencil, Trash2, UserMinus, UserPlus, Users } from "lucide-react";
 import {
   createPerson,
   updatePerson,
@@ -20,6 +20,8 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ListCard, ListRow } from "@/components/ui/ListCard";
 import { ManagerLayout } from "@/components/ui/layouts";
+import { PersonnelBulkAdd } from "./PersonnelBulkAdd";
+import type { RosterProviderInfo } from "@/app/actions/access-reviews";
 import type { Person, TrainingRecord } from "@/lib/db/queries";
 
 const NETWORK = "Network problem — check your connection and try again.";
@@ -36,16 +38,19 @@ export function PersonnelManager({
   people,
   training = [],
   canWrite = true,
+  rosterProviders = [],
 }: {
   people: Person[];
   training?: TrainingRecord[];
   canWrite?: boolean;
+  rosterProviders?: RosterProviderInfo[];
 }) {
   const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState<string | "new" | null>(null);
+  const [bulkAdding, setBulkAdding] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY);
 
   const active = people.filter((p) => p.status === "active");
@@ -62,10 +67,16 @@ export function PersonnelManager({
   function openNew() {
     setForm(EMPTY);
     setEditing("new");
+    setBulkAdding(false);
   }
   function openEdit(p: Person) {
     setForm({ name: p.name, email: p.email ?? "", role_title: p.role_title ?? "", started_at: p.started_at ?? "" });
     setEditing(p.id);
+    setBulkAdding(false);
+  }
+  function openBulkAdd() {
+    setEditing(null);
+    setBulkAdding(true);
   }
 
   function submit(e: React.FormEvent) {
@@ -153,12 +164,21 @@ export function PersonnelManager({
     <ManagerLayout
       toolbar={
         canWrite ? (
-          <Button variant="accent" onClick={openNew} disabled={pending} leftIcon={<Plus className="h-4 w-4" />}>
-            Add person
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={openBulkAdd} disabled={pending} leftIcon={<Users className="h-4 w-4" />}>
+              Bulk add
+            </Button>
+            <Button variant="accent" onClick={openNew} disabled={pending} leftIcon={<Plus className="h-4 w-4" />}>
+              Add person
+            </Button>
+          </div>
         ) : undefined
       }
     >
+      {bulkAdding && canWrite && (
+        <PersonnelBulkAdd rosterProviders={rosterProviders} onDone={() => setBulkAdding(false)} />
+      )}
+
       {editing && (
         <form onSubmit={submit} className="card space-y-4">
           <h2 className="text-sm font-semibold text-foreground">{editing === "new" ? "New person" : "Edit person"}</h2>
@@ -185,7 +205,7 @@ export function PersonnelManager({
         </form>
       )}
 
-      {people.length === 0 && !editing ? (
+      {people.length === 0 && !editing && !bulkAdding ? (
         <EmptyState description="No people yet. Add your team so you can track onboarding, offboarding and security-training status." />
       ) : (
         <>

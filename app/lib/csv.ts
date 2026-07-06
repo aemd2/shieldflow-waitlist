@@ -34,3 +34,31 @@ export function parseRosterCsv(csvText: string): ParsedRosterRow[] {
   }
   return rows;
 }
+
+export interface ParsedPersonnelRow {
+  name: string;
+  email: string;
+  role_title: string;
+  started_at: string;
+}
+
+/**
+ * Parse the 4-column personnel template (name,email,role_title,started_at).
+ * Same naive-split philosophy as parseRosterCsv — no quoted-field support.
+ * Only `name` is required; the other three may be blank.
+ */
+export function parsePersonnelCsv(csvText: string): ParsedPersonnelRow[] {
+  const lines = csvText.split(/\r\n|\n/).map((l) => l.trim()).filter(Boolean);
+  const rows: ParsedPersonnelRow[] = [];
+  for (const line of lines) {
+    const [rawName, rawEmail = "", rawRole = "", rawStarted = ""] = line.split(",");
+    const name = (rawName ?? "").trim();
+    const email = rawEmail.trim();
+    const role_title = rawRole.trim();
+    const started_at = rawStarted.trim();
+    if (!name) continue;
+    if (name.toLowerCase() === "name" && email.toLowerCase() === "email") continue; // header row
+    rows.push({ name, email, role_title, started_at });
+  }
+  return rows;
+}

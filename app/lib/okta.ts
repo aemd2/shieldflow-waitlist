@@ -79,17 +79,25 @@ export interface OktaSecurityReport {
 
 export interface OktaUser {
   email: string;
+  name?: string;
   status: string;
 }
 
-/** Raw per-user list (email + status) — for pre-filling an access review roster, not a full security report. */
+/** Raw per-user list (email + name + status) — for pre-filling an access
+ * review roster or the personnel list, not a full security report. */
 export async function fetchUsersRaw(host: string, token: string): Promise<OktaUser[]> {
   const res = await oktaGet(host, `/api/v1/users?limit=${MAX_USERS}`, token);
   check(res);
-  const users = (await res.json()) as Array<{ status: string; profile?: { email?: string } }>;
+  const users = (await res.json()) as Array<{
+    status: string;
+    profile?: { email?: string; firstName?: string; lastName?: string };
+  }>;
   return users
     .filter((u) => u.profile?.email)
-    .map((u) => ({ email: u.profile!.email as string, status: u.status }));
+    .map((u) => {
+      const name = [u.profile?.firstName, u.profile?.lastName].filter(Boolean).join(" ");
+      return { email: u.profile!.email as string, name: name || undefined, status: u.status };
+    });
 }
 
 export async function fetchUserSecurity(host: string, token: string): Promise<OktaSecurityReport> {

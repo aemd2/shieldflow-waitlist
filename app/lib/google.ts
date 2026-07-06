@@ -7,7 +7,7 @@ const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const USERS_URL =
   "https://admin.googleapis.com/admin/directory/v1/users" +
   "?customer=my_customer&maxResults=500" +
-  "&fields=nextPageToken,users(primaryEmail,isEnrolledIn2Sv,isAdmin,suspended,orgUnitPath)";
+  "&fields=nextPageToken,users(primaryEmail,name.fullName,isEnrolledIn2Sv,isAdmin,suspended,orgUnitPath)";
 
 // Pagination bound: 4 pages × 500 = 2000 users max per sync — plenty for the
 // 11–200 employee target market, and keeps memory/time bounded for outliers.
@@ -84,6 +84,16 @@ export async function refreshAccessToken(refreshToken: string): Promise<GoogleTo
 
 export interface WorkspaceUser {
   primaryEmail: string;
+  fullName?: string;
+  isEnrolledIn2Sv: boolean;
+  isAdmin: boolean;
+  suspended: boolean;
+  orgUnitPath?: string;
+}
+
+interface RawWorkspaceUser {
+  primaryEmail: string;
+  name?: { fullName?: string };
   isEnrolledIn2Sv: boolean;
   isAdmin: boolean;
   suspended: boolean;
@@ -113,7 +123,17 @@ export async function fetchWorkspaceUsers(accessToken: string): Promise<Workspac
       throw new GoogleError("unavailable", "Google is unavailable right now. Try again shortly.");
     }
     const json = await res.json();
-    all.push(...((json.users ?? []) as WorkspaceUser[]));
+    const rawUsers = (json.users ?? []) as RawWorkspaceUser[];
+    all.push(
+      ...rawUsers.map((u) => ({
+        primaryEmail: u.primaryEmail,
+        fullName: u.name?.fullName,
+        isEnrolledIn2Sv: u.isEnrolledIn2Sv,
+        isAdmin: u.isAdmin,
+        suspended: u.suspended,
+        orgUnitPath: u.orgUnitPath,
+      })),
+    );
     pageToken = json.nextPageToken;
     if (!pageToken) break;
   }

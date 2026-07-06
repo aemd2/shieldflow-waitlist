@@ -388,6 +388,31 @@ export const personnelSchema = z.object({
     .or(z.literal("")),
 });
 
+// Bulk-add: same fields as personnelSchema, but tolerant of blank/omitted
+// optional columns from a CSV row (empty string is normalized to undefined
+// before this runs, so .optional() alone would be too strict here).
+export const personnelBulkRowSchema = z.object({
+  name: z.string().trim().min(2, "Name is too short").max(120),
+  email: z.string().trim().toLowerCase().email("Enter a valid email").max(254).optional().or(z.literal("")),
+  role_title: z.string().trim().max(120).optional().or(z.literal("")),
+  started_at: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+    .refine(isRealDate, "That date doesn't exist - pick a date between 2000 and 2100")
+    .optional()
+    .or(z.literal("")),
+});
+
+export const personnelBulkCreateSchema = z.object({
+  people: z
+    .array(personnelBulkRowSchema)
+    .min(1, "Add at least one person")
+    .max(500, "That's a lot at once — split it into a couple of batches."),
+});
+
+// Personnel CSV upload template — 4 columns, only name is required.
+export const PERSONNEL_CSV_TEMPLATE = "name,email,role_title,started_at\nAlice Doe,alice@acme.com,Engineer,2026-01-15\n";
+
 // Public access-request form (anonymous; submitted through the rate-limited route).
 export const trustAccessRequestSchema = z.object({
   slug: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{3,60}$/, "Invalid page"),
