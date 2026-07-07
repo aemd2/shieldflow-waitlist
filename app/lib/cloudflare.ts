@@ -34,14 +34,12 @@ function check(res: Response): void {
   if (!res.ok) throw new CloudflareError("unavailable", "Cloudflare is unavailable right now. Try again shortly.");
 }
 
-/** Validate the token via /user/tokens/verify (token must be active). */
+// Validated via /zones, not /user/tokens/verify: that endpoint is scoped to the
+// "user" resource, which a least-privilege Zone-only token (what we ask for) has
+// no permission to call — it 401s even though the token is perfectly valid.
 export async function validateToken(token: string): Promise<string> {
-  const res = await cfGet("/user/tokens/verify", token);
+  const res = await cfGet("/zones?per_page=1", token);
   check(res);
-  const json = (await res.json()) as { success?: boolean; result?: { status?: string } };
-  if (!json.success || json.result?.status !== "active") {
-    throw new CloudflareError("auth", "This Cloudflare token isn't active. Create a new one.");
-  }
   return "Cloudflare";
 }
 
