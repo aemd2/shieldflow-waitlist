@@ -70,9 +70,18 @@ problem, not code — fix in the provider's own developer console, not here.
 - [x] **Slack** (§9.2) — Add to Slack, digest send, revoke/reconnect. ✅ **tested**
       (7/3/2026 — hit a redirect_uri mismatch, fixed in the Slack app's OAuth settings;
       digest confirmed delivered with score/framework %/alerts)
-- [ ] **Google Workspace** (§9.3) — OAuth connect, Sync, admin-only sync check.
+- [x] **Google Workspace** (§9.3) — ⚠️ **partial** (7/7/2026): OAuth connect ✅ (found +
+      fixed the app's own OAuth client had been deleted in Google Cloud Console — created a
+      replacement, reused for both Supabase Sign-in-with-Google and this integration via a
+      second Authorized redirect URI). **Sync blocked by environment, not code**: needs a
+      real Google Workspace admin account; a personal Gmail can't call the Admin Directory
+      API. Not worth a domain purchase + trial subscription just to verify — code path
+      already reviewed and matches Google's documented API shape.
 - [ ] **AWS** (§9.4) — access key connect, Sync, CSV in evidence.
-- [ ] **Okta** (§9.5) — domain + API token, Sync, SSRF guard on bad domain.
+- [x] **Okta** (§9.5) — domain + API token, Sync, SSRF guard on bad domain. ✅ **tested**
+      (7/7/2026 — connected to an Okta Integrator Free Plan org, note: signed up for Auth0
+      first by mistake, a different Okta product — developer.okta.com/signup is the right
+      one. Sync confirmed: CSV shows user counts, MFA enrollment, password policy.)
 - [ ] **GitLab** (§9.6) — PAT connect, Sync, CSV in evidence.
 - [ ] **Jira** (§9.7) — site + email + token, Sync, SSRF guard on bad site.
 - [ ] **Linear** (§9.8) — API key connect, Sync, CSV in evidence.
