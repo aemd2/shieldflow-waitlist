@@ -55,7 +55,7 @@ export const gitlabTokenSchema = z.object({
     .trim()
     .min(20)
     .max(300)
-    .regex(/^(glpat-|gloas-)?[A-Za-z0-9_-]+$/, "Paste a GitLab personal access token."),
+    .regex(/^(glpat-|gloas-)?[A-Za-z0-9_.-]+$/, "Paste a GitLab personal access token."),
 });
 
 export const jiraSchema = z.object({
