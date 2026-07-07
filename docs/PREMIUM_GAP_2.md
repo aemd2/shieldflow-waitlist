@@ -200,8 +200,28 @@ architecture item" situation.
   **custom frameworks**. Regional variants: relabel **UK GDPR**, add **Cyber Essentials** (UK
   public-sector), **CCPA / US state privacy** (larger US firms). (See the country analysis in the
   session notes — none block US/UK outreach today.)
-- **G7 · Native security-awareness training** — we track completion; competitors *deliver* the
-  courses.
+- **G7 · Native security-awareness training** — researched 5 competitors 2026-07-08; unanimous,
+  and this one's a content gap, not a UX gap (unlike G14/G17). `/training` today is a pure
+  record-keeper: person, free-text course name, status, due date — no actual content behind it.
+  - **Vanta**: full in-house library (Security Awareness for SOC 2/ISO 27001/NIST, plus
+    HIPAA/GDPR/CCPA/PCI DSS, AI Risk, Secure Coding, Insider Threat, Social Engineering) —
+    auto-assigned, segmentable by group. *Also* integrates with a dedicated training vendor
+    (**SoSafe**) for extra content, rather than relying solely on its own library.
+  - **Drata**: embedded native training (phishing, malware awareness, policy adherence) built
+    into the onboarding flow itself.
+  - **Secureframe**: built-in courses (Security Awareness, HIPAA, GDPR, CCPA, PCI, Secure Coding)
+    with real video lessons + embedded quiz + auto-saved progress + auto-generated subtitles in
+    multiple languages; auto-assigned at onboarding, recurring for annual recert.
+  - **Sprinto**: pre-built, customizable courses per framework, auto-assigned during onboarding.
+  - **OneTrust**: full LMS — self-paced eLearning or instructor-led, certification tracks,
+    completion badges.
+  - *Why not a quick fix:* every competitor's version means either producing/licensing real
+    training video content, or building a quiz/progress-tracking engine — a different kind of
+    investment than the UI/workflow work elsewhere in this doc.
+  - *Realistic path:* follow Vanta's own precedent and **integrate with an existing training
+    vendor** (SoSafe, KnowBe4, etc.) rather than build content in-house — employees complete
+    real courses there, completion status syncs back to `/training` the way an HRIS sync would.
+    Not started — needs a vendor/partnership decision before any building.
 - **G8 · Background-check integrations** (e.g. Checkr) for personnel evidence.
 - **G9 · Auditor collaboration depth** — we have a read-only auditor role; competitors offer an
   auditor portal + auditor network + human compliance-manager services.
