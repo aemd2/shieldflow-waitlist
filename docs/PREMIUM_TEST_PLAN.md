@@ -116,7 +116,23 @@ problem, not code — fix in the provider's own developer console, not here.
       zone (`emildonchev-producrdesigner.com`), `cloudflare-zone-security-DATE.csv`
       filed in evidence. Wrong-token rejection, rate-limit, and revoke/reconnect not
       re-clicked this pass.)
-- [ ] **Google Cloud** (§9.10) — service-account JSON paste, Sync, CSV in evidence.
+- [x] **Google Cloud** (§9.10) — service-account JSON paste, Sync, CSV in evidence. ✅
+      **tested** (7/7/2026 — not a code bug: created the service account without its
+      "grant access to project" step actually sticking, so Connect succeeded (key
+      exchange only needs a valid key) but Sync 403'd on `getIamPolicy`. Diagnosed by
+      reproducing the app's exact token-exchange + `getIamPolicy` call outside the app
+      and reading the raw error body — a plain `PERMISSION_DENIED` (not an
+      API-disabled error), which pointed at a missing IAM binding rather than a
+      disabled API or a code issue. Confirmed via the IAM page: the service account
+      was absent from the project's principals list entirely. Granted it **Viewer** via
+      IAM & Admin → IAM → Grant access → re-ran Sync → "Synced: 1 owner, 0 editors, 2
+      bindings", `gcp-iam-exposure-DATE.csv` filed in evidence. Malformed-JSON
+      rejection, missing-field rejection, and rate-limit not re-clicked this pass.
+
+**All 10 connectors in §9.1–9.10 are now tested.** One real code bug found + fixed per
+GitLab and Cloudflare; Jira and Google Cloud turned out to be environment/config gaps,
+not code; Google Workspace remains partially blocked by needing a real Workspace
+admin account (see §9.3).
 
 ## 3 · Tasks ✅ **tested** (7/3/2026)
 
