@@ -92,7 +92,13 @@ problem, not code — fix in the provider's own developer console, not here.
       projects — this GitLab account has none, confirmed inconclusive not an error).
       Garbage/malformed input still correctly rejected. Revoke/reconnect and
       sync-rate-limit not re-clicked this pass.)
-- [ ] **Jira** (§9.7) — site + email + token, Sync, SSRF guard on bad site.
+- [x] **Jira** (§9.7) — site + email + token, Sync, SSRF guard on bad site. ✅ **tested**
+      (7/7/2026 — not a code bug: the Atlassian account had no Jira site provisioned at
+      all (only Trello/Goals/Loom/Projects), so the "site" field had nothing to connect
+      to. Created a free Jira Software site, retried with the same API token — connected
+      to `emilsworkspace-31627026.atlassian.net`, synced, `jira-projects-DATE.csv` filed
+      in evidence with the 1 real project (KAN / "trying"). SSRF guard, wrong-creds
+      message, and revoke/reconnect not re-clicked this pass.)
 - [ ] **Linear** (§9.8) — API key connect, Sync, CSV in evidence.
 - [ ] **Cloudflare** (§9.9) — API token connect, Sync, CSV in evidence.
 - [ ] **Google Cloud** (§9.10) — service-account JSON paste, Sync, CSV in evidence.
