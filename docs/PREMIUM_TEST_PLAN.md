@@ -77,7 +77,8 @@ problem, not code — fix in the provider's own developer console, not here.
       real Google Workspace admin account; a personal Gmail can't call the Admin Directory
       API. Not worth a domain purchase + trial subscription just to verify — code path
       already reviewed and matches Google's documented API shape.
-- [ ] **AWS** (§9.4) — access key connect, Sync, CSV in evidence.
+- [x] **AWS** (§9.4) — access key connect, Sync, CSV in evidence. ✅ **tested** (7/7/2026 —
+      connected to account 177884820952, synced successfully)
 - [x] **Okta** (§9.5) — domain + API token, Sync, SSRF guard on bad domain. ✅ **tested**
       (7/7/2026 — connected to an Okta Integrator Free Plan org, note: signed up for Auth0
       first by mistake, a different Okta product — developer.okta.com/signup is the right
