@@ -83,7 +83,15 @@ problem, not code — fix in the provider's own developer console, not here.
       (7/7/2026 — connected to an Okta Integrator Free Plan org, note: signed up for Auth0
       first by mistake, a different Okta product — developer.okta.com/signup is the right
       one. Sync confirmed: CSV shows user counts, MFA enrollment, password policy.)
-- [ ] **GitLab** (§9.6) — PAT connect, Sync, CSV in evidence.
+- [x] **GitLab** (§9.6) — PAT connect, Sync, CSV in evidence. ✅ **tested** (7/7/2026 —
+      found + fixed a real bug: the token regex only allowed alphanumeric/underscore/
+      hyphen, rejecting GitLab's current "routable" PAT format which embeds dots
+      (`glpat-xxxx.01.xxxxxxxxx`) — every real token in that format was rejected before
+      it reached the server. Fixed in `lib/validation.ts`. After the fix: connected as
+      @aemd2donchev, synced, `gitlab-repo-security-DATE.csv` filed in evidence (0
+      projects — this GitLab account has none, confirmed inconclusive not an error).
+      Garbage/malformed input still correctly rejected. Revoke/reconnect and
+      sync-rate-limit not re-clicked this pass.)
 - [ ] **Jira** (§9.7) — site + email + token, Sync, SSRF guard on bad site.
 - [ ] **Linear** (§9.8) — API key connect, Sync, CSV in evidence.
 - [ ] **Cloudflare** (§9.9) — API token connect, Sync, CSV in evidence.
