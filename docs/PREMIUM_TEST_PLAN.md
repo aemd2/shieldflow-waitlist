@@ -104,7 +104,18 @@ problem, not code — fix in the provider's own developer console, not here.
       aemd2donchev@gmail.com, synced: 1 team, 4 issues (0 closed, 4 open), CSV filed in
       evidence. Wrong-key rejection, rate-limit, and revoke/reconnect not re-clicked this
       pass.)
-- [ ] **Cloudflare** (§9.9) — API token connect, Sync, CSV in evidence.
+- [x] **Cloudflare** (§9.9) — API token connect, Sync, CSV in evidence. ✅ **tested**
+      (7/7/2026 — found + fixed a real bug: `validateToken()` checked
+      `/user/tokens/verify`, but that endpoint is scoped to the "user" resource in
+      Cloudflare's permission model — a token scoped only to Zone Read + Zone Settings
+      Read (exactly the least-privilege setup our own instructions ask for) has no
+      permission to call it and gets a 401, even though the same token works fine
+      against `/zones`. Confirmed with curl before touching code. Fixed by validating
+      against `/zones` instead — the same endpoint Sync already needs, so a token that
+      passes Connect is guaranteed to work for Sync. After the fix: connected, synced 1
+      zone (`emildonchev-producrdesigner.com`), `cloudflare-zone-security-DATE.csv`
+      filed in evidence. Wrong-token rejection, rate-limit, and revoke/reconnect not
+      re-clicked this pass.)
 - [ ] **Google Cloud** (§9.10) — service-account JSON paste, Sync, CSV in evidence.
 
 ## 3 · Tasks ✅ **tested** (7/3/2026)
