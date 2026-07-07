@@ -99,7 +99,11 @@ problem, not code — fix in the provider's own developer console, not here.
       to `emilsworkspace-31627026.atlassian.net`, synced, `jira-projects-DATE.csv` filed
       in evidence with the 1 real project (KAN / "trying"). SSRF guard, wrong-creds
       message, and revoke/reconnect not re-clicked this pass.)
-- [ ] **Linear** (§9.8) — API key connect, Sync, CSV in evidence.
+- [x] **Linear** (§9.8) — API key connect, Sync, CSV in evidence. ✅ **tested** (7/7/2026 —
+      created a fresh Linear workspace + full-access personal API key, connected as
+      aemd2donchev@gmail.com, synced: 1 team, 4 issues (0 closed, 4 open), CSV filed in
+      evidence. Wrong-key rejection, rate-limit, and revoke/reconnect not re-clicked this
+      pass.)
 - [ ] **Cloudflare** (§9.9) — API token connect, Sync, CSV in evidence.
 - [ ] **Google Cloud** (§9.10) — service-account JSON paste, Sync, CSV in evidence.
 
