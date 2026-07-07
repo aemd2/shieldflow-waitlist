@@ -88,18 +88,21 @@ export function PersonnelManager({
     return merged.map((r) => ({ value: r }));
   }, [people]);
 
-  // Email domains this company actually uses (most frequent first), falling
-  // back to the signed-in user's own domain on an empty roster.
+  // Email domains: this company's own roster first (most frequent, so a real
+  // company domain always outranks a personal one), then the signed-in
+  // user's domain, then a handful of common providers as a baseline — so a
+  // near-empty roster still offers more than a single repeated suggestion.
   const emailDomains = useMemo(() => {
     const counts = new Map<string, number>();
     for (const p of people) {
       const d = p.email?.split("@")[1]?.toLowerCase();
       if (d) counts.set(d, (counts.get(d) ?? 0) + 1);
     }
-    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([d]) => d);
-    const fallback = currentUserEmail.split("@")[1]?.toLowerCase();
-    if (sorted.length === 0 && fallback) sorted.push(fallback);
-    return sorted.slice(0, 3);
+    const fromRoster = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([d]) => d);
+    const ownDomain = currentUserEmail.split("@")[1]?.toLowerCase();
+    const baseline = ["gmail.com", "outlook.com", "yahoo.com", "icloud.com", "hotmail.com"];
+    const merged = [...fromRoster, ...(ownDomain ? [ownDomain] : []), ...baseline];
+    return Array.from(new Set(merged)).slice(0, 5);
   }, [people, currentUserEmail]);
 
   // "alice" -> alice@acme.com per known domain; with Email empty but Name
@@ -262,7 +265,7 @@ export function PersonnelManager({
                   onChange={set("email")}
                   onSelect={(o) => set("email")(o.value)}
                   options={emailOptions()}
-                  maxSuggestions={3}
+                  maxSuggestions={5}
                   placeholder="alex@company.com"
                 />
               </Field>
