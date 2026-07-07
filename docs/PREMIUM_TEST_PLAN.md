@@ -174,21 +174,23 @@ chosen systems + quarter until edited; Reviewer defaults to the current user.
       Center access requests** lists it → **Approve/Decline** works. ✅
 - [ ] Spam the form > 5×/hour from one IP → **429** rate-limited. ✅
 
-## 10 · Personnel roster
+## 10 · Personnel roster ✅ **mostly tested** (7/8/2026)
 
-- [ ] `/personnel` → add a person (name, email, role, start date). ✅
-- [ ] If that email matches a **training record**, the row shows a **"Training x/y"**
-      badge. ✅
-- [ ] **Offboard** (user-minus icon) → moves to the Offboarded group with an end date;
-      **Reactivate** restores. ✅
-- [ ] **New — Bulk add** (see G17, `PREMIUM_GAP_2.md`): **Bulk add** button → **Pull from
-      Okta/Google Workspace** (if connected) / **Upload CSV** (try **Download template**
-      first) / paste a multi-line list → rows appear in a review list; a row matching an
-      existing Personnel email is flagged **"Already in Personnel"** and excluded; a row
-      with a bad email is flagged red with the specific error and excluded until fixed via
-      the **Pencil** inline-edit. "Add N people" only counts clean, non-duplicate rows.
-      Built + type-checked this session; not yet click-through confirmed.
-- [ ] **New — Personnel auto-created on Team invite** (see G15a): invite a fresh test
+- [x] `/personnel` → add a person (name, email, role, start date) → Role and Email fields
+      now suggest as you type (workspace's own roles/domains first, common ones as a
+      baseline). ✅
+- [x] If that email matches a **training record**, the row shows a **"Training x/y"**
+      badge; rows with no matching record correctly show none. ✅
+- [x] **Offboard** (user-minus icon) → moves to the Offboarded group with an end date. ✅
+      **Reactivate** (green user-plus icon on an offboarded row) — not yet clicked/confirmed.
+- [ ] **Bulk add** (see G17, `PREMIUM_GAP_2.md`): **Pull from Okta/Google Workspace** (if
+      connected) / **Upload CSV** (try **Download template** first) / paste a multi-line
+      list → a row matching an existing email is flagged **"Already in Personnel"** and
+      excluded; a row with a bad email is flagged red and excluded until fixed via the
+      **Pencil** inline-edit. "Add N people" only counts clean, non-duplicate rows. Built +
+      type-checked; the underlying form fields are confirmed working, but a full pull/CSV/
+      paste → save round-trip hasn't been explicitly confirmed yet.
+- [ ] **Personnel auto-created on Team invite** (see G15a): invite a fresh test
       email from Settings → Team, accept it in another browser → that person should
       appear in Personnel automatically (name guessed from their email). Only applies to
       *new* invites accepted after 7/5/2026 — existing Team members were not backfilled.
