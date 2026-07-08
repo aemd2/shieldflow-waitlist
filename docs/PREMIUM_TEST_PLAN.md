@@ -233,14 +233,22 @@ chosen systems + quarter until edited; Reviewer defaults to the current user.
       pattern entirely with an optimistic-hide + "Deleted — Undo" toast, structurally
       immune to this bug class — see G16 in `PREMIUM_GAP_2.md`. ✅
 
-## 9 · Trust Center depth
+## 9 · Trust Center depth ✅ **tested** (7/8/2026)
 
-- [ ] Settings (owner) → enable Trust Center + add a couple of **Subprocessors**. ✅
-- [ ] Open `/trust/<your-slug>` in **incognito** → the **Subprocessors** section shows;
-      a **"Request our security package"** form is present. ✅
-- [ ] Submit the form (email + message) → success message; back in Settings → **Trust
-      Center access requests** lists it → **Approve/Decline** works. ✅
-- [ ] Spam the form > 5×/hour from one IP → **429** rate-limited. ✅
+- [x] Settings (owner) → **Trust Center** tab → enable Trust Center + add a couple of
+      **Subprocessors**. ✅ (slug `nameless`, Amazon Web Services added)
+- [x] Open `/trust/<your-slug>` in **incognito** → the **Subprocessors** section shows;
+      a **"Request our security package"** form is present. ✅ (score ring, ISO 27001
+      progress bar, published policy, subprocessor, and the form all rendered correctly)
+- [x] Submit the form (email + message) → success message; back in Settings → **Trust
+      Center access requests** lists it → **Approve/Decline** works. ✅ **Bonus, found +
+      fixed during this pass:** there was no way to remove a request once approved/
+      declined — it sat in the list forever. Added a delete action (the RLS policy for
+      it already existed, unused) with the same optimistic-hide + undo-toast pattern as
+      access reviews. See `app/actions/trust.ts` / `TrustRequests.tsx`.
+- [x] Spam the form > 5×/hour from one IP → **429** rate-limited. ✅ (requests 1–5:
+      200 "Thanks — your request was sent…"; request 6: 429 "Too many requests. Try
+      again later.")
 
 ## 10 · Personnel roster ✅ **mostly tested** (7/8/2026)
 
