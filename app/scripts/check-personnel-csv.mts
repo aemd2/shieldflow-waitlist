@@ -94,6 +94,26 @@ console.log("09-international.csv");
   check("Position header -> role", rows[2]?.role_title === "Designerin", rows[2]);
 }
 
+console.log("multilingual headers (mostly NOT in the alias list — content detection)");
+{
+  const turkish = parsePersonnelCsv(
+    "Ad,Soyad,E-posta,Pozisyon\nMehmet,Yılmaz,mehmet.yilmaz@acme.com,Mühendis",
+  );
+  check("Turkish Ad/Soyad joined", turkish[0]?.name === "Mehmet Yılmaz" && turkish[0]?.role_title === "Mühendis", turkish);
+  const french = parsePersonnelCsv(
+    "Prénom,Nom,Courriel\nÉlodie,Dubois,elodie.dubois@acme.fr",
+  );
+  check("French Prénom/Nom pairing (Nom = surname, not full name)", french[0]?.name === "Élodie Dubois", french);
+  const japanese = parsePersonnelCsv(
+    "氏名,メールアドレス,役職\n田中太郎,tanaka@acme.co.jp,エンジニア",
+  );
+  check("Japanese headers dropped via content detection", japanese.length === 1 && japanese[0]?.name === "田中太郎", japanese);
+  const spanish = parsePersonnelCsv(
+    "Nombre completo,Correo electrónico,Puesto\nMaría José López,maria.lopez@acme.es,Ingeniera",
+  );
+  check("Spanish long headers via content detection", spanish[0]?.name === "María José López" && spanish[0]?.role_title === "Ingeniera", spanish);
+}
+
 console.log("paste-style inputs (same parser)");
 {
   const tabbed = parsePersonnelCsv("Alice Doe\talice@acme.com\tEngineer\nBob Lee\tbob@acme.com\tDesigner");

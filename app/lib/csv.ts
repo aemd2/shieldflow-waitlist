@@ -111,17 +111,26 @@ function sniffDelimiter(lines: string[]): string {
 // The alias list is an accelerator, not the decider — content-based detection
 // below handles headers in languages this list has never heard of.
 const HEADER_ALIASES: Record<string, "name" | "first" | "last" | "email" | "role" | "started" | "ignore"> = {
-  // name
+  // name — note: several of these mean *surname* when they appear NEXT TO a
+  // first-name column (French Nom, German Name, Italian Nome, Turkish Ad);
+  // the pairing rules after header mapping resolve that.
   name: "name", fullname: "name", employeename: "name", employee: "name",
-  nom: "name", nombre: "name", име: "name", имя: "name",
+  nom: "name", nombre: "name", nome: "name", naam: "name", ad: "name",
+  име: "name", имя: "name",
   // first / last (joined)
   firstname: "first", givenname: "first", vorname: "first", prénom: "first", prenom: "first",
+  voornaam: "first", imię: "first", imie: "first",
   lastname: "last", surname: "last", familyname: "last", nachname: "last",
+  cognome: "last", soyad: "last", achternaam: "last", apellido: "last", apellidos: "last",
+  sobrenome: "last", nazwisko: "last", фамилия: "last",
   // email
   email: "email", "e-mail": "email", mail: "email", emailaddress: "email",
   workemail: "email", courriel: "email", correo: "email", имейл: "email", почта: "email",
+  eposta: "email",
   // role
   role: "role", roletitle: "role", title: "role", jobtitle: "role", position: "role",
+  pozisyon: "role", functie: "role", ruolo: "role", cargo: "role", stanowisko: "role",
+  puesto: "role", funktion: "role", длъжност: "role", должность: "role",
   // started_at
   started: "started", startedat: "started", startdate: "started", hiredate: "started", joined: "started",
   // known noise — mapped to nothing instead of polluting name
@@ -223,6 +232,16 @@ export function parsePersonnelCsv(csvText: string): ParsedPersonnelRow[] {
   if (aliasHits >= 1 && aliasHits >= Math.ceil(headerCells.filter(Boolean).length / 2)) {
     // Recognized header row (at least half the non-empty cells are known names).
     roles = grid[0].map((c) => HEADER_ALIASES[normalizeHeader(c)] ?? "ignore");
+    // Pairing rules: many languages label the surname column with their word
+    // for "name" — French Prénom/Nom, German Vorname/Name, Turkish Ad/Soyad,
+    // Italian Nome/Cognome. When a first-name column exists, a "name" column
+    // is the surname (and vice versa) — otherwise the given name would be
+    // silently dropped in favor of the surname-as-full-name.
+    if (roles.includes("first") && roles.includes("name") && !roles.includes("last")) {
+      roles = roles.map((r) => (r === "name" ? "last" : r));
+    } else if (roles.includes("last") && roles.includes("name") && !roles.includes("first")) {
+      roles = roles.map((r) => (r === "name" ? "first" : r));
+    }
     dataStart = 1;
   } else {
     // No recognizable header — classify columns by their content.
