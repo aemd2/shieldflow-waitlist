@@ -1,0 +1,7 @@
+name,email,role_title
+=SUM(1+1),formula@acme.com,Engineer
++CMD|'/c calc'!A1,cmd@acme.com,Manager
+-2+3+cmd|' /c calc'!A0,minus@acme.com,Analyst
+@SUM(A1:A10),at@acme.com,Director
+<script>alert(1)</script>,xss@acme.com,Tester
+Robert'); DROP TABLE personnel;--,sql@acme.com,DBA

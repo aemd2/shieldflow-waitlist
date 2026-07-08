@@ -1,0 +1,6 @@
+name,email,role_title,started_at
+Short Row,short@acme.com
+Long Row,long@acme.com,Engineer,2026-01-01,extra1,extra2,extra3
+Exact Row,exact@acme.com,Manager,2026-02-01
+,,,
+Only Comma,,,

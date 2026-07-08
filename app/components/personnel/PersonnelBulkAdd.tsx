@@ -124,24 +124,52 @@ export function PersonnelBulkAdd({
     });
   }
 
+  const MAX_FILES = 20; // guards the browser tab, not Supabase — see note below
+
+  // Files are read and parsed one at a time (not Promise.all) — gentler on
+  // the server action's own DB lookup (companyOrError) than a burst of
+  // concurrent requests, and keeps errors attributable to a specific file.
+  // None of this touches Supabase writes: parsing is pure in-memory, and the
+  // actual insert happens once, later, when "Add N people" is clicked — so
+  // uploading many files doesn't add load to a free-tier project any more
+  // than uploading one big one would.
   function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    start(async () => {
-      const text = await file.text().catch(() => null);
-      if (text == null) {
-        toast("error", "Couldn't read that file.");
-        if (inputRef.current) inputRef.current.value = "";
-        return;
-      }
-      const res = await parseUploadedPersonnelCsv(text).catch(() => ({ error: NETWORK }));
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    if (files.length > MAX_FILES) {
+      toast("error", `Pick up to ${MAX_FILES} files at a time.`);
       if (inputRef.current) inputRef.current.value = "";
-      if (!res || "error" in res) {
-        toast("error", res?.error ?? NETWORK);
-        return;
+      return;
+    }
+    start(async () => {
+      let totalRows = 0;
+      const fileErrors: string[] = [];
+      for (const file of files) {
+        const text = await file.text().catch(() => null);
+        if (text == null) {
+          fileErrors.push(`${file.name}: couldn't read this file`);
+          continue;
+        }
+        const res = await parseUploadedPersonnelCsv(text).catch(() => ({ error: NETWORK }));
+        if (!res || "error" in res) {
+          fileErrors.push(`${file.name}: ${res?.error ?? NETWORK}`);
+          continue;
+        }
+        setRows((prev) => [...prev, ...res.rows]);
+        totalRows += res.rows.length;
       }
-      setRows((prev) => [...prev, ...res.rows]);
-      toast("success", `Loaded ${res.rows.length} rows from the file`);
+      if (inputRef.current) inputRef.current.value = "";
+
+      if (totalRows > 0) {
+        toast(
+          "success",
+          `Loaded ${totalRows} row${totalRows === 1 ? "" : "s"} from ${files.length - fileErrors.length} file${files.length - fileErrors.length === 1 ? "" : "s"}`,
+        );
+      }
+      // Show up to 3 file-specific errors; a 4th+ just gets summarized so one
+      // bad batch of files can't wallpaper the screen with toasts.
+      fileErrors.slice(0, 3).forEach((msg) => toast("error", msg));
+      if (fileErrors.length > 3) toast("error", `...and ${fileErrors.length - 3} more file(s) failed`);
     });
   }
 
@@ -226,7 +254,7 @@ export function PersonnelBulkAdd({
             Pull from {p.label}
           </Button>
         ))}
-        <input ref={inputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={onUpload} disabled={pending} />
+        <input ref={inputRef} type="file" accept=".csv,text/csv" multiple className="hidden" onChange={onUpload} disabled={pending} />
         <Button
           type="button"
           variant="outline"
@@ -234,7 +262,7 @@ export function PersonnelBulkAdd({
           loading={pending && !pulling}
           leftIcon={<Upload className="h-3.5 w-3.5" />}
         >
-          Upload CSV
+          Upload CSV(s)
         </Button>
         <button type="button" onClick={downloadTemplate} className="text-xs text-muted-foreground underline hover:text-foreground">
           Download template

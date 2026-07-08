@@ -1,0 +1,5 @@
+name,email,role_title
+Test User,Test@Acme.com,Engineer
+Test User Two,test@acme.com,Manager
+Test User Three,TEST@ACME.COM,Director
+Existing Founder,AEMD2DONCHEV@GMAIL.COM,Should be flagged already-in-personnel
