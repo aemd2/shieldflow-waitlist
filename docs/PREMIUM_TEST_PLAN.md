@@ -49,10 +49,16 @@ the result you should see.** Anything else = a bug; note it and tell me.
 - [x] **Dashboard:** the "Automated monitoring" card shows passing/failing/inconclusive
       counts; failing checks appear in Monitoring & alerts. ✅ (0 passing / 2 failing,
       both surfaced under Monitoring & alerts)
-- [ ] **Continuous cron (1.4):** with `CRON_SECRET` set, run
+- [x] **Continuous cron (1.4):** with `CRON_SECRET` set, run
       `curl -X POST https://<host>/api/cron/sync -H "Authorization: Bearer <CRON_SECRET>"`
       → JSON `{ ok, companies, integrations, synced, drift, … }`. Without the header →
-      **401**. Not yet run.
+      **401**. ✅ **tested** (7/7/2026 — no header → `{"error":"unauthorized"}`; with the
+      secret → `{"ok":true,"companies":1,"integrations":6,"synced":6,"drift":0,
+      "failing":0,"errors":0}`. `integrations: 6` is correct, not a shortfall — it's
+      exactly `SYNCABLE_PROVIDERS` (aws, github, okta, gcp, cloudflare, gitlab) in
+      `lib/integration-sync.ts`; Slack/Jira/Linear/Google Workspace are intentionally
+      excluded (no pass/fail security signal to monitor — see the `EVALUATORS` comment
+      in `lib/checks.ts`), not a bug or gap.)
 - [ ] Flip a setting on the provider (e.g. make a repo public / disable a policy), run
       the cron **twice** → a member gets an **"Automated monitoring update"** drift
       notification. Not yet run.
