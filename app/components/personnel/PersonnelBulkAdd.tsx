@@ -14,6 +14,7 @@ import {
 } from "@/app/actions/personnel";
 import type { RosterProviderInfo } from "@/app/actions/access-reviews";
 import { PERSONNEL_CSV_TEMPLATE, personnelBulkRowSchema } from "@/lib/validation";
+import { parsePersonnelCsv } from "@/lib/csv";
 
 const NETWORK = "Network problem — check your connection and try again.";
 
@@ -21,15 +22,6 @@ interface DraftPerson {
   name: string;
   email: string;
   role_title: string;
-}
-
-/** Parse a pasted "name, email, role" line — comma, tab, or pipe separated,
- * matching the roster-paste convention used elsewhere in this app. */
-function parsePersonLine(line: string): DraftPerson | null {
-  const parts = line.split(/\t|,|\|/).map((p) => p.trim());
-  const [name, email = "", role_title = ""] = parts;
-  if (!name) return null;
-  return { name, email, role_title };
 }
 
 function downloadTemplate() {
@@ -42,13 +34,21 @@ function downloadTemplate() {
   URL.revokeObjectURL(url);
 }
 
+/** NFC + locale-lowercase so "José"/"José" (composed vs decomposed) and case
+ * variants compare equal when looking for duplicate names. */
+function normName(name: string): string {
+  return name.normalize("NFC").toLocaleLowerCase().trim();
+}
+
 export function PersonnelBulkAdd({
   rosterProviders,
   existingEmails = [],
+  existingNames = [],
   onDone,
 }: {
   rosterProviders: RosterProviderInfo[];
   existingEmails?: string[];
+  existingNames?: string[];
   onDone: () => void;
 }) {
   const router = useRouter();
@@ -61,8 +61,39 @@ export function PersonnelBulkAdd({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const existingSet = new Set(existingEmails.map((e) => e.toLowerCase()));
+  const existingNameSet = new Set(existingNames.map(normName));
   const isDuplicate = (r: DraftPerson) => Boolean(r.email) && existingSet.has(r.email.toLowerCase());
+
+  // In-batch email duplicates: the 2nd+ occurrence of an email in the draft
+  // list is flagged and excluded — covers pulling from Okta twice, or a CSV
+  // that overlaps a paste. First occurrence stays addable.
+  const inBatchDupeIdx = new Set<number>();
+  {
+    const seen = new Set<string>();
+    rows.forEach((r, i) => {
+      const e = r.email.trim().toLowerCase();
+      if (!e) return;
+      if (seen.has(e)) inBatchDupeIdx.add(i);
+      else seen.add(e);
+    });
+  }
+
+  // Duplicate-name soft warning (never blocks — legit namesakes exist): same
+  // normalized name elsewhere in the batch, or already in Personnel, when the
+  // row has no email to disambiguate it.
+  const nameCounts = new Map<string, number>();
+  for (const r of rows) {
+    const n = normName(r.name);
+    if (n) nameCounts.set(n, (nameCounts.get(n) ?? 0) + 1);
+  }
+  const nameWarning = (r: DraftPerson) => {
+    if (r.email) return false;
+    const n = normName(r.name);
+    return Boolean(n) && ((nameCounts.get(n) ?? 0) > 1 || existingNameSet.has(n));
+  };
+
   const dupeCount = rows.filter(isDuplicate).length;
+  const inBatchDupeCount = inBatchDupeIdx.size;
 
   // Secureframe's bulk-import shows validation errors inline and lets you fix
   // a cell in place before committing, rather than silently rejecting or
@@ -71,7 +102,9 @@ export function PersonnelBulkAdd({
     const parsed = personnelBulkRowSchema.safeParse({ ...r, started_at: "" });
     return parsed.success ? null : (parsed.error.issues[0]?.message ?? "Fix this row");
   }
-  const invalidCount = rows.filter((r) => !isDuplicate(r) && rowError(r) !== null).length;
+  const addable = (r: DraftPerson, idx: number) =>
+    !isDuplicate(r) && !inBatchDupeIdx.has(idx) && rowError(r) === null;
+  const invalidCount = rows.filter((r, i) => !isDuplicate(r) && !inBatchDupeIdx.has(i) && rowError(r) !== null).length;
 
   function updateRow(idx: number, patch: Partial<DraftPerson>) {
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
@@ -112,8 +145,19 @@ export function PersonnelBulkAdd({
     });
   }
 
+  // Paste and upload share the same column-detecting parser (lib/csv.ts) —
+  // "email, name" order, tab-separated Excel copies, and non-English headers
+  // all map the same way in both paths.
+  function parseDraftLines(text: string): DraftPerson[] {
+    return parsePersonnelCsv(text).map((r) => ({
+      name: r.name,
+      email: r.email,
+      role_title: r.role_title,
+    }));
+  }
+
   function applyPaste() {
-    const parsed = pasteText.split("\n").map((l) => l.trim()).filter(Boolean).map(parsePersonLine).filter((p): p is DraftPerson => p !== null);
+    const parsed = parseDraftLines(pasteText);
     if (parsed.length === 0) return;
     setRows((prev) => [...prev, ...parsed]);
     setPasteText("");
@@ -125,7 +169,7 @@ export function PersonnelBulkAdd({
     const text = e.clipboardData.getData("text");
     if (!text.includes("\n")) return;
     e.preventDefault();
-    const parsed = text.split("\n").map((l) => l.trim()).filter(Boolean).map(parsePersonLine).filter((p): p is DraftPerson => p !== null);
+    const parsed = parseDraftLines(text);
     if (parsed.length === 0) return;
     setRows((prev) => [...prev, ...parsed]);
     toast("success", `Added ${parsed.length} ${parsed.length === 1 ? "row" : "rows"}`);
@@ -141,7 +185,7 @@ export function PersonnelBulkAdd({
   // Invalid rows are excluded the same way — fix them inline instead, or
   // they're left in the list (not added) so nothing is lost silently.
   function save() {
-    const toAdd = rows.filter((r) => !isDuplicate(r) && rowError(r) === null);
+    const toAdd = rows.filter((r, i) => addable(r, i));
     if (toAdd.length === 0) {
       return toast(
         "error",
@@ -151,10 +195,12 @@ export function PersonnelBulkAdd({
     start(async () => {
       const res = await createPeopleBulk({ people: toAdd }).catch(() => ({ error: NETWORK }));
       if (res?.error) return toast("error", res.error);
-      const skipped = rows.length - toAdd.length;
+      const added = "count" in res && typeof res.count === "number" ? res.count : toAdd.length;
+      const serverSkipped = "skipped" in res && typeof res.skipped === "number" ? res.skipped : 0;
+      const skipped = rows.length - toAdd.length + serverSkipped;
       toast(
         "success",
-        `Added ${toAdd.length} ${toAdd.length === 1 ? "person" : "people"}` +
+        `Added ${added} ${added === 1 ? "person" : "people"}` +
           (skipped > 0 ? ` (${skipped} skipped — duplicate or needs a fix)` : ""),
       );
       onDone();
@@ -201,18 +247,22 @@ export function PersonnelBulkAdd({
           value={pasteText}
           onChange={(e) => setPasteText(e.target.value)}
           onPaste={handlePaste}
-          placeholder={"Paste a whole list at once — one per line:\nAlice Doe, alice@acme.com, Engineer\nBob Lee, bob@acme.com, Designer"}
+          placeholder={"Paste a whole list at once — one per line, any column order:\nAlice Doe, alice@acme.com, Engineer\nbob@acme.com, Bob Lee"}
         />
         <Button type="button" variant="outline" onClick={applyPaste}>Add</Button>
       </div>
 
       {rows.length > 0 && (
         <>
-          {(dupeCount > 0 || invalidCount > 0) && (
+          {(dupeCount > 0 || inBatchDupeCount > 0 || invalidCount > 0) && (
             <p className="text-xs text-muted-foreground">
-              {dupeCount > 0 && `${dupeCount} already in Personnel`}
-              {dupeCount > 0 && invalidCount > 0 && " · "}
-              {invalidCount > 0 && `${invalidCount} need${invalidCount === 1 ? "s" : ""} a fix`}
+              {[
+                dupeCount > 0 ? `${dupeCount} already in Personnel` : null,
+                inBatchDupeCount > 0 ? `${inBatchDupeCount} duplicate${inBatchDupeCount === 1 ? "" : "s"} in this list` : null,
+                invalidCount > 0 ? `${invalidCount} need${invalidCount === 1 ? "s" : ""} a fix` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
               {" — click "}
               <Pencil className="inline h-3 w-3 align-text-top" /> to edit a row in place before adding.
             </p>
@@ -220,7 +270,9 @@ export function PersonnelBulkAdd({
           <ul className="max-h-72 space-y-1 overflow-y-auto text-sm">
             {rows.map((r, idx) => {
               const dupe = isDuplicate(r);
-              const error = !dupe ? rowError(r) : null;
+              const batchDupe = !dupe && inBatchDupeIdx.has(idx);
+              const error = !dupe && !batchDupe ? rowError(r) : null;
+              const softNameWarning = !dupe && !batchDupe && !error && nameWarning(r);
 
               if (editingIdx === idx) {
                 return (
@@ -246,14 +298,18 @@ export function PersonnelBulkAdd({
               return (
                 <li
                   key={idx}
-                  className={`flex items-center justify-between gap-2 rounded px-3 py-2 ${error ? "bg-destructive/10" : dupe ? "bg-warning-muted" : "bg-secondary"}`}
+                  className={`flex items-center justify-between gap-2 rounded px-3 py-2 ${error ? "bg-destructive/10" : dupe || batchDupe ? "bg-warning-muted" : "bg-secondary"}`}
                 >
                   <span className="min-w-0 truncate">
                     <span className="font-medium text-foreground">{r.name || "(no name)"}</span>
                     {r.email && <span className="text-muted-foreground"> · {r.email}</span>}
                     {r.role_title && <span className="text-muted-foreground"> · {r.role_title}</span>}
                     {dupe && <span className="ml-2 text-xs font-medium text-warning">Already in Personnel</span>}
+                    {batchDupe && <span className="ml-2 text-xs font-medium text-warning">Duplicate in this list</span>}
                     {error && <span className="ml-2 text-xs font-medium text-destructive">{error}</span>}
+                    {softNameWarning && (
+                      <span className="ml-2 text-xs text-muted-foreground">possible duplicate name</span>
+                    )}
                   </span>
                   <span className="flex shrink-0 items-center gap-1">
                     <button type="button" onClick={() => setEditingIdx(idx)} className="text-muted-foreground hover:text-foreground" title="Edit">
@@ -273,7 +329,7 @@ export function PersonnelBulkAdd({
       <div className="flex gap-2">
         <Button onClick={save} loading={pending} leftIcon={<UserPlus className="h-4 w-4" />}>
           {(() => {
-            const n = rows.filter((r) => !isDuplicate(r) && rowError(r) === null).length;
+            const n = rows.filter((r, i) => addable(r, i)).length;
             return `Add ${n > 0 ? n : ""} ${n === 1 ? "person" : "people"}`;
           })()}
         </Button>

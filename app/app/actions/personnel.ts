@@ -9,7 +9,7 @@ import { logEvent } from "@/lib/audit";
 import { personnelSchema, personnelBulkCreateSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { decryptSecret, encryptIfConfigured } from "@/lib/crypto";
-import { parsePersonnelCsv } from "@/lib/csv";
+import { parsePersonnelCsv, nameFromEmail } from "@/lib/csv";
 import { fetchUsersRaw as fetchOktaUsersRaw, OktaError } from "@/lib/okta";
 import { fetchWorkspaceUsers, refreshAccessToken, GoogleError } from "@/lib/google";
 import type { RosterProvider } from "@/app/actions/access-reviews";
@@ -58,17 +58,6 @@ export async function createPerson(input: unknown) {
   await logEvent(res.supabase, res.company.id, "personnel.created", { type: "personnel", label: parsed.data.name });
   revalidatePath("/personnel");
   return { ok: true };
-}
-
-/** "alice.smith" -> "Alice Smith" — same placeholder-name derivation used
- * when a Team invite creates a Personnel row with no real name available. */
-function nameFromEmail(email: string): string {
-  const local = email.split("@")[0] ?? email;
-  return local
-    .split(/[._+]/)
-    .filter(Boolean)
-    .map((s) => s[0].toUpperCase() + s.slice(1))
-    .join(" ");
 }
 
 /**
@@ -160,6 +149,11 @@ export async function parseUploadedPersonnelCsv(csvText: string) {
   if (typeof csvText !== "string") return { error: "Invalid file." };
   if (csvText.length === 0) return { error: "That file is empty." };
   if (csvText.length > MAX_CSV_BYTES) return { error: "That file is too large (max 512KB)." };
+  // .xlsx is a ZIP archive — file.text() of one starts with "PK". Catch it
+  // with a useful message instead of the generic "no rows found".
+  if (csvText.startsWith("PK")) {
+    return { error: "That's an Excel file — in Excel use File → Save As → CSV, then upload the .csv." };
+  }
 
   const res = await companyOrError();
   if ("error" in res) return { error: res.error };
@@ -171,7 +165,11 @@ export async function parseUploadedPersonnelCsv(csvText: string) {
   return { ok: true as const, rows };
 }
 
-/** Insert many personnel rows at once — the bulk-add form's Save action. */
+/** Insert many personnel rows at once — the bulk-add form's Save action.
+ * Defense in depth: dedupes by email within the payload AND against people
+ * already in Personnel, so duplicates can't slip in even if the client-side
+ * filtering is bypassed. Rows without an email have no stable key — inserted
+ * as-is (name-only namesakes are legitimate). */
 export async function createPeopleBulk(input: unknown) {
   const parsed = personnelBulkCreateSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid people data." };
@@ -179,22 +177,49 @@ export async function createPeopleBulk(input: unknown) {
   const res = await companyOrError();
   if ("error" in res) return { error: res.error };
 
-  const rows = parsed.data.people.map((p) => ({
-    company_id: res.company.id,
-    name: p.name,
-    email: p.email || null,
-    role_title: p.role_title || null,
-    started_at: p.started_at || null,
-  }));
+  const { data: existing } = await res.supabase
+    .from("personnel")
+    .select("email")
+    .eq("company_id", res.company.id)
+    .not("email", "is", null);
+  const taken = new Set((existing ?? []).map((r) => String(r.email).toLowerCase()));
+
+  let skipped = 0;
+  const rows: Array<{
+    company_id: string;
+    name: string;
+    email: string | null;
+    role_title: string | null;
+    started_at: string | null;
+  }> = [];
+  for (const p of parsed.data.people) {
+    const email = (p.email || "").toLowerCase();
+    if (email) {
+      if (taken.has(email)) {
+        skipped++;
+        continue;
+      }
+      taken.add(email); // also dedupes within this payload
+    }
+    rows.push({
+      company_id: res.company.id,
+      name: p.name,
+      email: p.email || null,
+      role_title: p.role_title || null,
+      started_at: p.started_at || null,
+    });
+  }
+  if (rows.length === 0) return { error: "Everyone in that list is already in Personnel." };
+
   const { error } = await res.supabase.from("personnel").insert(rows);
   if (error) return { error: "Could not add these people. Please try again." };
 
   await logEvent(res.supabase, res.company.id, "personnel.bulk_created", {
     type: "personnel",
-    metadata: { count: rows.length },
+    metadata: { count: rows.length, skipped },
   });
   revalidatePath("/personnel");
-  return { ok: true, count: rows.length };
+  return { ok: true, count: rows.length, skipped };
 }
 
 export async function updatePerson(id: string, input: unknown) {

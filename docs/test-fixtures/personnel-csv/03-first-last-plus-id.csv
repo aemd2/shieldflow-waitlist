@@ -1,0 +1,4 @@
+employee_id,first_name,last_name,work email,department
+10041,Erin,Malone,erin.malone@acme.com,Engineering
+10042,Frank,Ocean,frank.ocean@acme.com,Design
+10043,Grace,Hopper,grace.hopper@acme.com,Engineering

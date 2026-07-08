@@ -245,6 +245,7 @@ export function PersonnelManager({
         <PersonnelBulkAdd
           rosterProviders={rosterProviders}
           existingEmails={people.map((p) => p.email).filter((e): e is string => Boolean(e))}
+          existingNames={people.map((p) => p.name)}
           onDone={() => setBulkAdding(false)}
         />
       )}
