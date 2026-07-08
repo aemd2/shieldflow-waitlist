@@ -287,7 +287,17 @@ Sign in as **C (auditor)**:
 
 ---
 
-## 12 · SSO (Phase A) — app side
+## 12 · SSO (Phase A) — app side ⏭️ **deferred** (7/8/2026)
+
+> **Not testable right now, by design, not a bug:** confirmed via `mcp__supabase__get_organization`
+> that this project's org is on the **free plan** — SAML SSO is a **Supabase Pro** feature
+> ($25/mo). Rather than leave a half-working form live (it can never complete a real login
+> since no IdP can be registered on free tier), **Settings → Single sign-on now shows a
+> "Coming soon" card** instead of the live form — same visual pattern as Microsoft Entra
+> ID/365 on the Integrations page. **Nothing was deleted**: `SsoSettings.tsx`,
+> `actions/sso.ts`, `listSsoDomains`, and the `company_sso_domains` table are all untouched
+> and ready to wire back in once the org upgrades to Pro and a real IdP (e.g. the existing
+> Okta dev account) is registered. Un-skip this section then.
 
 The SAML connection itself must be registered in Supabase Auth (Pro) + an IdP first
 (see `docs/SSO_SCIM_PLAN.md`). The app side:

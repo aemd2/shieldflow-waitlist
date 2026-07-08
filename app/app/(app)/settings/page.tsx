@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { KeyRound, Clock } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import {
   getCompanyForUser,
@@ -8,7 +9,6 @@ import {
   listNotificationPrefs,
   listSubprocessors,
   listTrustAccessRequests,
-  listSsoDomains,
 } from "@/lib/db/queries";
 import { isStripeConfigured } from "@/lib/stripe";
 import { currentFoundingTier } from "@/lib/founding-server";
@@ -17,9 +17,9 @@ import { TeamSettings } from "@/components/settings/TeamSettings";
 import { NotificationPrefs } from "@/components/notifications/NotificationPrefs";
 import { SubprocessorManager } from "@/components/settings/SubprocessorManager";
 import { TrustRequests } from "@/components/settings/TrustRequests";
-import { SsoSettings } from "@/components/settings/SsoSettings";
 import { PlanCards } from "@/components/billing/PlanCards";
 import { FilterChips } from "@/components/ui/FilterChips";
+import { Badge } from "@/components/ui/Badge";
 import { PageShell, Alert } from "@/components/ui/page";
 
 // Settings is tabbed (the Vanta/Drata/Notion pattern: one Settings surface,
@@ -78,7 +78,7 @@ export default async function SettingsPage({
       {tab === "team" && <TeamTab supabase={supabase} companyId={company.id} ownerUserId={company.owner_user_id} currentUserId={user.id} isOwner={isOwner} />}
       {tab === "notifications" && <NotificationsTab supabase={supabase} userId={user.id} companyId={company.id} readOnly={isAuditor} />}
       {tab === "trust" && isOwner && <TrustTab supabase={supabase} companyId={company.id} companyName={company.name} />}
-      {tab === "sso" && isOwner && <SsoTab supabase={supabase} companyId={company.id} />}
+      {tab === "sso" && isOwner && <SsoTab />}
       {tab === "billing" && canManageBilling && <BillingTab supabase={supabase} companyId={company.id} />}
     </PageShell>
   );
@@ -157,9 +157,28 @@ async function TrustTab({
   );
 }
 
-async function SsoTab({ supabase, companyId }: { supabase: Supa; companyId: string }) {
-  const domains = await listSsoDomains(supabase, companyId).catch(() => []);
-  return <SsoSettings domains={domains} />;
+// Live SsoSettings/company_sso_domains/actions/sso.ts are all still in the
+// codebase, untouched — SAML SSO needs a Supabase Pro plan we're not on yet
+// (see docs/SSO_SCIM_PLAN.md), so this tab is gated to "coming soon" until
+// that upgrade happens, rather than exposing a form that can't complete a
+// real login round-trip.
+function SsoTab() {
+  return (
+    <div className="card space-y-2 opacity-70">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <KeyRound className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold text-foreground">Single sign-on (SSO)</h2>
+        </div>
+        <Badge variant="neutral" icon={<Clock className="h-3.5 w-3.5" />}>Coming soon</Badge>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Let your team sign in with your company&apos;s identity provider (Okta, Azure AD, Google
+        Workspace) instead of a separate password. Available on the Custom plan — reach out and
+        we&apos;ll get it set up for you.
+      </p>
+    </div>
+  );
 }
 
 async function BillingTab({ supabase, companyId }: { supabase: Supa; companyId: string }) {
