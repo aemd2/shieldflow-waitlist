@@ -108,3 +108,20 @@ export async function updateTrustRequestStatus(id: string, status: string) {
   revalidatePath("/settings");
   return { ok: true };
 }
+
+export async function deleteTrustRequest(id: string) {
+  if (!z.string().uuid().safeParse(id).success) return { error: "Invalid request." };
+
+  const res = await companyOrError();
+  if ("error" in res) return { error: res.error };
+
+  const { error } = await res.supabase
+    .from("trust_access_requests")
+    .delete()
+    .eq("company_id", res.company.id)
+    .eq("id", id);
+  if (error) return { error: "Could not delete." };
+
+  revalidatePath("/settings");
+  return { ok: true };
+}

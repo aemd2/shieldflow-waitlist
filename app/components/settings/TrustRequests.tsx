@@ -1,9 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Mail } from "lucide-react";
-import { updateTrustRequestStatus } from "@/app/actions/trust";
+import { Mail, Trash2 } from "lucide-react";
+import { updateTrustRequestStatus, deleteTrustRequest } from "@/app/actions/trust";
 import { useToast } from "@/components/ui/Toast";
 import { Badge } from "@/components/ui/Badge";
 import { ListCard, ListRow } from "@/components/ui/ListCard";
@@ -15,6 +15,11 @@ export function TrustRequests({ requests }: { requests: TrustAccessRequest[] }) 
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
+  // Optimistically hidden after a confirmed delete — same undo-toast pattern as
+  // access reviews (see AccessReviewWorkspace): no blocking confirm dialog, hide
+  // immediately, only actually delete once the 5s undo window passes.
+  const [deletedIds, setDeletedIds] = useState<string[]>([]);
+  const visibleRequests = requests.filter((r) => !deletedIds.includes(r.id));
 
   function setStatus(id: string, status: string) {
     start(async () => {
@@ -27,6 +32,35 @@ export function TrustRequests({ requests }: { requests: TrustAccessRequest[] }) 
     });
   }
 
+  function removeRequest(id: string) {
+    const req = requests.find((r) => r.id === id);
+    if (!req) return;
+
+    setDeletedIds((prev) => [...prev, id]);
+
+    let undone = false;
+    toast("success", `Removed request from ${req.email}`, {
+      label: "Undo",
+      onClick: () => {
+        undone = true;
+        setDeletedIds((prev) => prev.filter((x) => x !== id));
+      },
+    });
+
+    setTimeout(() => {
+      if (undone) return;
+      start(async () => {
+        const res = await deleteTrustRequest(id).catch(() => ({ error: NETWORK }));
+        if (res?.error) {
+          toast("error", res.error);
+          setDeletedIds((prev) => prev.filter((x) => x !== id)); // restore — the delete didn't actually happen
+        } else {
+          router.refresh();
+        }
+      });
+    }, 5000);
+  }
+
   return (
     <div className="card space-y-3">
       <div className="flex items-center gap-2">
@@ -37,11 +71,11 @@ export function TrustRequests({ requests }: { requests: TrustAccessRequest[] }) 
         People who requested your security package from the public Trust Center.
       </p>
 
-      {requests.length === 0 ? (
+      {visibleRequests.length === 0 ? (
         <p className="text-xs text-muted-foreground">No requests yet.</p>
       ) : (
         <ListCard>
-          {requests.map((r) => (
+          {visibleRequests.map((r) => (
             <ListRow key={r.id}>
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium text-foreground">{r.email}</div>
@@ -64,6 +98,14 @@ export function TrustRequests({ requests }: { requests: TrustAccessRequest[] }) 
                     </button>
                   </>
                 )}
+                <button
+                  onClick={() => removeRequest(r.id)}
+                  disabled={pending}
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  title="Remove request"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </div>
             </ListRow>
           ))}
