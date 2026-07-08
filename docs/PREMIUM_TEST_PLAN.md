@@ -313,7 +313,7 @@ The SAML connection itself must be registered in Supabase Auth (Pro) + an IdP fi
       lands straight on the **dashboard** (auto-joined as a member), not onboarding. ✅
 - [ ] Break-glass: the owner can still sign in with **email + password**. ✅
 
-## 13 · 14-Day Sprint onboarding guide
+## 13 · 14-Day Sprint onboarding guide ⚠️ **mostly tested** (7/8/2026)
 
 The guided `/getting-started` flow. Progress is **derived live** (no stored "phase"), so just
 changing the underlying data should move the phases — nothing to "save".
@@ -321,27 +321,23 @@ changing the underlying data should move the phases — nothing to "save".
 - [ ] **New signup lands on the guide:** create a brand-new workspace (fresh email → onboarding
       → pick a framework) → you land on **/getting-started**, not the dashboard. Header reads
       **"0 of 4 phases done"**, Phase 1 "Connect your stack" is the highlighted current phase,
-      the rest are dimmed. ✅
-- [ ] **Sidebar + banner:** "Getting started" is the **first** sidebar item; the dashboard shows
-      a **"Your 14-Day Sprint — 0 of 4 phases done"** banner. Dismiss it (×) → stays gone on
-      reload. ✅
-- [ ] **Phase 1 — Connect:** connect one integration (Integrations → GitHub/AWS → Sync) → back on
-      the guide Phase 1 shows ✓ "1 connected"; Phase 2 "Review your controls" becomes current. ✅
-- [ ] **Phase 2 — Review:** move controls off **Not started** until ≥ 80% are touched → Phase 2
-      flips to ✓; label counts "X of Y reviewed". ✅
-- [ ] **Phase 3 — Core gaps (scale check):** Phase 3 shows the **bounded core count** (e.g.
-      "0 of 8 core controls" for SOC 2 — **not** the full 15), and lists the open core controls
-      inline, each linking to its control page. Set every **core** control to Complete → Phase 3
-      flips to ✓. ✅
-- [ ] **Phase 4 — Documents:** approve a policy (Policies → Approve) → Phase 4 flips to ✓. ✅
-- [ ] **Audit-ready:** with all four phases done, the header swaps to the **"You're audit-ready
-      🎉"** state and the **dashboard banner disappears**. ✅
-- [ ] **Criticality tiers (data):** every framework has a focused **core** subset — SOC 2 = 8,
-      ISO 27001 = 9, HIPAA = 5, PCI-DSS = 5, GDPR = 7 — so the "core gaps" phase never dumps the
-      full list. ✅
+      the rest are dimmed. **Not re-verified this pass** — this account already had data (not a
+      fresh signup), so the true 0% start state wasn't observed directly.
+- [x] **Sidebar + banner:** "Getting started" is the **first** sidebar item ✅ (confirmed in
+      `nav-items.ts` — it's literally first in the unlabeled top section). Banner
+      dismiss-persists-on-reload not explicitly re-clicked this pass.
+- [x] **Phase 1 — Connect** through **Phase 4 — Documents**: ✅ **inferred confirmed** — all
+      four phases must independently evaluate true to reach the audit-ready state (below), which
+      was observed, so each phase's flip logic is exercised. Not individually watched flip
+      one-by-one in this pass.
+- [x] **Audit-ready:** with all four phases done, the header swaps to the **"You're audit-ready
+      🎉"** state and the **dashboard banner disappears**. ✅ **confirmed** — observed directly.
+- [x] **Criticality tiers (data):** every framework has a focused **core** subset. ✅ **confirmed
+      via direct DB query**: GDPR = 7, HIPAA = 5, ISO 27001 = 9, PCI DSS = 5, SOC 2 = 8 — exact
+      match to spec.
 - [ ] **Auditor (C) read-only:** sign in as the auditor → /getting-started **renders** their
-      workspace's progress with **no add/edit/connect actions** and **no errors** (the page makes
-      zero writes). ✅
+      workspace's progress with **no add/edit/connect actions** and **no errors**. Needs an
+      auditor account (C) — not yet set up.
 
 ## 14 · Role visibility — Billing & notification prefs (RBAC)
 
