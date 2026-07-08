@@ -34,7 +34,7 @@ the result you should see.** Anything else = a bug; note it and tell me.
 - [x] In-app works with no error when `RESEND_API_KEY` is unset. ✅ `RESEND_API_KEY` has
       since been added to `.env.local` — the email-delivery half is not yet re-verified.
 
-## 2 · Continuous control testing ✅ **tested** (7/3/2026 — GitHub)
+## 2 · Continuous control testing ✅ **tested** (7/3/2026 — GitHub; cron + drift 7/8/2026)
 
 - [x] **Checks visible (1.2):** open a control your integration maps to (e.g. an MFA /
       branch-protection control) → an **"Automated checks"** card shows pass/fail/
@@ -59,9 +59,16 @@ the result you should see.** Anything else = a bug; note it and tell me.
       `lib/integration-sync.ts`; Slack/Jira/Linear/Google Workspace are intentionally
       excluded (no pass/fail security signal to monitor — see the `EVALUATORS` comment
       in `lib/checks.ts`), not a bug or gap.)
-- [ ] Flip a setting on the provider (e.g. make a repo public / disable a policy), run
+- [x] Flip a setting on the provider (e.g. make a repo public / disable a policy), run
       the cron **twice** → a member gets an **"Automated monitoring update"** drift
-      notification. Not yet run.
+      notification. ✅ **tested** (7/8/2026 — hardened the connected Cloudflare zone for
+      real: SSL mode Flexible→Full, min TLS 1.0→1.2, Always Use HTTPS off→on. First cron
+      run after only the HTTPS toggle showed `drift: 0` — correct, not a bug: `cloudflare.tls`
+      in `checks.ts` requires all three conditions together, so one out of three doesn't
+      flip the verdict. After all three were set, re-ran cron → `drift: 1, failing: 0`
+      (a fail→pass recovery). Confirmed in the DB: 3 `notifications` rows, one per company
+      member, each "Automated monitoring update" / "1 automated check(s) recovered." —
+      correct fan-out per member, not a duplicate-notification bug.)
 
 ## 2b · Integrations — every connector, one by one
 
