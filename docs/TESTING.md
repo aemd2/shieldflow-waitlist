@@ -373,14 +373,19 @@ All alerts deep-link to the control/vendor they refer to.
 
 Stripe cannot POST to `localhost`. Checkout still activates your plan when you return — the billing page calls Stripe directly (`/billing?session_id=…`).
 
+> **7/8/2026:** Billing moved from its own page to **Settings → Billing**
+> (`/settings?tab=billing`). `/billing` still handles Stripe checkout/portal returns
+> (reconciles, then forwards to the tab), so the URLs below still work — you just land
+> on the Settings Billing tab instead of a standalone page.
+
 ### 8.1 Without keys
-1. Remove `STRIPE_SECRET_KEY` temporarily → `/billing`.
+1. Remove `STRIPE_SECRET_KEY` temporarily → Settings → **Billing** tab.
 2. ✅ Amber "Billing isn't configured" banner; cards visible but checkout disabled.
 
 ### 8.2 Subscribe (Starter)
-1. `/billing` → **Starter** → Stripe Checkout opens (€249/month).
+1. Settings → **Billing** tab → **Starter** → Stripe Checkout opens (€249/month).
 2. Card: `4242 4242 4242 4242`, any future expiry, any CVC.
-3. ✅ Redirect to `/billing?status=success&session_id=cs_…` → green success note → **Current plan: Starter — Active** within a few seconds.
+3. ✅ Redirect via `/billing?status=success&session_id=cs_…` lands on **Settings → Billing** → green success note → **Current plan: Starter — Active** within a few seconds.
 
 ### 8.3 Subscribe (Growth)
 1. Same flow with **Growth** (€599/month).
@@ -399,13 +404,13 @@ Stripe cannot POST to `localhost`. Checkout still activates your plan when you r
 
 ### 8.6 Abandoned checkout
 1. Start checkout → click Back in Stripe without paying.
-2. ✅ Land on `/billing?status=cancelled` — no error, plan unchanged, retry works.
+2. ✅ Land on Settings → Billing (via `/billing?status=cancelled`) — no error, plan unchanged, retry works.
 
 ### 8.7 Annual billing + founder discount
-1. On `/billing`, toggle **Annual** → ✅ Starter shows **€2,988 / year**, Growth **€7,188 / year**.
+1. On Settings → Billing, toggle **Annual** → ✅ Starter shows **€2,988 / year**, Growth **€7,188 / year**.
 2. Choose Starter (Annual) → ✅ Stripe Checkout shows the annual price and a **"Add promotion code"** field.
 3. Create a `FOUNDER40` coupon + promo code in Stripe (SETUP.md §4) → enter it at checkout → ✅ 40% is deducted before payment.
-4. Pay with `4242…` → ✅ back on `/billing` the plan activates (the stored plan is "Starter" regardless of interval).
+4. Pay with `4242…` → ✅ back on Settings → Billing the plan activates (the stored plan is "Starter" regardless of interval).
 
 ---
 
@@ -693,8 +698,8 @@ Logged in, with a company. Click each sidebar item:
 | `/copilot` | Chat UI + history |
 | `/vendors` | Vendor table + add form |
 | `/integrations` | Three live cards + four "Coming soon" |
-| `/billing` | Starter + Growth plan cards |
-| `/settings` | Trust Center toggle + slug |
+| `/billing` | Forwards to Settings → Billing tab (Starter + Growth plan cards) |
+| `/settings` | Tabbed: Team · Notifications · Trust Center · SSO · Billing |
 
 Also test logged out:
 
@@ -715,7 +720,7 @@ A fresh account should never show a blank or broken page. Right after onboarding
 | `/copilot` | "Ask the Co-Pilot anything about your compliance." + clickable suggestion chips |
 | `/vendors` | "No vendors yet. Add the third-party services your company relies on." |
 | `/dashboard` | Score 0%, all stats 0, an info **"Framework below target"** alert (a fresh framework at 0% — not a blank panel) |
-| `/billing` | Both plan cards shown, no "current plan" badge |
+| Settings → Billing | Both plan cards shown, no "current plan" badge |
 | `/integrations` | Every card shows **Connect** / **Coming soon** — no stale data |
 
 ✅ None blank, none crash, none show a raw error.
@@ -1552,7 +1557,7 @@ As C (auditor), attempt each write **two ways**: (1) via the UI if any control i
 | D3.3f | Create / save / delete a **policy** | Generate card + Save/Delete hidden; crafted calls → blocked. |
 | D3.3g | **Connect / sync / disconnect** an integration | Forms hidden; crafted connect/sync → RLS blocks the `integrations` write (sync also can't write evidence or checks). No partial data is left behind. |
 | D3.3h | Change **Trust Center** settings | Owner-only UI; crafted `updateTrustSettings` → "read-only". |
-| D3.3i | **/billing** | Auditor is **redirected to /dashboard**; crafted `startCheckout`/`openBillingPortal` → "read-only". |
+| D3.3i | **/billing** or `/settings?tab=billing` | Auditor is **redirected to /dashboard** (route) / falls back to the Team tab (settings); crafted `startCheckout`/`openBillingPortal` → "read-only". |
 | D3.3j | Create an **invite** / remove a member | Not owner → blocked at the action **and** RLS (`invites_insert` is owner-only). |
 
 **Direct-RLS proof (do this once, it's the whole ballgame):** impersonate the auditor in SQL and try to write every member-table — all must fail or affect **0 rows**:

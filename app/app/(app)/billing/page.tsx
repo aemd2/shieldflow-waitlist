@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { getCompanyForUser, getSubscription, getCallerAccess } from "@/lib/db/queries";
-import { isStripeConfigured } from "@/lib/stripe";
+import { getCompanyForUser, getCallerAccess } from "@/lib/db/queries";
 import { reconcileCheckout, reconcilePortalReturn } from "@/lib/billing-sync";
-import { currentFoundingTier } from "@/lib/founding-server";
-import { PlanCards } from "@/components/billing/PlanCards";
-import { PageShell, Alert } from "@/components/ui/page";
 
+// Billing now lives at Settings → Billing (?tab=billing) — competitors (Vanta,
+// Drata, Secureframe, Notion, Linear) all fold billing into Settings rather
+// than giving it a top-level nav slot. This route stays for two reasons:
+// Stripe checkout/portal return URLs point here, and old links/bookmarks.
+// It reconciles the Stripe state, then forwards to the Settings tab.
 export default async function BillingPage({
   searchParams,
 }: {
@@ -20,7 +21,7 @@ export default async function BillingPage({
   if (!company) redirect("/onboarding");
 
   // Billing is an owner/admin surface only — members and auditors can't see or
-  // change plans (the nav hides it for them too; this is the server-side gate).
+  // change plans (this is the server-side gate; the Settings tab hides it too).
   const access = await getCallerAccess(supabase, company.id, user.id);
   if (access?.role !== "owner" && access?.role !== "admin") redirect("/dashboard");
 
@@ -35,31 +36,8 @@ export default async function BillingPage({
     await reconcilePortalReturn(company.id);
   }
 
-  const subscription = await getSubscription(supabase, company.id).catch(() => null);
-  // Only pitch the founding discount to companies that haven't subscribed yet —
-  // existing members already locked in their lifetime rate.
-  const founding = subscription ? null : await currentFoundingTier().catch(() => null);
-
-  return (
-    <PageShell
-      layout="stack"
-      title="Billing"
-      subtitle={`Plans for ${company.name}. Cancel anytime from the billing portal.`}
-      alert={
-        !isStripeConfigured() ? (
-          <Alert variant="warning">
-            Billing isn&apos;t configured yet — add Stripe test keys to enable checkout. The rest
-            of the app works normally.
-          </Alert>
-        ) : undefined
-      }
-    >
-      <PlanCards
-        currentPlan={subscription?.plan ?? null}
-        subscriptionStatus={subscription?.status ?? null}
-        stripeEnabled={isStripeConfigured()}
-        founding={founding}
-      />
-    </PageShell>
-  );
+  // Forward only the values we generate ourselves (success/cancelled) — the
+  // Billing tab's PlanCards shows its success note off this param.
+  const status = params.status === "success" || params.status === "cancelled" ? params.status : null;
+  redirect(status ? `/settings?tab=billing&status=${status}` : "/settings?tab=billing");
 }

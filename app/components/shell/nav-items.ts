@@ -6,7 +6,6 @@ import {
   FolderArchive,
   Building2,
   Plug,
-  CreditCard,
   Settings,
   ShieldAlert,
   GraduationCap,
@@ -68,24 +67,23 @@ const SECTIONS: NavSection[] = [
     items: [
       { href: "/integrations", label: "Integrations", icon: Plug },
       { href: "/activity", label: "Activity", icon: History },
-      { href: "/billing", label: "Billing", icon: CreditCard, ownerAdminOnly: true },
       { href: "/settings", label: "Settings", icon: Settings },
     ],
   },
 ];
 
-// Filter the nav for a role + sprint state. Billing is an owner/admin surface —
-// members and auditors never see it (the billing page enforces the same rule
-// server-side). "Getting started" drops out once the 14-Day Sprint is
+// Filter the nav for a role + sprint state. Billing has no nav slot — it lives
+// at Settings → Billing (owner/admin only, enforced server-side there and by
+// the /billing route). "Getting started" drops out once the 14-Day Sprint is
 // complete — it's an onboarding offer, not a permanent fixture; the guide
 // page itself stays reachable by URL, just not pinned in the nav anymore.
 export function visibleNavSections(role: NavRole | null, sprintReady = false): NavSection[] {
-  const canManageBilling = role === "owner" || role === "admin";
+  const isOwnerAdmin = role === "owner" || role === "admin";
   return SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
       if (item.href === "/getting-started" && sprintReady) return false;
-      return !item.ownerAdminOnly || canManageBilling;
+      return !item.ownerAdminOnly || isOwnerAdmin;
     }),
   })).filter((section) => section.items.length > 0);
 }

@@ -4,20 +4,44 @@ import {
   getCompanyForUser,
   getCallerAccess,
   getCompanyTeam,
+  getSubscription,
   listNotificationPrefs,
   listSubprocessors,
   listTrustAccessRequests,
   listSsoDomains,
 } from "@/lib/db/queries";
+import { isStripeConfigured } from "@/lib/stripe";
+import { currentFoundingTier } from "@/lib/founding-server";
 import { TrustSettings } from "@/components/settings/TrustSettings";
 import { TeamSettings } from "@/components/settings/TeamSettings";
 import { NotificationPrefs } from "@/components/notifications/NotificationPrefs";
 import { SubprocessorManager } from "@/components/settings/SubprocessorManager";
 import { TrustRequests } from "@/components/settings/TrustRequests";
 import { SsoSettings } from "@/components/settings/SsoSettings";
-import { PageShell } from "@/components/ui/page";
+import { PlanCards } from "@/components/billing/PlanCards";
+import { FilterChips } from "@/components/ui/FilterChips";
+import { PageShell, Alert } from "@/components/ui/page";
 
-export default async function SettingsPage() {
+// Settings is tabbed (the Vanta/Drata/Notion pattern: one Settings surface,
+// sections inside) instead of a single long stack. Billing lives here too —
+// competitors don't give it its own top-level nav slot. Tabs are role-gated
+// server-side: the chip row hides what you can't use, and a hand-typed
+// ?tab= for a forbidden section falls back to the default tab.
+const TABS = [
+  { key: "team", label: "Team" },
+  { key: "notifications", label: "Notifications" },
+  { key: "trust", label: "Trust Center", ownerOnly: true },
+  { key: "sso", label: "Single sign-on", ownerOnly: true },
+  { key: "billing", label: "Billing", ownerAdminOnly: true },
+] as const;
+
+type TabKey = (typeof TABS)[number]["key"];
+
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string; status?: string }>;
+}) {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -25,50 +49,138 @@ export default async function SettingsPage() {
   const company = await getCompanyForUser(supabase, user.id);
   if (!company) redirect("/onboarding");
 
+  const access = await getCallerAccess(supabase, company.id, user.id);
+  const isAuditor = access?.role === "auditor";
+  const isOwner = company.owner_user_id === user.id;
+  const canManageBilling = access?.role === "owner" || access?.role === "admin";
+
+  const visibleTabs = TABS.filter((t) => {
+    if ("ownerOnly" in t && t.ownerOnly && !isOwner) return false;
+    if ("ownerAdminOnly" in t && t.ownerAdminOnly && !canManageBilling) return false;
+    return true;
+  });
+
+  const params = await searchParams;
+  const requested = params.tab as TabKey | undefined;
+  const tab: TabKey = visibleTabs.some((t) => t.key === requested) ? requested! : "team";
+
+  return (
+    <PageShell layout="stack" title="Settings" subtitle={`Workspace settings for ${company.name}.`}>
+      <FilterChips
+        activeValue={tab}
+        items={visibleTabs.map((t) => ({
+          label: t.label,
+          value: t.key,
+          href: `/settings?tab=${t.key}`,
+        }))}
+      />
+
+      {tab === "team" && <TeamTab supabase={supabase} companyId={company.id} ownerUserId={company.owner_user_id} currentUserId={user.id} isOwner={isOwner} />}
+      {tab === "notifications" && <NotificationsTab supabase={supabase} userId={user.id} companyId={company.id} readOnly={isAuditor} />}
+      {tab === "trust" && isOwner && <TrustTab supabase={supabase} companyId={company.id} companyName={company.name} />}
+      {tab === "sso" && isOwner && <SsoTab supabase={supabase} companyId={company.id} />}
+      {tab === "billing" && canManageBilling && <BillingTab supabase={supabase} companyId={company.id} />}
+    </PageShell>
+  );
+}
+
+// Each tab fetches only its own data — switching tabs shouldn't pay for all five.
+type Supa = Awaited<ReturnType<typeof createServerSupabase>>;
+
+async function TeamTab({
+  supabase,
+  companyId,
+  ownerUserId,
+  currentUserId,
+  isOwner,
+}: {
+  supabase: Supa;
+  companyId: string;
+  ownerUserId: string;
+  currentUserId: string;
+  isOwner: boolean;
+}) {
+  const team = await getCompanyTeam(supabase, companyId).catch(() => ({ members: [], invites: [] }));
+  return (
+    <TeamSettings
+      isOwner={isOwner}
+      ownerUserId={ownerUserId}
+      currentUserId={currentUserId}
+      members={team.members}
+      invites={team.invites}
+    />
+  );
+}
+
+async function NotificationsTab({
+  supabase,
+  userId,
+  companyId,
+  readOnly,
+}: {
+  supabase: Supa;
+  userId: string;
+  companyId: string;
+  readOnly: boolean;
+}) {
+  const prefs = await listNotificationPrefs(supabase, userId, companyId).catch(() => []);
+  return <NotificationPrefs prefs={prefs} readOnly={readOnly} />;
+}
+
+async function TrustTab({
+  supabase,
+  companyId,
+  companyName,
+}: {
+  supabase: Supa;
+  companyId: string;
+  companyName: string;
+}) {
   // trust columns aren't in the Company interface — fetch them directly.
   const { data } = await supabase
     .from("companies")
     .select("trust_slug, trust_enabled")
-    .eq("id", company.id)
+    .eq("id", companyId)
     .maybeSingle();
-
-  const team = await getCompanyTeam(supabase, company.id).catch(() => ({
-    members: [],
-    invites: [],
-  }));
-  const notificationPrefs = await listNotificationPrefs(supabase, user.id, company.id).catch(() => []);
-  const access = await getCallerAccess(supabase, company.id, user.id);
-  const isAuditor = access?.role === "auditor";
-  const isOwner = company.owner_user_id === user.id;
-  const subprocessors = isOwner ? await listSubprocessors(supabase, company.id).catch(() => []) : [];
-  const trustRequests = isOwner ? await listTrustAccessRequests(supabase, company.id).catch(() => []) : [];
-  const ssoDomains = isOwner ? await listSsoDomains(supabase, company.id).catch(() => []) : [];
-
+  const subprocessors = await listSubprocessors(supabase, companyId).catch(() => []);
+  const trustRequests = await listTrustAccessRequests(supabase, companyId).catch(() => []);
   return (
-    <PageShell layout="stack" title="Settings" subtitle={`Workspace settings for ${company.name}.`}>
-      <TeamSettings
-        isOwner={isOwner}
-        ownerUserId={company.owner_user_id}
-        currentUserId={user.id}
-        members={team.members}
-        invites={team.invites}
+    <>
+      <TrustSettings
+        companyName={companyName}
+        initialSlug={(data?.trust_slug as string | null) ?? ""}
+        initialEnabled={Boolean(data?.trust_enabled)}
       />
+      <SubprocessorManager subprocessors={subprocessors} />
+      <TrustRequests requests={trustRequests} />
+    </>
+  );
+}
 
-      <NotificationPrefs prefs={notificationPrefs} readOnly={isAuditor} />
+async function SsoTab({ supabase, companyId }: { supabase: Supa; companyId: string }) {
+  const domains = await listSsoDomains(supabase, companyId).catch(() => []);
+  return <SsoSettings domains={domains} />;
+}
 
-      {/* Trust Center is an owner-only workspace setting (RLS enforces it too). */}
-      {isOwner && (
-        <>
-          <TrustSettings
-            companyName={company.name}
-            initialSlug={(data?.trust_slug as string | null) ?? ""}
-            initialEnabled={Boolean(data?.trust_enabled)}
-          />
-          <SubprocessorManager subprocessors={subprocessors} />
-          <TrustRequests requests={trustRequests} />
-          <SsoSettings domains={ssoDomains} />
-        </>
+async function BillingTab({ supabase, companyId }: { supabase: Supa; companyId: string }) {
+  const subscription = await getSubscription(supabase, companyId).catch(() => null);
+  // Only pitch the founding discount to companies that haven't subscribed yet —
+  // existing members already locked in their lifetime rate.
+  const founding = subscription ? null : await currentFoundingTier().catch(() => null);
+  return (
+    <>
+      {!isStripeConfigured() && (
+        <Alert variant="warning">
+          Billing isn&apos;t configured yet — add Stripe test keys to enable checkout. The rest of
+          the app works normally.
+        </Alert>
       )}
-    </PageShell>
+      <PlanCards
+        currentPlan={subscription?.plan ?? null}
+        subscriptionStatus={subscription?.status ?? null}
+        stripeEnabled={isStripeConfigured()}
+        founding={founding}
+      />
+    </>
   );
 }

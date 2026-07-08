@@ -330,18 +330,32 @@ changing the underlying data should move the phases — nothing to "save".
 Billing is an **owner/admin-only** surface; auditors are **fully read-only**, including their own
 notification preferences. Both rules are enforced **server-side**, not just hidden in the UI.
 
-- [ ] **Member can't see Billing:** sign in as a **member (B)** → **Billing** is absent from the
-      sidebar and the mobile menu. Visit `/billing` directly → redirected to the dashboard (no plan
-      data exposed). ✅
-- [ ] **Auditor can't see Billing:** same for the **auditor (C)** — no Billing in the nav, `/billing`
-      bounces to the dashboard. ✅
-- [ ] **Auditor notification prefs are read-only:** as **C**, Settings → **Notifications** → the
+> **Restructured 7/8/2026:** Billing no longer has its own sidebar item — it's now a
+> **tab inside Settings** (`/settings?tab=billing`), matching the pattern every surveyed
+> competitor uses (Vanta, Drata, Secureframe, Notion, Linear, Slack, Stripe: billing folds
+> into Settings, never a top-level nav slot). Settings itself is now tabbed: Team ·
+> Notifications · Trust Center · SSO · Billing, each tab role-gated server-side and only
+> fetching its own data. `/billing` still exists as the Stripe checkout/portal return
+> handler (reconciles, then forwards to the tab) and still bounces members/auditors to
+> the dashboard.
+
+- [ ] **Member can't see Billing:** sign in as a **member (B)** → no **Billing tab** on
+      the Settings page (Team + Notifications only). Visit `/billing` or
+      `/settings?tab=billing` directly → no plan data (redirected to dashboard / falls
+      back to the Team tab). ✅
+- [ ] **Auditor can't see Billing:** same for the **auditor (C)** — no Billing tab,
+      `/billing` bounces to the dashboard, `?tab=billing` falls back to Team. ✅
+- [ ] **Auditor notification prefs are read-only:** as **C**, Settings → **Notifications** tab → the
       in-app/email toggles are **disabled** and the panel reads "read-only for auditor access — you
       can't change notification settings." ✅
-- [ ] **Owner/admin unaffected:** as **A** (owner) or an **admin**, Billing is in the sidebar and
-      opens; notification toggles still flip and **persist across reload**. ✅
+- [ ] **Owner/admin unaffected:** as **A** (owner) or an **admin**, Settings shows all five tabs;
+      the Billing tab opens with plan cards; notification toggles still flip and **persist across
+      reload**. ✅
 - [ ] **Server-side enforcement (not just UI):** the member/auditor billing redirect and the auditor
       pref rejection both live on the server, so hand-crafting the request can't bypass them. ✅
+- [ ] **Stripe return flow still works:** complete a checkout → Stripe redirects to
+      `/billing?status=success&session_id=…` → plan reconciles → you land on
+      **Settings → Billing** with the green success note. ✅
 
 ## 15 · Control detail & list enrichment
 
