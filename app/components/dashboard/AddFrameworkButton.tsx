@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { addFramework } from "@/app/actions/frameworks";
@@ -37,6 +37,17 @@ export function AddFrameworkButton({
   const [pending, start] = useTransition();
   const [open, setOpen] = useState(false);
   const [choice, setChoice] = useState(available[0]?.id ?? "");
+
+  // `available` shrinks after each successful add (server props refresh via
+  // router.refresh()), but useState's initializer only runs once at mount —
+  // `choice` would otherwise keep pointing at a framework that's already
+  // been added. Self-heals only when the current choice is actually stale,
+  // so it doesn't yank a valid in-progress selection on unrelated re-renders.
+  useEffect(() => {
+    if (!available.some((f) => f.id === choice)) {
+      setChoice(available[0]?.id ?? "");
+    }
+  }, [available, choice]);
 
   if (!canManage) return null;
 
