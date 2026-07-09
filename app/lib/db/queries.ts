@@ -188,6 +188,18 @@ export async function listFrameworks(supabase: SupabaseClient): Promise<Framewor
   return data ?? [];
 }
 
+/** Global (not company-scoped) control counts per framework — for showing
+ * "adds ~N controls" before a company adds a framework it doesn't have yet. */
+export async function listControlCountsByFramework(supabase: SupabaseClient): Promise<Record<string, number>> {
+  const { data, error } = await supabase.from("controls").select("framework_id");
+  if (error) throw error;
+  const counts: Record<string, number> = {};
+  for (const row of (data ?? []) as { framework_id: string }[]) {
+    counts[row.framework_id] = (counts[row.framework_id] ?? 0) + 1;
+  }
+  return counts;
+}
+
 const CONTROL_SELECT =
   "status, owner_email, due_date, notes, controls(id, framework_id, code, title, description, category, criticality, guidance, suggested_evidence)";
 

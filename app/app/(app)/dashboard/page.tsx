@@ -5,6 +5,7 @@ import {
   getControlsWithStatus,
   listFrameworks,
   listSelectedFrameworkIds,
+  listControlCountsByFramework,
   listVendors,
   listRisks,
   listTraining,
@@ -23,6 +24,7 @@ import { computeAlerts } from "@/lib/monitoring";
 import { ScoreCard } from "@/components/dashboard/ScoreCard";
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
 import { ControlsExplorer } from "@/components/dashboard/ControlsExplorer";
+import { AddFrameworkButton } from "@/components/dashboard/AddFrameworkButton";
 import { SprintBanner } from "@/components/setup/SprintBanner";
 import { PageShell } from "@/components/ui/page";
 
@@ -34,11 +36,12 @@ export default async function DashboardPage() {
   const company = await getCompanyForUser(supabase, user.id);
   if (!company) redirect("/onboarding");
 
-  const [controls, allFrameworks, selectedIds, vendors, risks, training, checks, tasks, policies, policyAcks, memberCount, integrations, access] =
+  const [controls, allFrameworks, selectedIds, controlCounts, vendors, risks, training, checks, tasks, policies, policyAcks, memberCount, integrations, access] =
     await Promise.all([
       getControlsWithStatus(supabase, company.id),
       listFrameworks(supabase),
       listSelectedFrameworkIds(supabase, company.id),
+      listControlCountsByFramework(supabase).catch(() => ({}) as Record<string, number>),
       listVendors(supabase, company.id),
       listRisks(supabase, company.id),
       listTraining(supabase, company.id),
@@ -51,8 +54,12 @@ export default async function DashboardPage() {
       getCallerAccess(supabase, company.id, user.id),
     ]);
   const isAuditor = access?.role === "auditor";
+  const canManageFrameworks = access?.role === "owner" || access?.role === "admin";
 
   const frameworks = allFrameworks.filter((f) => selectedIds.includes(f.id));
+  const availableFrameworks = allFrameworks
+    .filter((f) => !selectedIds.includes(f.id))
+    .map((f) => ({ id: f.id, name: f.name, controlCount: controlCounts[f.id] ?? 0 }));
 
   const statuses = controls.map((c) => c.status);
   const score = computeScore(statuses);
@@ -141,6 +148,8 @@ export default async function DashboardPage() {
           ))}
         </div>
       )}
+
+      <AddFrameworkButton available={availableFrameworks} canManage={canManageFrameworks} />
 
       {checkResults.length > 0 && (
         <div className="card">

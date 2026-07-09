@@ -18,6 +18,11 @@ export const onboardingSchema = z.object({
   frameworkId: z.string().uuid("Pick a framework"),
 });
 
+// Adding a second (or third...) framework to an already-onboarded company.
+export const addFrameworkSchema = z.object({
+  frameworkId: z.string().uuid("Pick a framework"),
+});
+
 /** True only for a real calendar date (rejects 2024-02-30) in a sane range. */
 function isRealDate(s: string): boolean {
   const [y, m, d] = s.split("-").map(Number);
