@@ -4,6 +4,7 @@ import type { ControlWithStatus } from "@/lib/db/queries";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { CriticalityBadge } from "@/components/controls/CriticalityBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { groupControlsByCategory } from "@/lib/controls-order";
 
 const STATUS_LABEL: Record<string, { text: string; variant: BadgeVariant }> = {
   not_started: { text: "Not started", variant: "neutral" },
@@ -42,15 +43,11 @@ export function ControlList({
     return <EmptyState description="No controls match this filter." />;
   }
 
-  const byCategory = controls.reduce<Record<string, ControlWithStatus[]>>((acc, c) => {
-    const k = c.category ?? "Uncategorized";
-    (acc[k] ||= []).push(c);
-    return acc;
-  }, {});
+  const byCategory = groupControlsByCategory(controls);
 
   return (
     <div className="space-y-6">
-      {Object.entries(byCategory).map(([category, items]) => (
+      {Array.from(byCategory.entries()).map(([category, items]) => (
         <section key={category} className="card p-0">
           <div className="border-b border-border px-5 py-3 text-sm font-semibold text-foreground">
             {category}

@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import {
   getCompanyForUser,
@@ -9,8 +10,10 @@ import {
   getCallerAccess,
   listFrameworks,
   getCompanyTeam,
+  listControlOrderForCompany,
 } from "@/lib/db/queries";
 import type { ControlCheck } from "@/lib/db/queries";
+import { flattenControlOrder } from "@/lib/controls-order";
 import { StatusPicker } from "@/components/dashboard/StatusPicker";
 import { CriticalityBadge } from "@/components/controls/CriticalityBadge";
 import { ControlMetaForm } from "@/components/controls/ControlMetaForm";
@@ -37,13 +40,22 @@ export default async function ControlDetailPage({
   const control = await getControlWithStatus(supabase, company.id, id);
   if (!control) notFound();
 
-  const [evidence, checks, access, frameworks, team] = await Promise.all([
+  const [evidence, checks, access, frameworks, team, controlOrder] = await Promise.all([
     listEvidence(supabase, company.id, id),
     getChecksForControl(supabase, company.id, id),
     getCallerAccess(supabase, company.id, user.id),
     listFrameworks(supabase),
     getCompanyTeam(supabase, company.id).catch(() => ({ members: [], invites: [] })),
+    listControlOrderForCompany(supabase, company.id).catch(() => []),
   ]);
+
+  // Same category grouping ControlList renders on the dashboard, flattened —
+  // so Previous/Next steps through controls in the order the user actually
+  // sees them scrolling the list, not an arbitrary global code sort.
+  const ordered = flattenControlOrder(controlOrder);
+  const myIndex = ordered.findIndex((c) => c.id === control.id);
+  const prevControl = myIndex > 0 ? ordered[myIndex - 1] : null;
+  const nextControl = myIndex >= 0 && myIndex < ordered.length - 1 ? ordered[myIndex + 1] : null;
 
   const framework = frameworks.find((f) => f.id === control.framework_id);
   const suggestedEvidence = (control.suggested_evidence ?? "")
@@ -67,9 +79,46 @@ export default async function ControlDetailPage({
       subtitle={`${framework ? `${framework.name} · ` : ""}${control.category ?? "Control"} · ${control.code}`}
       actions={<CriticalityBadge criticality={control.criticality} />}
       banner={
-        <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
-          &larr; Back to dashboard
-        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
+            &larr; Back to dashboard
+          </Link>
+          {ordered.length > 1 && (
+            <div className="flex items-center gap-3 text-sm">
+              {prevControl ? (
+                <Link
+                  href={`/controls/${prevControl.id}`}
+                  className="flex min-w-0 items-center gap-1 text-muted-foreground hover:text-foreground"
+                  title={`${prevControl.code} · ${prevControl.title}`}
+                >
+                  <ChevronLeft className="h-4 w-4 shrink-0" />
+                  <span className="max-w-[10rem] truncate sm:max-w-[16rem]">{prevControl.code}</span>
+                </Link>
+              ) : (
+                <span className="flex items-center gap-1 text-muted-foreground/40">
+                  <ChevronLeft className="h-4 w-4" />
+                </span>
+              )}
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {myIndex >= 0 ? `${myIndex + 1} of ${ordered.length}` : null}
+              </span>
+              {nextControl ? (
+                <Link
+                  href={`/controls/${nextControl.id}`}
+                  className="flex min-w-0 items-center gap-1 text-muted-foreground hover:text-foreground"
+                  title={`${nextControl.code} · ${nextControl.title}`}
+                >
+                  <span className="max-w-[10rem] truncate sm:max-w-[16rem]">{nextControl.code}</span>
+                  <ChevronRight className="h-4 w-4 shrink-0" />
+                </Link>
+              ) : (
+                <span className="flex items-center gap-1 text-muted-foreground/40">
+                  <ChevronRight className="h-4 w-4" />
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       }
     >
       <div className="card space-y-4">

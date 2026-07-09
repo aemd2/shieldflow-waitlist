@@ -271,6 +271,34 @@ export async function getControlsWithStatus(
     .sort((a, b) => a.code.localeCompare(b.code));
 }
 
+export interface ControlOrderRow {
+  id: string;
+  code: string;
+  title: string;
+  category: string | null;
+}
+
+/**
+ * Lightweight (no evidence counts, no status) — just enough to compute the
+ * control detail page's Previous/Next order. getControlsWithStatus does two
+ * extra queries (evidence + control_checks) per call; not worth paying that
+ * again on every single control page just to know what's next.
+ */
+export async function listControlOrderForCompany(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<ControlOrderRow[]> {
+  const { data, error } = await supabase
+    .from("control_status")
+    .select("controls(id, code, title, category)")
+    .eq("company_id", companyId);
+  if (error) throw error;
+
+  return (data ?? [])
+    .map((row: any) => row.controls as ControlOrderRow)
+    .sort((a, b) => a.code.localeCompare(b.code));
+}
+
 export async function getControlWithStatus(
   supabase: SupabaseClient,
   companyId: string,
