@@ -14,6 +14,8 @@ import {
 } from "@/lib/db/queries";
 import type { ControlCheck } from "@/lib/db/queries";
 import { flattenControlOrder } from "@/lib/controls-order";
+import { cn } from "@/lib/cn";
+import { buttonClasses } from "@/components/ui/Button";
 import { StatusPicker } from "@/components/dashboard/StatusPicker";
 import { CriticalityBadge } from "@/components/controls/CriticalityBadge";
 import { ControlMetaForm } from "@/components/controls/ControlMetaForm";
@@ -84,36 +86,38 @@ export default async function ControlDetailPage({
             &larr; Back to dashboard
           </Link>
           {ordered.length > 1 && (
-            <div className="flex items-center gap-3 text-sm">
+            <div className="flex items-center gap-2">
               {prevControl ? (
                 <Link
                   href={`/controls/${prevControl.id}`}
-                  className="flex min-w-0 items-center gap-1 text-muted-foreground hover:text-foreground"
+                  className={buttonClasses("outline", "sm")}
                   title={`${prevControl.code} · ${prevControl.title}`}
                 >
-                  <ChevronLeft className="h-4 w-4 shrink-0" />
-                  <span className="max-w-[10rem] truncate sm:max-w-[16rem]">{prevControl.code}</span>
+                  <ChevronLeft className="-ml-0.5 mr-1 h-3.5 w-3.5 shrink-0" />
+                  <span className="max-w-[8rem] truncate sm:max-w-[12rem]">{prevControl.code}</span>
                 </Link>
               ) : (
-                <span className="flex items-center gap-1 text-muted-foreground/40">
-                  <ChevronLeft className="h-4 w-4" />
+                <span className={cn(buttonClasses("outline", "sm"), "pointer-events-none opacity-40")}>
+                  <ChevronLeft className="-ml-0.5 mr-1 h-3.5 w-3.5" />
+                  <span>First</span>
                 </span>
               )}
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {myIndex >= 0 ? `${myIndex + 1} of ${ordered.length}` : null}
+              <span className="shrink-0 px-1 text-xs tabular-nums text-muted-foreground">
+                {myIndex >= 0 ? `${myIndex + 1} / ${ordered.length}` : null}
               </span>
               {nextControl ? (
                 <Link
                   href={`/controls/${nextControl.id}`}
-                  className="flex min-w-0 items-center gap-1 text-muted-foreground hover:text-foreground"
+                  className={buttonClasses("outline", "sm")}
                   title={`${nextControl.code} · ${nextControl.title}`}
                 >
-                  <span className="max-w-[10rem] truncate sm:max-w-[16rem]">{nextControl.code}</span>
-                  <ChevronRight className="h-4 w-4 shrink-0" />
+                  <span className="max-w-[8rem] truncate sm:max-w-[12rem]">{nextControl.code}</span>
+                  <ChevronRight className="-mr-0.5 ml-1 h-3.5 w-3.5 shrink-0" />
                 </Link>
               ) : (
-                <span className="flex items-center gap-1 text-muted-foreground/40">
-                  <ChevronRight className="h-4 w-4" />
+                <span className={cn(buttonClasses("outline", "sm"), "pointer-events-none opacity-40")}>
+                  <span>Last</span>
+                  <ChevronRight className="-mr-0.5 ml-1 h-3.5 w-3.5" />
                 </span>
               )}
             </div>
