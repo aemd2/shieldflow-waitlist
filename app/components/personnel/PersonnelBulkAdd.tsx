@@ -22,6 +22,7 @@ interface DraftPerson {
   name: string;
   email: string;
   role_title: string;
+  started_at?: string;
 }
 
 function downloadTemplate() {
@@ -99,7 +100,7 @@ export function PersonnelBulkAdd({
   // a cell in place before committing, rather than silently rejecting or
   // failing the whole batch on one bad row — same idea here.
   function rowError(r: DraftPerson): string | null {
-    const parsed = personnelBulkRowSchema.safeParse({ ...r, started_at: "" });
+    const parsed = personnelBulkRowSchema.safeParse({ ...r, started_at: r.started_at ?? "" });
     return parsed.success ? null : (parsed.error.issues[0]?.message ?? "Fix this row");
   }
   const addable = (r: DraftPerson, idx: number) =>
@@ -181,6 +182,7 @@ export function PersonnelBulkAdd({
       name: r.name,
       email: r.email,
       role_title: r.role_title,
+      started_at: r.started_at,
     }));
   }
 
@@ -326,19 +328,23 @@ export function PersonnelBulkAdd({
               return (
                 <li
                   key={idx}
-                  className={`flex items-center justify-between gap-2 rounded px-3 py-2 ${error ? "bg-destructive/10" : dupe || batchDupe ? "bg-warning-muted" : "bg-secondary"}`}
+                  className={`flex items-center gap-2 rounded px-3 py-2 ${error ? "bg-destructive/10" : dupe || batchDupe ? "bg-warning-muted" : "bg-secondary"}`}
                 >
-                  <span className="min-w-0 truncate">
+                  {/* Identity text truncates on its own — a very long name or
+                      email (e.g. an oversized-field test row) must never be
+                      able to push the flag or action buttons off-screen or
+                      hide them behind the ellipsis. */}
+                  <span className="min-w-0 flex-1 truncate">
                     <span className="font-medium text-foreground">{r.name || "(no name)"}</span>
                     {r.email && <span className="text-muted-foreground"> · {r.email}</span>}
                     {r.role_title && <span className="text-muted-foreground"> · {r.role_title}</span>}
-                    {dupe && <span className="ml-2 text-xs font-medium text-warning">Already in Personnel</span>}
-                    {batchDupe && <span className="ml-2 text-xs font-medium text-warning">Duplicate in this list</span>}
-                    {error && <span className="ml-2 text-xs font-medium text-destructive">{error}</span>}
-                    {softNameWarning && (
-                      <span className="ml-2 text-xs text-muted-foreground">possible duplicate name</span>
-                    )}
                   </span>
+                  {dupe && <span className="shrink-0 text-xs font-medium text-warning">Already in Personnel</span>}
+                  {batchDupe && <span className="shrink-0 text-xs font-medium text-warning">Duplicate in this list</span>}
+                  {error && <span className="shrink-0 text-xs font-medium text-destructive">{error}</span>}
+                  {softNameWarning && (
+                    <span className="shrink-0 text-xs text-muted-foreground">possible duplicate name</span>
+                  )}
                   <span className="flex shrink-0 items-center gap-1">
                     <button type="button" onClick={() => setEditingIdx(idx)} className="text-muted-foreground hover:text-foreground" title="Edit">
                       <Pencil className="h-3.5 w-3.5" />
