@@ -250,7 +250,7 @@ chosen systems + quarter until edited; Reviewer defaults to the current user.
       200 "Thanks — your request was sent…"; request 6: 429 "Too many requests. Try
       again later.")
 
-## 10 · Personnel roster ✅ **mostly tested** (7/8/2026)
+## 10 · Personnel roster ✅ **mostly tested** (7/8–7/10/2026 — only "Reactivate" unconfirmed)
 
 - [x] `/personnel` → add a person (name, email, role, start date) → Role and Email fields
       now suggest as you type (workspace's own roles/domains first, common ones as a
@@ -259,17 +259,30 @@ chosen systems + quarter until edited; Reviewer defaults to the current user.
       badge; rows with no matching record correctly show none. ✅
 - [x] **Offboard** (user-minus icon) → moves to the Offboarded group with an end date. ✅
       **Reactivate** (green user-plus icon on an offboarded row) — not yet clicked/confirmed.
-- [ ] **Bulk add** (see G17, `PREMIUM_GAP_2.md`): **Pull from Okta/Google Workspace** (if
+- [x] **Bulk add** (see G17, `PREMIUM_GAP_2.md`): **Pull from Okta/Google Workspace** (if
       connected) / **Upload CSV** (try **Download template** first) / paste a multi-line
       list → a row matching an existing email is flagged **"Already in Personnel"** and
       excluded; a row with a bad email is flagged red and excluded until fixed via the
-      **Pencil** inline-edit. "Add N people" only counts clean, non-duplicate rows. Built +
-      type-checked; the underlying form fields are confirmed working, but a full pull/CSV/
-      paste → save round-trip hasn't been explicitly confirmed yet.
-- [ ] **Personnel auto-created on Team invite** (see G15a): invite a fresh test
+      **Pencil** inline-edit. "Add N people" only counts clean, non-duplicate rows. ✅
+      **tested extensively** (7/8–7/9/2026) — full pull/CSV/paste → save round-trip
+      confirmed against 21 fixture CSVs (see `docs/test-fixtures/personnel-csv/`)
+      covering reordered columns, first/last split, semicolon+BOM EU-Excel, quoted
+      commas, in-batch + cross-session duplicates (incl. NFC/NFD Unicode and
+      case-variant emails), no-header inference, mixed date formats, oversized
+      fields, CSV-injection/XSS/SQL-injection attempts (confirmed harmless — React
+      escapes, Supabase parameterizes), emoji, RTL Arabic/Hebrew, ragged columns, a
+      501-row file (hits the 500 cap correctly), non-UTF-8 encoding (degrades to
+      mojibake, doesn't crash), and multi-file upload (found + fixed: only accepted
+      one file; also found + fixed a real bug where `started_at` was parsed but
+      silently dropped before save).
+- [x] **Personnel auto-created on Team invite** (see G15a): invite a fresh test
       email from Settings → Team, accept it in another browser → that person should
       appear in Personnel automatically (name guessed from their email). Only applies to
       *new* invites accepted after 7/5/2026 — existing Team members were not backfilled.
+      ✅ **tested** (7/10/2026) — confirmed directly in the database: a new member
+      signup (after fixing an unrelated Supabase SMTP misconfiguration that was
+      blocking all signups — see below) produced a Personnel row at the exact same
+      timestamp as the company_members join, name correctly guessed from the email.
 
 ## 11 · Auditor is read-only (RBAC)
 
