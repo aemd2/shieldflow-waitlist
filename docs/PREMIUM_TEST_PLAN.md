@@ -405,11 +405,15 @@ should carry priority + live health signals — the Vanta/Drata-style depth.
 - [ ] **Auditor read-only:** as the auditor (C), all of the above **renders** with no edit/connect
       actions and no errors (the pages make zero writes). ✅
 
-## Tenant isolation (do once, critical)
+## Tenant isolation (do once, critical) ✅ **tested** (7/11/2026)
 
-- [ ] As an unrelated **second company**, confirm you see **none** of company A's
+- [x] As an unrelated **second company**, confirm you see **none** of company A's
       tasks, risks, vendors, policies, questionnaires, access reviews, personnel,
       notifications, or trust requests. ✅ (RLS enforces this on every new table.)
+      Confirmed: fresh second company (different framework) saw empty lists
+      everywhere, a direct `/controls/{soc2-control-id}` URL 404'd (that
+      company never selected SOC 2), and `/trust/nameless` correctly still
+      loaded — public aggregates only, by design, not a leak.
 
 ✅ Green across this list = the premium build-out is verified and ready for your
 founding cohort.
