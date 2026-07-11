@@ -10,15 +10,40 @@ import { foundingTierFor, type FoundingTier } from "@/lib/founding";
 // ones free the spot back up, so we don't count them.
 const COUNTED_STATUSES = ["active", "trialing", "past_due", "unpaid"];
 
-/** How many companies currently hold a founding spot (global count, RLS-bypassing). */
+/** How many companies currently hold a founding spot (global count, RLS-bypassing).
+ * Excludes companies owned by known test accounts (see the `test_accounts` table,
+ * migration 0033) so our own test subscriptions never consume a real founding
+ * spot or inflate the "spots taken" number shown to real prospects. */
 export async function countFoundingMembers(): Promise<number> {
   if (!isAdminConfigured()) return 0;
   try {
     const admin = createAdminSupabase();
-    const { count } = await admin
+
+    // Companies owned by a registered test account — their subscriptions don't count.
+    const { data: testUsers } = await admin
+      .from("test_accounts")
+      .select("user_id")
+      .not("user_id", "is", null);
+    const testUserIds = (testUsers ?? []).map((r) => (r as { user_id: string }).user_id);
+
+    let testCompanyIds: string[] = [];
+    if (testUserIds.length > 0) {
+      const { data: testCompanies } = await admin
+        .from("companies")
+        .select("id")
+        .in("owner_user_id", testUserIds);
+      testCompanyIds = (testCompanies ?? []).map((r) => (r as { id: string }).id);
+    }
+
+    let query = admin
       .from("subscriptions")
       .select("company_id", { count: "exact", head: true })
       .in("status", COUNTED_STATUSES);
+    if (testCompanyIds.length > 0) {
+      query = query.not("company_id", "in", `(${testCompanyIds.join(",")})`);
+    }
+
+    const { count } = await query;
     return count ?? 0;
   } catch {
     return 0;
