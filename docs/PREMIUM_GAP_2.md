@@ -324,6 +324,30 @@ are recorded deliberately — so we don't "fix" something that isn't broken.
   competitors have a richer per-item page on top of it. Pairs with the broader
   "list items need detail pages, not just inline edit" theme (also true of controls).
 
+### Risk Register (`/risks`)
+
+- *Ours:* genuinely feature-rich — a **risk library** to start from, **inherent** likelihood×impact
+  → severity, a separate **residual** score (post-mitigation), **control mapping**
+  (`risk_controls` — risks *do* link to controls, unlike policies), a **heat-map**, owner,
+  free-text treatment, and open/mitigating/accepted/closed status. Source:
+  `components/risks/RiskManager.tsx`. Structurally this is the *most* competitive module we
+  have — inherent/residual + control-linked is exactly the model Vanta/Drata use.
+- **G24 · Risk depth — three concrete gaps, P2 (none blocking).**
+  1. **Library size:** ours ships **~14 scenarios**; Drata's library is **200+**, Vanta's
+     **100+** (both with suggested control mappings). Ours covers the obvious SMB risks well,
+     but it's a fraction of the breadth. Pure content work — add more entries to
+     `lib/risk-library.ts`, cheap.
+  2. **Scoring scale:** ours is **3×3 qualitative** (low/medium/high → Critical/High/Med/Low).
+     Drata uses a fixed **5×5 numeric** (1–5 × 1–5 = score); Vanta defaults 1–5 with custom
+     matrices. 3×3 is simpler (on-brand for us) but reads as less rigorous to an auditor used
+     to a 5×5. A defensible *choice*, not strictly a defect — flag, don't rush.
+  3. **Treatment is free-text.** Competitors offer the four **named ISO treatment options**
+     (mitigate via controls / transfer / avoid / accept) as structured choices. Ours has a
+     free-text `treatment` field + a status. Small structured-field add would make treatment
+     reportable/filterable and read more standards-aligned. Vanta also has a **submit-for-
+     approval** step on a risk assessment we don't model — deliberately skipped for simplicity,
+     same call as the access-review two-phase state machine (G14c).
+
 ### Controls (nav placement) — architectural, ties to G2
 
 - **G23 · Promote Controls to a top-level nav item — real, low-effort, high-signal (P1).**
