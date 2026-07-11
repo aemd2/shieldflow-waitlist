@@ -108,6 +108,12 @@ export function AuthForm({ mode }: { mode: Mode }) {
   // is stuck on "Please wait..." forever with no message.
   const NETWORK_ERROR = "We couldn't reach the server. Check your connection and try again.";
 
+  // SAML SSO needs Supabase Pro + a registered IdP — gated to "future feature"
+  // (same call as the Settings → Single sign-on "Coming soon" tab, 2026-07-08).
+  // Flip to true once the org upgrades and an IdP is registered; ssoSignIn and
+  // the whole flow below stay intact and wired.
+  const SSO_LOGIN_ENABLED = false as boolean;
+
   function startLockout() {
     let remaining = Math.ceil(FAIL_COOLDOWN_MS / 1000);
     setLockSeconds(remaining);
@@ -486,7 +492,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
         </Button>
       )}
 
-      {mode === "login" && (
+      {SSO_LOGIN_ENABLED && mode === "login" && (
         <Button type="button" variant="outline" onClick={ssoSignIn} disabled={loading} fullWidth>
           Sign in with SSO
         </Button>
