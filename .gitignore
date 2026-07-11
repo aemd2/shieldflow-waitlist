@@ -29,3 +29,6 @@ next-env.d.ts
 *.log
 .DS_Store
 **/.DS_Store
+
+# Test-account credentials — never commit (see test_accounts table instead)
+docs/00-user.md
