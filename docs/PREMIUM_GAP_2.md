@@ -228,6 +228,115 @@ architecture item" situation.
 
 ---
 
+## 2b. Per-module deep-dive (added 2026-07-11)
+
+A page-by-page pass through the actual nav (Evidence, Policies, Reports, Questionnaires,
+Activity, Vendors, Controls) reading our own code vs. competitor help docs, to surface
+gaps the capability-organized G1–G17 list above missed. Each item notes **how ours works
+today**, **how the market does it**, and whether it's parity or a real gap. Parity items
+are recorded deliberately — so we don't "fix" something that isn't broken.
+
+### Evidence (`/evidence`)
+
+- *Ours:* a flat, date-grouped list of files. Each row: filename, linked control (if any),
+  timestamp, download. Evidence is either manually uploaded on a control page or
+  auto-filed by an integration sync. Source of truth: `app/(app)/evidence/page.tsx`.
+- **G18 · Evidence freshness / renewal dates — real gap (P1).** Our evidence has **no
+  concept of going stale**. A file uploaded once counts forever; nothing ever prompts a
+  re-collect. Drata has a first-class **Evidence Renewal Date**: per-item cadence
+  (default 1 year, or a custom date), and crucially *"evidence past its renewal date is
+  treated as outdated and linked controls lose their **Ready** status"* — plus an alert
+  icon and status filters (Needs attention / Upcoming renewal / Ready). Vanta solves the
+  same problem continuously (hourly re-tests keep evidence current) and surfaces
+  "evidence freshness" on the Trust Report. This is an **audit-integrity** gap, not
+  cosmetic: an auditor wants current evidence, and a year-old screenshot shouldn't silently
+  still read as "complete." *Fix shape:* an `evidence.renews_at` column + a control-health
+  rule that treats a control's evidence as stale past that date (the hourly `pg_cron` job
+  is the natural place to flag it, same pattern as drift). Meaningfully smaller than G2.
+- **G19 · Evidence organization — real but P2.** Ours is one flat chronological list.
+  Vanta/Drata organize evidence **by control and framework** with a per-control collection
+  status, so you can see at a glance which controls still need evidence. We show evidence
+  *count* per control on the control page, but there's no "evidence coverage" view across
+  controls, and no folders/tags. Lower priority — the flat list works at SMB scale.
+
+### Policies (`/policies`)
+
+- *Ours:* AI-generate → edit → **approve** → **publish** → **acknowledge**, with version
+  bumps that reset acknowledgements. Left list + right editor. Source:
+  `components/policies/PolicyGenerator.tsx`. The approve+acknowledge+versioning workflow is
+  **at parity** with Vanta (each Vanta policy is tied to an "approved" test + an "accepted
+  by employees" test — exactly our two gates) and arguably ahead on the AI-drafting path.
+- **G20 · Policy ↔ control mapping — real gap (P1).** Our policies **don't link to
+  controls at all** — a policy is a standalone document. Vanta's 15 policy templates ship
+  **pre-mapped to the controls they satisfy** ("policy templates already have the
+  appropriate controls mapped… additional controls can be added or removed"). In an audit
+  you must show *which policy satisfies which control*; today that mapping lives only in
+  someone's head. *Fix shape:* a `policy_controls` join table (mirrors `risk_controls`) +
+  a "Satisfies controls" picker on the policy editor + showing linked policies on the
+  control page. Modest, high audit-value, and pairs naturally with G2.
+- *Note:* our policies are **AI-generated per company**, not picked from a static labelled
+  library. That's a defensible different approach (more tailored), not a gap — but it does
+  mean we can't show a "you still need these N required policies for SOC 2" checklist the
+  way a fixed template library (Vanta's 15) can. Worth considering a required-policy
+  checklist per framework as a lightweight add (call it **G20b**).
+
+### Reports (`/reports`)
+
+- *Ours:* a single one-page, print-to-PDF **snapshot** — score, framework progress, open
+  alerts, a controls table, policies, vendors. Good for a prospect or a quick status share.
+  Source: `app/(app)/reports/page.tsx`.
+- **G21 · Auditor export package / immutable evidence bundle — real gap (P1/P2).** Our
+  report is a *live* one-pager; it has no auditor-grade export. Vanta produces **immutable
+  "Workpaper" exports** — a locked copy of the latest test run with full metadata, "designed
+  to meet auditor standards" — plus per-framework evidence exports and an auditor-facing
+  evidence/policy-packet export. Drata builds an **Audit Package** that auto-attaches
+  evidence by the auditor's selected audit dates and even splits personnel into
+  current/new-hire/former folders for sampling. The two missing properties are
+  **(a) immutability / point-in-time locking** (ours regenerates live, so it can't be a
+  fixed audit artifact) and **(b) a bundled evidence export** (ours lists evidence but
+  doesn't package the actual files for an auditor). *Fix shape:* a "Generate audit package"
+  action that snapshots controls+evidence to a dated, immutable bundle (zip of files +
+  manifest). Bigger than G18/G20; scope before building.
+
+### Questionnaires (`/questionnaires`)
+
+- *Ours:* AI-drafted security-questionnaire answers, grounded (never fabricated), with
+  approve/needs-review states + CSV export. Deferred in testing (§7) pending quality work,
+  not a structural gap. No new competitive gap found here beyond that known quality item —
+  the *shape* matches how competitors position questionnaire automation.
+
+### Activity (`/activity`)
+
+- *Ours:* a company-wide audit trail (`audit_events`, 131 rows in the test workspace),
+  filterable, append-only via `logEvent`. This is genuinely **at parity** — an immutable
+  activity log is exactly what competitors provide for audit traceability. No gap. (The
+  related gap is G10: not every logged event also *notifies* the relevant person.)
+
+### Vendors (`/vendors`) — extends G12
+
+- *Ours:* a flat list with inline add/edit. Per vendor: risk level, status, SOC 2 status +
+  expiry, data-sensitivity tier, review cadence + overdue flag + one-click "Mark reviewed."
+  Genuinely solid data model (the SOC 2-expiry + data-classification depth is real).
+- **G22 · Vendor review *workflow* + detail page — real but P2.** We record *that* a review
+  happened (a date); Drata records the *substance* — a per-vendor detail view with a
+  structured "complete report review" workflow (attach the SOC 2 report, capture findings,
+  track the assessment over time). Same shape as the control-detail gap: we have the data,
+  competitors have a richer per-item page on top of it. Pairs with the broader
+  "list items need detail pages, not just inline edit" theme (also true of controls).
+
+### Controls (nav placement) — architectural, ties to G2
+
+- **G23 · Promote Controls to a top-level nav item — real, low-effort, high-signal (P1).**
+  Every competitor (Vanta, Drata, Sprinto) makes **Controls a first-class top-level nav
+  page** — it's the heart of a compliance tool. Ours lives *inside* the Dashboard (the
+  scrollable list on the dashboard page); there's no `/controls` index route, only
+  `/controls/[id]` detail pages. This is why "move between controls" felt awkward (fixed
+  interim with Prev/Next, 2026-07-11). Cheap structural win: lift the existing
+  `ControlsExplorer` onto its own `/controls` page and add it to `nav-items.ts` under
+  Compliance. Doesn't need G2's re-architecture — purely nav/routing.
+
+---
+
 ## 3. Explicitly deprioritized (not worth it for our ICP now)
 
 - Thousands of automated tests, FedRAMP/HITRUST/gov frameworks, and a native training-video
@@ -256,3 +365,17 @@ architecture item" situation.
   https://quantarra.io/blog/the-buyers-guide-to-compliance-automation-software-in-2026
 - Scytale — must-have compliance-automation features 2026:
   https://scytale.ai/resources/top-compliance-automation-tools/
+
+**Per-module deep-dive (§2b, added 2026-07-11):**
+- Drata — Evidence Renewal Date (staleness → controls lose "Ready", renewal cadence):
+  https://help.drata.com/en/articles/6163983-evidence-renewal-date
+- Vanta — policy templates pre-mapped to controls (15 templates, approve+accept tests):
+  https://help.vanta.com/en/articles/11345431-custom-mapping-controls-to-policies
+- Vanta — auditor exports / immutable Workpaper evidence exports:
+  https://help.vanta.com/en/articles/11345427-audit-evidence
+- Drata — Audit Package (auto-attached evidence by audit date, personnel sample folders):
+  https://help.drata.com/en/articles/7881903-audit-package-control-evidence
+- Drata — Vendors overview (per-vendor report-review workflow):
+  https://help.drata.com/en/articles/13557179-vendors-overview-in-drata
+- Vanta — new UI navigation (Controls as a top-level page):
+  https://help.vanta.com/en/articles/11345409-new-vanta-ui
