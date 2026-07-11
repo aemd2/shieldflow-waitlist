@@ -361,6 +361,81 @@ are recorded deliberately — so we don't "fix" something that isn't broken.
 
 ---
 
+## 2c. Own security & compliance posture (added 2026-07-11)
+
+The whole doc above (and all of testing) measures **feature parity vs. competitors**. This
+section is the orthogonal axis we'd never examined: **is the product itself secure, reliable,
+and compliant?** — which matters more here than for a normal SaaS, because our buyers audit
+vendors for a living and will audit us. Grounded in an actual audit pass (Supabase security
+linter + reading every mutating `SECURITY DEFINER` function + secrets/history check), not
+opinion.
+
+### The good news — access control is genuinely solid (verified, not assumed)
+
+- **Every mutating `SECURITY DEFINER` function self-authorizes.** Read the definitions of all
+  the data-changing ones: `remove_member` (owner-only + can't remove the owner), `accept_invite`
+  (JWT-email must match the invite), `join_company_via_sso` (verified-domain only),
+  `log_audit_event` / `notify_users` (`is_company_member`), `record_control_checks` /
+  `record_integration_findings` / `add_framework_to_company` (`can_write_company` / owner-admin).
+  A signed-in user in company A **cannot** forge audit logs, spam notifications, inject fake
+  evidence, or touch members in company B. The linter flags these as "callable via REST," but the
+  internal company-scope checks make that safe — the warnings are informational, not holes.
+- **RLS is on every table** (confirmed via `list_tables` — `rls_enabled: true` across all 35),
+  and the server-action layer consistently gates writes through `companyOrError` / `assertCanWrite`.
+- **Secrets hygiene is clean:** `app/.env.local` is gitignored and was **never** committed to
+  history — the live Stripe/Supabase/Resend keys never touched git.
+- Tenant isolation was also functionally tested end-to-end (see `PREMIUM_TEST_PLAN.md` — second
+  company sees nothing of the first; cross-tenant URL 404s).
+
+  *Takeaway: this is well-built. The gaps below are operational/posture, not access-control
+  defects.*
+
+### G25 · Supabase security-linter findings — triage (P1, mostly quick)
+
+Ran the linter (`get_advisors` security); 21 warnings, triaged:
+- **Leaked-password protection is OFF** — Supabase can reject passwords found in HaveIBeenPwned.
+  One toggle (Auth → Policies). Bad look for a *security* product. **Deferred by owner decision
+  (2026-07-11) until the first paying customer** — recorded, not dropped.
+  https://supabase.com/docs/guides/auth/password-security
+- `add_framework_to_company` still carries an `anon` EXECUTE grant (leftover from the pre-existing
+  version) — harmless (it self-checks `auth.uid()` and raises for anon) but should be revoked for
+  tidiness.
+- `pg_net` extension lives in the `public` schema — move to a dedicated schema (minor hardening).
+- `waitlist_signups` anon-INSERT policy is `WITH CHECK (true)` — intentional (public waitlist
+  form), but pair with server-side rate-limiting/validation (the API route already does this).
+- The remaining ~16 are the `SECURITY DEFINER`-callable warnings resolved as safe above.
+- *Fix shape:* a small `0033_security_hardening.sql` (revoke the stray grant, move `pg_net`) +
+  the one dashboard toggle when the owner chooses. Low-effort.
+
+### G26 · Operational resilience — real gaps (P1/P2)
+
+- **Error monitoring is OFF** — `NEXT_PUBLIC_SENTRY_DSN` is empty, so production exceptions are
+  invisible. The Sentry wiring already exists (no-op without the DSN); it just needs a project +
+  DSN. Highest-value operational fix — you can't fix what you can't see. (P1)
+- **Backups / DR posture** — free-tier Supabase has limited PITR; document the backup story before
+  a customer with real data relies on it. (P2)
+- **Free-tier ceilings** — connection limits, the built-in-mailer cap (now on Resend SMTP), cron
+  limits. Fine for pilot, revisit at scale. (P2)
+- **Email deliverability** — SMTP *auth* is fixed (Resend), but SPF/DKIM/DMARC on `shieldflow.cloud`
+  determine inbox-vs-spam. Resend's domain is verified (sending enabled), so DKIM is likely set;
+  confirm SPF + a DMARC record exist. (P2)
+- **Dependency/supply-chain** — no `npm audit` / Dependabot in the loop; add one. (P2)
+
+### G27 · Our own trust & compliance posture (dogfooding) — P1 for sales, not for code
+
+The sharpest irony to close: a company evaluating a *compliance* tool will ask **"are you
+compliant?"** Today the honest answer is thin.
+- **No public legal pages** verified — privacy policy, terms of service, DPA. A B2B security buyer
+  expects all three before signing; their absence is a real deal-blocker, not a nicety.
+- **ShieldFlow's own SOC 2 / ISO / GDPR status** — the strongest possible proof would be running
+  ShieldFlow *on ShieldFlow* and publishing our own Trust Center (we already ship the Trust Center
+  feature — G-none, it exists). Dogfooding is both a credibility play and free QA.
+- *Why P1-for-sales:* none of this is code depth, but any of it can lose an enterprise deal at
+  the security-review stage regardless of how good the product is. Cheapest high-leverage work in
+  the whole doc for moving upmarket.
+
+---
+
 ## 3. Explicitly deprioritized (not worth it for our ICP now)
 
 - Thousands of automated tests, FedRAMP/HITRUST/gov frameworks, and a native training-video
