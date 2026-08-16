@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, getCompanyTeam } from "@/lib/db/queries";
+import { assertWithinLimit } from "@/lib/plan-server";
 import { logEvent } from "@/lib/audit";
 import { inviteSchema } from "@/lib/validation";
 
@@ -49,6 +50,17 @@ export async function createInvite(input: {
   }
   if (parsed.data.email === (user.email ?? "").toLowerCase()) {
     return { error: "That's your own email — you're already on the team." };
+  }
+
+  // Seat cap. Pending invites hold a seat too, otherwise a workspace could
+  // issue unlimited invites and blow past the limit the moment they're accepted.
+  try {
+    const team = await getCompanyTeam(supabase, company.id);
+    const seats = team.members.length + team.invites.length;
+    const capped = await assertWithinLimit(supabase, company.id, "members", seats);
+    if (capped) return { error: capped };
+  } catch {
+    return { error: DB_ERROR };
   }
 
   // base64url so the token is URL-safe in the /join?token= link.

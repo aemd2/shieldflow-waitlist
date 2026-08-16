@@ -5,7 +5,14 @@ import { createCompanyAndOnboard } from "@/app/actions/onboarding";
 import { Button } from "@/components/ui/Button";
 import type { Framework } from "@/lib/db/queries";
 
-export function OnboardingForm({ frameworks }: { frameworks: Framework[] }) {
+export function OnboardingForm({
+  frameworks,
+  trialCode,
+}: {
+  frameworks: Framework[];
+  /** Tester invite the user arrived with — redeemed once the workspace exists. */
+  trialCode?: string | null;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [selected, setSelected] = useState<string>(frameworks[0]?.id ?? "");
@@ -22,6 +29,8 @@ export function OnboardingForm({ frameworks }: { frameworks: Framework[] }) {
 
   return (
     <form action={action} className="card space-y-6">
+      {trialCode && <input type="hidden" name="trialCode" value={trialCode} />}
+
       <div>
         <label className="mb-1 block text-sm font-medium">Company name</label>
         <input

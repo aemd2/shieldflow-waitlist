@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, assertCanWrite, type Company } from "@/lib/db/queries";
+import { assertWithinLimit } from "@/lib/plan-server";
 import { logEvent } from "@/lib/audit";
 import { evidenceRecordSchema } from "@/lib/validation";
 
@@ -45,6 +46,20 @@ export async function recordEvidence(input: {
       await supabase.storage.from(BUCKET).remove([input.storagePath]);
     }
     return { error: denied };
+  }
+
+  // Plan cap on stored evidence. Same cleanup as above — the file is already in
+  // the bucket by the time we get here, so a rejection must not orphan it.
+  const { count: evidenceCount } = await supabase
+    .from("evidence")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", company.id);
+  const capped = await assertWithinLimit(supabase, company.id, "evidence", evidenceCount ?? 0);
+  if (capped) {
+    if (typeof input?.storagePath === "string" && input.storagePath.startsWith(`${company.id}/`)) {
+      await supabase.storage.from(BUCKET).remove([input.storagePath]);
+    }
+    return { error: capped };
   }
 
   // Re-validate everything the client claimed (size, mime, lengths) — the client

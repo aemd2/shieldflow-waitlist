@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, assertCanWrite } from "@/lib/db/queries";
+import { assertFeature } from "@/lib/plan-server";
 import { validateToken, fetchZoneSecurity, CloudflareError } from "@/lib/cloudflare";
 import { cloudflareTokenSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -30,7 +31,9 @@ export async function connectCloudflare(input: { token: string }) {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
-  const denied = await assertCanWrite(supabase, company.id, user.id);
+  const denied =
+    (await assertCanWrite(supabase, company.id, user.id)) ??
+    (await assertFeature(supabase, company.id, "integrations"));
   if (denied) return { error: denied };
   if (!isEncryptionConfigured()) return { error: ENCRYPTION_NOT_CONFIGURED };
 
@@ -74,7 +77,9 @@ export async function syncCloudflare() {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
-  const denied = await assertCanWrite(supabase, company.id, user.id);
+  const denied =
+    (await assertCanWrite(supabase, company.id, user.id)) ??
+    (await assertFeature(supabase, company.id, "integrations"));
   if (denied) return { error: denied };
 
   if (!checkRateLimit(`cloudflare-sync:${company.id}`, 1, 60_000)) {

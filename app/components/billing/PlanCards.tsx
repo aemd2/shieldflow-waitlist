@@ -14,6 +14,7 @@ import {
   FOUNDING_TIER_SIZE,
   type FoundingTier,
 } from "@/lib/founding";
+import { PLANS, type PlanKey } from "@/lib/plan";
 
 const PLAN_UI = [
   {
@@ -72,11 +73,16 @@ export function PlanCards({
   subscriptionStatus,
   stripeEnabled,
   founding,
+  plan,
+  trialDaysLeft,
 }: {
   currentPlan: "starter" | "growth" | null;
   subscriptionStatus: string | null;
   stripeEnabled: boolean;
   founding: FoundingTier | null;
+  /** Effective plan — "tester" while a trial runs, "free" once it lapses. */
+  plan: PlanKey;
+  trialDaysLeft: number | null;
 }) {
   const toast = useToast();
   const params = useSearchParams();
@@ -125,6 +131,32 @@ export function PlanCards({
             your card before access is interrupted.
           </Alert>
         )}
+
+      {/* Tester trial in flight — what they have and how long it lasts. */}
+      {plan === "tester" && trialDaysLeft !== null && (
+        <div className="card border-[var(--brand-emerald)]/45 bg-[var(--brand-emerald)]/[0.07]">
+          <div className="text-sm font-semibold text-foreground">
+            Current plan: Tester — {trialDaysLeft} day{trialDaysLeft === 1 ? "" : "s"} left
+          </div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            You have every Growth feature, free, with no card on file. When the trial ends this
+            workspace moves to the Free plan and keeps all its data — pick a plan below any time to
+            stay on the full feature set.
+          </div>
+        </div>
+      )}
+
+      {/* Lapsed (or never started) — spell out what Free actually includes. */}
+      {plan === "free" && !currentPlan && (
+        <div className="card">
+          <div className="text-sm font-semibold text-foreground">Current plan: Free</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            Includes {PLANS.free.limits.frameworks} framework, {PLANS.free.limits.evidence} evidence
+            files and {PLANS.free.limits.members} team members. AI, integrations, vendor risk,
+            access reviews and the Trust Center need a paid plan.
+          </div>
+        </div>
+      )}
 
       {/* Current plan — the primary thing an existing customer comes here for. */}
       {currentPlan && (

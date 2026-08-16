@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { logEvent } from "@/lib/audit";
 import { onboardingSchema } from "@/lib/validation";
+import { isValidTrialCodeFormat, normalizeTrialCode } from "@/lib/trial";
 
 export async function createCompanyAndOnboard(formData: FormData) {
   const parsed = onboardingSchema.safeParse({
@@ -38,6 +39,19 @@ export async function createCompanyAndOnboard(formData: FormData) {
       id: companyId,
       label: companyName,
     });
+  }
+
+  // Tester invite carried in from /trial/[code]: redeem it now that the company
+  // exists. The RPC re-validates the code and enforces one trial per workspace,
+  // so a tampered hidden field gets nothing. Failure is silent by design — a bad
+  // code must never block someone from finishing signup; they just start on Free.
+  const trialCode = normalizeTrialCode(String(formData.get("trialCode") ?? ""));
+  if (trialCode && isValidTrialCodeFormat(trialCode)) {
+    try {
+      await supabase.rpc("redeem_trial_invite", { p_code: trialCode });
+    } catch {
+      // Ignored on purpose — see above.
+    }
   }
 
   // Bust the layout cache so the new company is visible immediately

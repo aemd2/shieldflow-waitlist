@@ -12,6 +12,7 @@ import {
 } from "@/lib/db/queries";
 import { isStripeConfigured } from "@/lib/stripe";
 import { currentFoundingTier } from "@/lib/founding-server";
+import { getCompanyPlan } from "@/lib/plan-server";
 import { TrustSettings } from "@/components/settings/TrustSettings";
 import { TeamSettings } from "@/components/settings/TeamSettings";
 import { NotificationPrefs } from "@/components/notifications/NotificationPrefs";
@@ -186,6 +187,7 @@ async function BillingTab({ supabase, companyId }: { supabase: Supa; companyId: 
   // Only pitch the founding discount to companies that haven't subscribed yet —
   // existing members already locked in their lifetime rate.
   const founding = subscription ? null : await currentFoundingTier().catch(() => null);
+  const companyPlan = await getCompanyPlan(supabase, companyId).catch(() => null);
   return (
     <>
       {!isStripeConfigured() && (
@@ -199,6 +201,8 @@ async function BillingTab({ supabase, companyId }: { supabase: Supa; companyId: 
         subscriptionStatus={subscription?.status ?? null}
         stripeEnabled={isStripeConfigured()}
         founding={founding}
+        plan={companyPlan?.plan ?? "free"}
+        trialDaysLeft={companyPlan?.daysLeft ?? null}
       />
     </>
   );

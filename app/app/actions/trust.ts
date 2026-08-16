@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, assertCanWrite, type Company } from "@/lib/db/queries";
+import { assertFeature } from "@/lib/plan-server";
 import { logEvent } from "@/lib/audit";
 import { subprocessorSchema, TRUST_REQUEST_STATUSES } from "@/lib/validation";
 
@@ -19,7 +20,9 @@ async function companyOrError(): Promise<
   try {
     const company = await getCompanyForUser(supabase, user.id);
     if (!company) return { error: "No company found." };
-    const denied = await assertCanWrite(supabase, company.id, user.id);
+    const denied =
+      (await assertCanWrite(supabase, company.id, user.id)) ??
+      (await assertFeature(supabase, company.id, "trust_center"));
     if (denied) return { error: denied };
     return { company, supabase };
   } catch {

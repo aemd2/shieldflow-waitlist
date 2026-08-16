@@ -13,6 +13,8 @@ import {
 } from "@/lib/db/queries";
 import { computeSprint } from "@/lib/setup";
 import { isGroqConfigured } from "@/lib/groq";
+import { getCompanyPlan, type CompanyPlan } from "@/lib/plan-server";
+import { PlanBanner } from "@/components/billing/PlanBanner";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -39,17 +41,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // the Dashboard already carries the same "you're done" signal.
   let sprintReady = false;
   let copilotHistory: { role: "user" | "assistant"; content: string }[] = [];
+  let plan: CompanyPlan | null = null;
 
   if (company) {
-    const [acc, unreadCount, controls, integrations, policies, history] = await Promise.all([
-      getCallerAccess(supabase, company.id, user.id),
-      countUnreadNotifications(supabase, user.id, company.id),
-      getControlsWithStatus(supabase, company.id),
-      listIntegrations(supabase, company.id).catch(() => [] as Integration[]),
-      listPolicies(supabase, company.id),
-      listCopilotMessages(supabase, company.id, user.id, 50),
-    ]);
+    const [acc, unreadCount, controls, integrations, policies, history, companyPlan] =
+      await Promise.all([
+        getCallerAccess(supabase, company.id, user.id),
+        countUnreadNotifications(supabase, user.id, company.id),
+        getControlsWithStatus(supabase, company.id),
+        listIntegrations(supabase, company.id).catch(() => [] as Integration[]),
+        listPolicies(supabase, company.id),
+        listCopilotMessages(supabase, company.id, user.id, 50),
+        getCompanyPlan(supabase, company.id).catch(() => null),
+      ]);
     access = acc;
+    plan = companyPlan;
     unread = unreadCount;
     sprintReady = computeSprint({
       connectedIntegrations: integrations.filter((i) => i.status === "connected").length,
@@ -77,6 +83,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 unread={unread}
                 sprintReady={sprintReady}
               />
+              {plan && <PlanBanner plan={plan} />}
               {readOnly && (
                 <div className="shrink-0 border-b border-warning-border bg-warning-muted px-6 py-2 text-xs text-warning print:hidden">
                   You have <strong>read-only auditor access</strong>. You can review controls,

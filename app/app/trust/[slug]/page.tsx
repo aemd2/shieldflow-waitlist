@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import { TrustAccessForm } from "@/components/trust/TrustAccessForm";
+import { planForTrustSlug } from "@/lib/plan-server";
+import { planAllows } from "@/lib/plan";
 
 // Cached for 60s per slug: the page is public and anonymous, so a plain
 // (cookie-free) anon client lets Next cache it — one DB hit per slug per
@@ -25,6 +27,12 @@ export default async function TrustCenterPage({
 }) {
   const { slug } = await params;
   if (!/^[a-z0-9-]{3,60}$/.test(slug)) notFound();
+
+  // The Trust Center is a paid/Tester feature. A workspace whose trial lapsed to
+  // Free keeps its data, but its public page goes away — 404 rather than a
+  // "paused" notice, so the page's existence isn't advertised either way.
+  const plan = await planForTrustSlug(slug);
+  if (!plan || !planAllows(plan, "trust_center")) notFound();
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

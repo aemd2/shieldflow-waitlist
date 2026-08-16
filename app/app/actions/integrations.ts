@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, assertCanWrite } from "@/lib/db/queries";
+import { assertFeature } from "@/lib/plan-server";
 import {
   fetchWorkspaceUsers,
   refreshAccessToken,
@@ -39,7 +40,9 @@ export async function syncGoogleWorkspace() {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
-  const denied = await assertCanWrite(supabase, company.id, user.id);
+  const denied =
+    (await assertCanWrite(supabase, company.id, user.id)) ??
+    (await assertFeature(supabase, company.id, "integrations"));
   if (denied) return { error: denied };
 
   // Syncing hammers Google's API — once per minute per company is plenty.

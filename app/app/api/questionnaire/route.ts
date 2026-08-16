@@ -9,6 +9,7 @@ import {
   listIntegrations,
   listVendors,
 } from "@/lib/db/queries";
+import { assertFeature } from "@/lib/plan-server";
 import { groqComplete, GroqError, isGroqConfigured, type ChatMessage } from "@/lib/groq";
 import { sanitizeForPrompt } from "@/lib/validation";
 import { checkRateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rate-limit";
@@ -38,6 +39,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "We couldn't reach the database." }, { status: 503 });
   }
   if (!company) return NextResponse.json({ error: "No company found." }, { status: 400 });
+
+  // Plan gate: AI costs real money per call, so it's the first thing a Free
+  // workspace loses when its Tester trial lapses.
+  const locked = await assertFeature(supabase, company.id, "ai_questionnaire");
+  if (locked) return NextResponse.json({ error: locked }, { status: 403 });
 
   if (!checkRateLimit(`questionnaire:${user.id}`, 5, 60_000)) {
     return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });

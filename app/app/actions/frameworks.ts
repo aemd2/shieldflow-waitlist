@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, getCallerAccess, addFrameworkToCompany, listFrameworks } from "@/lib/db/queries";
+import { assertWithinLimit } from "@/lib/plan-server";
 import { addFrameworkSchema } from "@/lib/validation";
 import { logEvent } from "@/lib/audit";
 
@@ -35,6 +36,19 @@ export async function addFramework(input: unknown) {
   const frameworks = await listFrameworks(supabase).catch(() => []);
   const framework = frameworks.find((f) => f.id === parsed.data.frameworkId);
   if (!framework) return { error: "That framework doesn't exist." };
+
+  // Plan cap. Counted before the insert, and re-adding a framework the company
+  // already has stays free (the underlying RPC is idempotent) so a workspace at
+  // its cap never gets a confusing error for a no-op.
+  const { data: existing } = await supabase
+    .from("company_frameworks")
+    .select("framework_id")
+    .eq("company_id", company.id);
+  const owned = (existing ?? []) as { framework_id: string }[];
+  if (!owned.some((f) => f.framework_id === framework.id)) {
+    const capped = await assertWithinLimit(supabase, company.id, "frameworks", owned.length);
+    if (capped) return { error: capped };
+  }
 
   try {
     await addFrameworkToCompany(supabase, company.id, framework.id);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, listFrameworks } from "@/lib/db/queries";
+import { assertFeature } from "@/lib/plan-server";
 import { groqComplete, GroqError, isGroqConfigured, type ChatMessage } from "@/lib/groq";
 import { policyGenerateSchema, sanitizeForPrompt } from "@/lib/validation";
 import { checkRateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rate-limit";
@@ -38,6 +39,11 @@ export async function POST(req: Request) {
     );
   }
   if (!company) return NextResponse.json({ error: "No company found." }, { status: 400 });
+
+  // Plan gate: AI costs real money per call, so it's the first thing a Free
+  // workspace loses when its Tester trial lapses.
+  const locked = await assertFeature(supabase, company.id, "ai_policy");
+  if (locked) return NextResponse.json({ error: locked }, { status: 403 });
 
   // Server-side guard — the disabled button in the UI is bypassable with curl.
   if (!checkRateLimit(`policy:${user.id}`, 5, 60_000)) {

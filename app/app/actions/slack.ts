@@ -11,6 +11,7 @@ import {
   listSelectedFrameworkIds,
   listVendors,
 } from "@/lib/db/queries";
+import { assertFeature } from "@/lib/plan-server";
 import { computeScore } from "@/lib/score";
 import { computeAlerts } from "@/lib/monitoring";
 import { sendSlackMessage, isValidSlackWebhook, SlackError } from "@/lib/slack";
@@ -50,7 +51,9 @@ export async function connectSlack(input: { webhookUrl: string }) {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
-  const denied = await assertCanWrite(supabase, company.id, user.id);
+  const denied =
+    (await assertCanWrite(supabase, company.id, user.id)) ??
+    (await assertFeature(supabase, company.id, "integrations"));
   if (denied) return { error: denied };
   if (!isEncryptionConfigured()) return { error: ENCRYPTION_NOT_CONFIGURED };
 
@@ -102,7 +105,9 @@ export async function sendComplianceDigest() {
     return { error: DB_ERROR };
   }
   if (!company) return { error: "No company found." };
-  const denied = await assertCanWrite(supabase, company.id, user.id);
+  const denied =
+    (await assertCanWrite(supabase, company.id, user.id)) ??
+    (await assertFeature(supabase, company.id, "integrations"));
   if (denied) return { error: denied };
 
   if (!checkRateLimit(`slack-digest:${company.id}`, 1, 60_000)) {

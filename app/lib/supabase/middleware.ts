@@ -15,6 +15,9 @@ const PUBLIC_PATHS = [
   "/auth",
   "/forgot-password",
   "/trust",
+  // Tester-plan invite links (/trial/<code>) are handed to prospects who have no
+  // account yet — the page itself pitches the trial and routes them into signup.
+  "/trial",
   "/privacy",
   "/terms",
   "/thanks",

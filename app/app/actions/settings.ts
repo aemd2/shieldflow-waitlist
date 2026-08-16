@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, assertCanWrite } from "@/lib/db/queries";
+import { assertFeature } from "@/lib/plan-server";
 import { logEvent } from "@/lib/audit";
 import { trustSettingsSchema } from "@/lib/validation";
 
@@ -25,7 +26,11 @@ export async function updateTrustSettings(input: { enabled: boolean; slug: strin
   }
   if (!company) return { error: "No company found." };
 
-  const denied = await assertCanWrite(supabase, company.id, user.id);
+  // Turning the Trust Center ON needs the plan; turning it OFF never does, so a
+  // lapsed workspace can always take its public page down.
+  const denied =
+    (await assertCanWrite(supabase, company.id, user.id)) ??
+    (parsed.data.enabled ? await assertFeature(supabase, company.id, "trust_center") : null);
   if (denied) return { error: denied };
 
   const { error } = await supabase

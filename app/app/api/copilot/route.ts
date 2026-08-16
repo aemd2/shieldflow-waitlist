@@ -6,6 +6,7 @@ import {
   listPolicies,
   listCopilotMessages,
 } from "@/lib/db/queries";
+import { assertFeature } from "@/lib/plan-server";
 import { countStatuses } from "@/lib/score";
 import { groqStream, GroqError, isGroqConfigured, type ChatMessage } from "@/lib/groq";
 import { copilotSchema, sanitizeForPrompt } from "@/lib/validation";
@@ -47,6 +48,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: DB_UNAVAILABLE }, { status: 503 });
   }
   if (!company) return NextResponse.json({ error: "No company found." }, { status: 400 });
+
+  // Plan gate: AI costs real money per call, so it's the first thing a Free
+  // workspace loses when its Tester trial lapses.
+  const locked = await assertFeature(supabase, company.id, "ai_copilot");
+  if (locked) return NextResponse.json({ error: locked }, { status: 403 });
 
   let payload: unknown;
   try {
