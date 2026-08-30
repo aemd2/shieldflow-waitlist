@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ControlStatus } from "@/lib/score";
+import { compareControlCodes } from "@/lib/controls-order";
 
 export interface Company {
   id: string;
@@ -268,7 +269,7 @@ export async function getControlsWithStatus(
 
   return (data ?? [])
     .map((row: any) => mapControlRow(row, counts[(row.controls as Control).id] ?? 0))
-    .sort((a, b) => a.code.localeCompare(b.code));
+    .sort((a, b) => compareControlCodes(a.code, b.code));
 }
 
 export interface ControlOrderRow {
@@ -296,7 +297,7 @@ export async function listControlOrderForCompany(
 
   return (data ?? [])
     .map((row: any) => row.controls as ControlOrderRow)
-    .sort((a, b) => a.code.localeCompare(b.code));
+    .sort((a, b) => compareControlCodes(a.code, b.code));
 }
 
 export async function getControlWithStatus(
@@ -1169,4 +1170,132 @@ export async function listTasks(supabase: SupabaseClient, companyId: string): Pr
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as Task[];
+}
+
+/* ------------------------------------------------------------------ measures
+ * The reusable implementation layer (migration 0036/0037). A measure is one
+ * thing you actually do; it satisfies requirements in potentially several
+ * frameworks at once. This is the same shape Drata calls the DCF and Vanta
+ * calls common controls — see the migration header for the full comparison.
+ */
+
+export type Importance = "mandatory" | "preferred" | "advanced";
+
+/** A framework requirement a measure satisfies, flattened for rendering. */
+export interface MeasureControlLink {
+  id: string;
+  code: string;
+  title: string;
+  framework: string;
+}
+
+export interface MeasureWithStatus {
+  id: string;
+  key: string;
+  name: string;
+  category: string;
+  importance: Importance;
+  summary: string | null;
+  guidance: string | null;
+  suggested_evidence: string | null;
+  status: ControlStatus;
+  owner_email: string | null;
+  notes: string | null;
+  /** Every requirement this one measure satisfies, across all frameworks. */
+  controls: MeasureControlLink[];
+}
+
+/**
+ * Every measure plus this company's progress on it. Measures are global
+ * reference data (like controls), so the left side is the full library and the
+ * status side is a left join — a measure the company has never touched reads
+ * "not_started" rather than going missing, which is the opposite of how
+ * control_status behaves (see getControlsWithStatus, which reads FROM the
+ * status table and therefore hides anything unseeded).
+ */
+export async function getMeasuresWithStatus(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<MeasureWithStatus[]> {
+  const [lib, status] = await Promise.all([
+    supabase
+      .from("measures")
+      .select(
+        "id, key, name, category, importance, summary, guidance, suggested_evidence, measure_controls(controls(id, code, title, frameworks(name)))",
+      ),
+    supabase
+      .from("measure_status")
+      .select("measure_id, status, owner_email, notes")
+      .eq("company_id", companyId),
+  ]);
+  if (lib.error) throw lib.error;
+  if (status.error) throw status.error;
+
+  const byMeasure = new Map(
+    (status.data ?? []).map((s: any) => [s.measure_id as string, s]),
+  );
+
+  return (lib.data ?? [])
+    .map((m: any): MeasureWithStatus => {
+      const s = byMeasure.get(m.id);
+      const controls: MeasureControlLink[] = (m.measure_controls ?? [])
+        .map((mc: any) => mc.controls)
+        .filter(Boolean)
+        .map((c: any) => ({
+          id: c.id,
+          code: c.code,
+          title: c.title,
+          framework: c.frameworks?.name ?? "",
+        }))
+        .sort((a: MeasureControlLink, b: MeasureControlLink) =>
+          compareControlCodes(a.code, b.code),
+        );
+      return {
+        id: m.id,
+        key: m.key,
+        name: m.name,
+        category: m.category,
+        importance: m.importance,
+        summary: m.summary,
+        guidance: m.guidance,
+        suggested_evidence: m.suggested_evidence,
+        status: (s?.status ?? "not_started") as ControlStatus,
+        owner_email: s?.owner_email ?? null,
+        notes: s?.notes ?? null,
+        controls,
+      };
+    })
+    .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+}
+
+/** The measures that satisfy one control — the reverse view, for a control page. */
+export async function getMeasuresForControl(
+  supabase: SupabaseClient,
+  companyId: string,
+  controlId: string,
+): Promise<{ id: string; key: string; name: string; status: ControlStatus }[]> {
+  const { data, error } = await supabase
+    .from("measure_controls")
+    .select("measures(id, key, name)")
+    .eq("control_id", controlId);
+  if (error) throw error;
+
+  const measures = (data ?? []).map((r: any) => r.measures).filter(Boolean);
+  if (measures.length === 0) return [];
+
+  const { data: statuses } = await supabase
+    .from("measure_status")
+    .select("measure_id, status")
+    .eq("company_id", companyId)
+    .in("measure_id", measures.map((m: any) => m.id));
+
+  const byId = new Map((statuses ?? []).map((s: any) => [s.measure_id, s.status]));
+  return measures
+    .map((m: any) => ({
+      id: m.id,
+      key: m.key,
+      name: m.name,
+      status: (byId.get(m.id) ?? "not_started") as ControlStatus,
+    }))
+    .sort((a: any, b: any) => a.name.localeCompare(b.name));
 }

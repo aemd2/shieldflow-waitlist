@@ -1,6 +1,7 @@
 import {
   Rocket,
   LayoutDashboard,
+  Layers,
   FileText,
   FileBarChart,
   FolderArchive,
@@ -35,6 +36,10 @@ const SECTIONS: NavSection[] = [
     items: [
       { href: "/getting-started", label: "Getting started", icon: Rocket },
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      // The work surface: one measure satisfies requirements in several
+      // frameworks, so this is where people actually spend their time — above
+      // the per-framework control list, not buried under Compliance.
+      { href: "/measures", label: "Measures", icon: Layers },
       { href: "/tasks", label: "Tasks", icon: ListChecks },
     ],
   },

@@ -11,6 +11,7 @@ import {
   listFrameworks,
   getCompanyTeam,
   listControlOrderForCompany,
+  getMeasuresForControl,
 } from "@/lib/db/queries";
 import type { ControlCheck } from "@/lib/db/queries";
 import { flattenControlOrder } from "@/lib/controls-order";
@@ -42,13 +43,14 @@ export default async function ControlDetailPage({
   const control = await getControlWithStatus(supabase, company.id, id);
   if (!control) notFound();
 
-  const [evidence, checks, access, frameworks, team, controlOrder] = await Promise.all([
+  const [evidence, checks, access, frameworks, team, controlOrder, measures] = await Promise.all([
     listEvidence(supabase, company.id, id),
     getChecksForControl(supabase, company.id, id),
     getCallerAccess(supabase, company.id, user.id),
     listFrameworks(supabase),
     getCompanyTeam(supabase, company.id).catch(() => ({ members: [], invites: [] })),
     listControlOrderForCompany(supabase, company.id).catch(() => []),
+    getMeasuresForControl(supabase, company.id, id).catch(() => []),
   ]);
 
   // Same category grouping ControlList renders on the dashboard, flattened —
@@ -150,6 +152,41 @@ export default async function ControlDetailPage({
         <div className="card space-y-2">
           <h2 className="text-sm font-semibold text-foreground">How to satisfy this control</h2>
           <p className="text-sm leading-relaxed text-muted-foreground">{control.guidance}</p>
+        </div>
+      )}
+
+      {measures.length > 0 && (
+        <div className="card space-y-3">
+          <h2 className="text-sm font-semibold text-foreground">Satisfied by these measures</h2>
+          <ul className="space-y-1.5">
+            {measures.map((m) => (
+              <li key={m.id} className="flex items-center justify-between gap-3 text-sm">
+                <Link href="/measures" className="text-primary hover:underline">
+                  {m.name}
+                </Link>
+                <span
+                  className={cn(
+                    "shrink-0 rounded border px-1.5 py-0.5 text-[11px]",
+                    m.status === "complete"
+                      ? "border-success-border bg-success-muted text-success"
+                      : m.status === "in_progress"
+                        ? "border-border bg-secondary text-foreground"
+                        : "border-border bg-secondary text-muted-foreground",
+                  )}
+                >
+                  {m.status === "complete"
+                    ? "Complete"
+                    : m.status === "in_progress"
+                      ? "In progress"
+                      : "Not started"}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-muted-foreground">
+            Measures are the work itself, shared across frameworks — doing one of these may satisfy
+            requirements in several standards at once.
+          </p>
         </div>
       )}
 
