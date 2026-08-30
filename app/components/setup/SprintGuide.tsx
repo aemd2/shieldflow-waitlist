@@ -63,10 +63,15 @@ function Header({
             <ShieldCheck className="h-6 w-6 text-black" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">You&rsquo;re audit-ready 🎉</h1>
+            <h1 className="text-2xl font-bold">You&rsquo;re Type&nbsp;I ready 🎉</h1>
             <p className="mt-1 opacity-80">
-              All four sprint phases are complete. Book your audit — your pass-or-refund guarantee is
-              locked in.
+              All four sprint phases are complete — your controls are designed and evidenced, which
+              is what a <b>Type&nbsp;I</b> report assesses. Talk to an auditor about booking one.
+            </p>
+            <p className="mt-2 text-sm opacity-70">
+              A <b>Type&nbsp;II</b> report additionally requires an observation window — typically
+              3&ndash;12 months — showing those controls operated effectively the whole time. Keep
+              your integrations connected so that evidence accumulates.
             </p>
           </div>
         </div>
@@ -84,7 +89,8 @@ function Header({
         {completedCount} of {total} phases done
       </h1>
       <p className="mt-1 opacity-80">
-        Work the phases in order. Each gates on real progress — finish all four to hit audit-ready.
+        Work the phases in order. Each gates on real progress — finish all four to reach Type&nbsp;I
+        readiness.
       </p>
       <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-white/20">
         <div className="h-full bg-[var(--brand-emerald)] transition-all" style={{ width: `${pct}%` }} />

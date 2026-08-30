@@ -40,7 +40,7 @@ export default async function GettingStartedPage() {
     <PageShell
       layout="stack"
       title="Getting started"
-      subtitle={`Your guided path to audit-ready for ${company.name}.`}
+      subtitle={`Your guided path to Type I readiness for ${company.name}.`}
     >
       <SprintGuide sprint={sprint} outstandingCore={outstandingCore} />
     </PageShell>

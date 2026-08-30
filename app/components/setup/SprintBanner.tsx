@@ -39,7 +39,7 @@ export function SprintBanner({
           <div className="text-sm font-semibold text-foreground">
             Your 14-Day Sprint — {completedCount} of {total} phases done
           </div>
-          <div className="text-xs text-muted-foreground">Keep going to reach audit-ready.</div>
+          <div className="text-xs text-muted-foreground">Keep going to reach Type I readiness.</div>
         </div>
       </div>
       <div className="flex items-center gap-2">
