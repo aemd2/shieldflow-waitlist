@@ -21,15 +21,27 @@ export const faqs: { q: string; a: string }[] = [
   },
   {
     q: "Is this product actually live, or just a waitlist?",
-    a: "The platform is built and running today: auth, the compliance dashboard, automated evidence collection across 10 integrations, continuous monitoring, the AI Co-Pilot, policy generation, vendor and risk management, and a public Trust Center all work. The founding cohort is capped so onboarding stays white-glove.",
+    a: "Built and running today: the compliance dashboard, all eight frameworks with their full control sets, automated evidence collection across 10 integrations, hourly continuous monitoring, the AI Co-Pilot, policy generation with approvals and acknowledgements, risk and vendor management, access reviews, personnel tracking and a public Trust Center. The founding cohort is capped so onboarding stays white-glove.",
   },
   {
     q: "Which frameworks are supported?",
-    a: "SOC 2, ISO 27001, HIPAA, GDPR, and PCI DSS — with controls cross-mapped, so a single piece of evidence can satisfy requirements across several frameworks at once.",
+    a: "Eight, all included in the one price: SOC 2 (all 33 Common Criteria), ISO 27001 (all 93 Annex A controls), NIS2, DORA, the EU Cyber Resilience Act, GDPR, HIPAA (full Security Rule) and PCI DSS. That's 328 requirements in total — mapped onto 71 measures, so the overlapping work is done once rather than eight times.",
+  },
+  {
+    q: "What does \"do the work once\" actually mean?",
+    a: "Enforcing MFA satisfies SOC 2 CC6.1, ISO 27001 A.5.17 and A.8.5, NIS2 Article 21(2)(j), PCI DSS Req 8, HIPAA 164.312(d) and GDPR Article 32 — the same control, asked for six different ways. ShieldFlow tracks the measure, not the eight restatements of it, so you mark it done once and every framework updates. Across the library that's 328 requirements collapsed into 71 things to do.",
+  },
+  {
+    q: "Do you cover NIS2, DORA and the Cyber Resilience Act?",
+    a: "Yes, natively — and as far as we can tell we're the only SMB compliance platform that does. Vanta and Drata were built for US frameworks and treat the EU ones as add-ons or not at all. It matters even if you're not directly in scope: NIS2 largely exempts companies under 50 people, but your regulated customers are legally required to assess their suppliers, so the questionnaire lands on your desk anyway.",
+  },
+  {
+    q: "Type I or Type II — which does the 14-Day Sprint get me?",
+    a: "Type I. That's the honest answer. A Type I report assesses whether your controls are properly designed at a point in time, and 14 days of focused work genuinely gets you there. Type II assesses whether they operated effectively across an observation window — normally 3 to 12 months — and no software on earth can compress a calendar. We monitor continuously from day one so the window builds itself, but anyone promising you Type II in a fortnight is either confused or lying.",
   },
   {
     q: "What if my auditor rejects something?",
-    a: "Every framework is mapped to real, auditor-recognized controls, and evidence exports as a one-click audit report. If your auditor questions our evidence, we'll get on a call with them ourselves — and our guarantee has you covered.",
+    a: "Every requirement is mapped to real, auditor-recognized controls with the evidence an auditor typically expects listed alongside it, and everything exports as an audit report. If your auditor questions our evidence, we'll get on a call with them ourselves. And if you follow the Sprint and aren't Type I ready inside 90 days, we refund the full year.",
   },
   {
     q: "Is my data safe?",

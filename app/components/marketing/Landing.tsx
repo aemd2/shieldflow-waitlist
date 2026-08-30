@@ -85,20 +85,22 @@ function Hero() {
         </div>
 
         <h1 className="mx-auto max-w-4xl text-balance text-5xl font-black leading-[1.05] tracking-tighter md:text-7xl">
-          Get SOC 2 Compliant In{" "}
+          Do The Work{" "}
           <span className="relative whitespace-nowrap">
-            <span className="relative z-10 text-primary">14 Days</span>
+            <span className="relative z-10 text-primary">Once</span>
             <span className="absolute inset-x-0 bottom-1 -z-0 h-4 bg-primary/20" />
-          </span>{" "}
-          — For <span className="text-primary">80% Less</span>
+          </span>
+          .
           <br />
-          Than Vanta. Or Pay $0.
+          Satisfy <span className="text-primary">All 8 Frameworks</span>.
         </h1>
 
         <p className="mx-auto mt-8 max-w-2xl text-pretty text-lg text-muted-foreground md:text-xl">
-          We automate your evidence, monitor your controls, and hand your auditor everything they
-          need — for <b className="text-foreground">$7,000/year flat</b>, not $40,000. If you
-          don&rsquo;t pass, you don&rsquo;t pay. Period.
+          SOC 2, ISO 27001, NIS2, DORA, the Cyber Resilience Act, GDPR, HIPAA and PCI DSS ask for{" "}
+          <b className="text-foreground">328 requirements</b>
+          {" — but they’re mostly the same work wearing different names. ShieldFlow maps all 328 onto "}
+          <b className="text-foreground">71 things you actually do</b>. Enforce MFA once; it counts
+          in six frameworks. <b className="text-foreground">$7,000/year flat.</b>
         </p>
 
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -115,8 +117,8 @@ function Hero() {
         </div>
 
         <div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-muted-foreground">
-          <Stat icon={<Zap className="h-4 w-4 text-primary" />} label="Audit-ready in 14 days" />
-          <Stat icon={<ShieldCheck className="h-4 w-4 text-primary" />} label="Pass-or-refund guarantee" />
+          <Stat icon={<Zap className="h-4 w-4 text-primary" />} label="Type I ready in 14 days" />
+          <Stat icon={<ShieldCheck className="h-4 w-4 text-primary" />} label="Price locked for life" />
           <Stat icon={<Clock className="h-4 w-4 text-primary" />} label="$33,000 saved per year" />
         </div>
       </div>
@@ -134,7 +136,16 @@ function Stat({ icon, label }: { icon: React.ReactNode; label: string }) {
 }
 
 function SocialProof() {
-  const frameworks = ["SOC 2", "ISO 27001", "HIPAA", "GDPR", "PCI DSS"];
+  const frameworks = [
+    "SOC 2",
+    "ISO 27001",
+    "NIS2",
+    "DORA",
+    "Cyber Resilience Act",
+    "GDPR",
+    "HIPAA",
+    "PCI DSS",
+  ];
   return (
     <section className="border-b border-border bg-[color:var(--navy-deep)] py-10">
       <div className="mx-auto max-w-7xl px-6">
@@ -155,9 +166,9 @@ function SocialProof() {
 
 function Problem() {
   const pains = [
-    { num: "$40,000", label: "What Vanta or Drata costs you every single year" },
-    { num: "6 months", label: "Typical time-to-audit grinding through legacy GRC tools" },
-    { num: "Your team", label: "Still does most of the manual evidence work themselves" },
+    { num: "$40,000", label: "What Vanta or Drata costs you every single year — before add-ons" },
+    { num: "+40–100%", label: "The renewal increase founders report in year two. Cross a headcount band and the price jumps on its own." },
+    { num: "8×", label: "How many times you answer the same question when every framework is priced and tracked separately" },
   ];
   return (
     <section className="border-b border-border py-24">
@@ -166,12 +177,13 @@ function Problem() {
           <AlertTriangle className="h-3 w-3" /> The Brutal Truth
         </div>
         <h2 className="text-balance text-4xl font-black tracking-tight md:text-5xl">
-          You&rsquo;re paying Ferrari prices for a{" "}
-          <span className="text-destructive line-through">platform</span> glorified checklist.
+          You&rsquo;re paying Ferrari prices to do the same work{" "}
+          <span className="text-destructive line-through">once</span> eight times.
         </h2>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-          Legacy GRC tools were built for Fortune 500 budgets. You&rsquo;re an 11–200 person
-          startup — and they&rsquo;re bleeding you dry.
+          Your SOC 2 asks for MFA. So does ISO 27001. So does NIS2, PCI DSS, HIPAA and DORA. You
+          turn it on <b className="text-foreground">once</b> — and then spend a week proving it six
+          separate times, in six separate places, to six separate checklists.
         </p>
 
         <div className="mt-14 grid gap-4 md:grid-cols-3">
@@ -189,14 +201,18 @@ function Problem() {
 
 function Offer() {
   const includes = [
-    "Automated evidence collection across 10 integrations",
-    "24/7 continuous control monitoring + Slack alerts",
-    "AI Compliance Co-Pilot — chat with your live controls",
-    "AI-generated policies tailored to your company",
-    "Vendor risk scoring + risk register + training tracker",
-    "Public Trust Center page for your sales team",
-    "Concierge onboarding — we'll get on a call with your auditor",
-    "Lifetime price lock — never goes above $7k/yr",
+    "All 8 frameworks included — not priced one at a time",
+    "328 requirements pre-mapped onto 71 measures you actually do",
+    "NIS2, DORA & Cyber Resilience Act — which Vanta and Drata don't cover",
+    "Automated evidence from your cloud, identity and code, checked hourly",
+    "Continuous monitoring + drift alerts the moment something breaks",
+    "AI-generated policies, approvals and employee acknowledgements",
+    "Risk register, vendor risk, access reviews and personnel tracking",
+    "Public Trust Center your sales team can send to any prospect",
+    "The 14-Day Sprint — a finishable path, not a 300-item checklist",
+    "No agent on your employees' laptops. Ever.",
+    "Priced per company, never per headcount — grow without a price rise",
+    "Lifetime price lock — $7,000/yr, for as long as you stay",
   ];
   return (
     <section className="border-b border-border bg-[color:var(--navy-deep)] py-24">
@@ -206,9 +222,9 @@ function Offer() {
             Here&rsquo;s What You Get
           </p>
           <h2 className="text-balance text-4xl font-black tracking-tight md:text-5xl">
-            Everything Vanta sells. None of the bloat.
+            Eight frameworks. One workload.
             <br />
-            <span className="text-primary">For 1/6th the price.</span>
+            <span className="text-primary">One flat price.</span>
           </h2>
         </div>
 
@@ -252,10 +268,13 @@ function Offer() {
 function Comparison() {
   const rows: [string, string, string][] = [
     ["Annual cost", "$25k – $55k", "$7,000 flat"],
-    ["Time to audit-ready", "3 – 6 months", "14 days"],
-    ["AI control mapping", "Add-on (beta)", "Native, included"],
-    ["Continuous monitoring", "Extra fee", "Included"],
-    ["Pass-or-refund guarantee", "No", "Yes — 100%"],
+    ["Price at renewal", "Up 40 – 100%", "Locked. Forever."],
+    ["Priced by headcount", "Yes — cross a band, price jumps", "No — per company"],
+    ["Frameworks", "Priced one at a time", "All 8 included"],
+    ["NIS2 · DORA · Cyber Resilience Act", "Not supported", "Native"],
+    ["Agent on employee laptops", "Required", "None"],
+    ["Data residency", "US-hosted", "EU-hosted"],
+    ["Contract", "1 – 2 year lock-in", "Month to month"],
     ["Implementation fee", "$5k – $15k", "$0"],
   ];
   return (
@@ -311,8 +330,8 @@ function Features() {
     },
     {
       icon: Star,
-      title: "AI Co-Pilot",
-      body: "Ask “are we ready for SOC 2?” and get a real answer — mapped to your actual controls, not generic advice from a chatbot.",
+      title: "Every framework, one workload",
+      body: "Turn on MFA once and watch it satisfy SOC 2 CC6.1, ISO 27001 A.8.5, NIS2 Article 21, PCI Req 8, HIPAA and DORA at the same time. 71 measures cover all 328 requirements.",
     },
   ];
   return (
@@ -350,19 +369,38 @@ function Guarantee() {
           <ShieldCheck className="h-10 w-10 text-primary" strokeWidth={2.5} />
         </div>
         <p className="mb-3 text-xs font-bold uppercase tracking-widest text-primary">
-          The &ldquo;Better-Than-Free&rdquo; Guarantee
+          Two Guarantees, In Writing
         </p>
         <h2 className="text-balance text-4xl font-black tracking-tight md:text-5xl">
-          Pass your audit, or you don&rsquo;t pay a cent.
+          Ready in 90 days — or the year is free.
         </h2>
         <p className="mt-6 text-lg text-muted-foreground">
-          We&rsquo;re so sure ShieldFlow gets you audit-ready that if your auditor rejects a single
-          piece of evidence we collected — we refund <b className="text-foreground">100%</b> of what
-          you paid. No fine print. No &ldquo;credits.&rdquo; Cash back.
+          Work the 14-Day Sprint and connect your stack. If you&rsquo;re not{" "}
+          <b className="text-foreground">Type&nbsp;I ready within 90 days</b>, we refund the full
+          year. Not credits. Cash.
         </p>
+
+        <div className="mx-auto mt-10 grid max-w-3xl gap-4 text-left md:grid-cols-2">
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <div className="text-sm font-bold">The Readiness Guarantee</div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Type&nbsp;I ready in 90 days or your money back. Type&nbsp;II needs an observation
+              window of 3–12 months — nobody can compress that, and anyone who says otherwise is
+              selling you a problem.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <div className="text-sm font-bold">The No-Surprise Guarantee</div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              $7,000 today is $7,000 at renewal. Hire 50 people — still $7,000. Add a framework —
+              still $7,000. Cancel any month, export everything, keep your evidence.
+            </p>
+          </div>
+        </div>
+
         <div className="mt-8 inline-flex items-center gap-2 rounded-full bg-card px-4 py-2 text-sm text-muted-foreground">
           <Check className="h-4 w-4 text-primary" strokeWidth={3} />
-          Risk is on us. Always.
+          The risk is ours. The price never moves.
         </div>
       </div>
     </section>
@@ -425,13 +463,13 @@ function FinalCTA() {
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/5 to-transparent" />
       <div className="relative mx-auto max-w-3xl px-6 text-center">
         <h2 className="text-balance text-5xl font-black tracking-tighter md:text-6xl">
-          Stop overpaying for compliance.
+          Stop doing the same work eight times.
           <br />
-          <span className="text-primary">Start passing audits.</span>
+          <span className="text-primary">Do it once. Prove it everywhere.</span>
         </h2>
         <p className="mx-auto mt-6 max-w-xl text-lg text-muted-foreground">
-          {SPOTS_LEFT} founding spots left. Once they&rsquo;re gone, founding pricing closes — for
-          good.
+          {SPOTS_LEFT}
+          {" founding spots left. Once they’re gone, founding pricing closes — for good."}
         </p>
         <a
           href={LOGIN_URL}
@@ -441,7 +479,7 @@ function FinalCTA() {
           <ArrowRight className="h-5 w-5" strokeWidth={3} />
         </a>
         <div className="mt-5 text-sm text-muted-foreground">
-          Pass-or-refund guarantee • 14-day onboarding • No credit card
+          Type I ready in 90 days or free • Price locked for life • No credit card
         </div>
       </div>
     </section>
