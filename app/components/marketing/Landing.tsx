@@ -96,11 +96,11 @@ function Hero() {
         </h1>
 
         <p className="mx-auto mt-8 max-w-2xl text-pretty text-lg text-muted-foreground md:text-xl">
-          SOC 2, ISO 27001, NIS2, DORA, the Cyber Resilience Act, GDPR, HIPAA and PCI DSS ask for{" "}
-          <b className="text-foreground">328 requirements</b>
-          {" — but they’re mostly the same work wearing different names. ShieldFlow maps all 328 onto "}
-          <b className="text-foreground">71 things you actually do</b>. Enforce MFA once; it counts
-          in six frameworks. <b className="text-foreground">$7,000/year flat.</b>
+          <b className="text-foreground">328 requirements.</b>
+          {" "}
+          <b className="text-foreground">71 things to actually do.</b>
+          <br className="hidden sm:block" />
+          {"$7,000/year flat — and the price never moves."}
         </p>
 
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -166,9 +166,9 @@ function SocialProof() {
 
 function Problem() {
   const pains = [
-    { num: "$40,000", label: "What Vanta or Drata costs you every single year — before add-ons" },
-    { num: "+40–100%", label: "The renewal increase founders report in year two. Cross a headcount band and the price jumps on its own." },
-    { num: "8×", label: "How many times you answer the same question when every framework is priced and tracked separately" },
+    { num: "$40,000", label: "What Vanta or Drata costs you every year — before add-ons" },
+    { num: "+40–100%", label: "The renewal jump founders hit in year two" },
+    { num: "8×", label: "How many times you prove the same control, one framework at a time" },
   ];
   return (
     <section className="border-b border-border py-24">
