@@ -73,7 +73,7 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     // Identical to Growth on purpose — a trial that hides features doesn't
     // tell the tester anything about the product they'd be buying.
     features: GROWTH_FEATURES,
-    limits: { frameworks: 5, evidence: Infinity, members: 50 },
+    limits: { frameworks: Infinity, evidence: Infinity, members: 50 },
     paid: false,
   },
   starter: {
@@ -89,7 +89,10 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     name: "Growth",
     blurb: "For scaling teams that need integrations.",
     features: GROWTH_FEATURES,
-    limits: { frameworks: 5, evidence: Infinity, members: 50 },
+    // Unlimited rather than a number: the landing page sells "all 8 frameworks
+    // included", and a hard count silently breaks that promise every time a
+    // framework is added. This was 5 back when 5 was the whole library.
+    limits: { frameworks: Infinity, evidence: Infinity, members: 50 },
     paid: true,
   },
   custom: {
