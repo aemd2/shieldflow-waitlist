@@ -10,30 +10,31 @@
  * Setting GROQ_MODEL in the environment is the fast fix next time; changing the
  * default here is the considered one.
  *
- * `openai/gpt-oss-120b` is Groq's own recommended replacement for the 70B Llama
- * and the largest general model they serve (120B, 131k context) — a step up from
- * what we had, not a step down.
+ * `qwen/qwen3.8-27b` is the default because it is genuinely NON-reasoning: the
+ * response is a plain `content` string with no `reasoning` field, so it streams
+ * from the first chunk with no special handling and no risk of a silent pause in
+ * the copilot. Every model in Groq's catalogue sits on the same free-tier limits
+ * (1,000 requests and 8,000 tokens/minute), so nothing is gained by paying the
+ * complexity cost of a reasoning model here.
  *
- * It is a REASONING model, which is why REASONING_FORMAT below is not optional.
- * Verified against the live API:
- *   - default / "parsed": reasoning goes to a separate `reasoning` delta and
- *     `content` stays empty until it finishes. Streaming showed nothing for the
- *     first 61 chunks, so the copilot would look frozen and then dump an answer.
- *   - "hidden": `content` starts at chunk 1 and reasoning never appears. This is
- *     what makes a reasoning model usable behind a streaming UI.
- *
- * Alternatives, if this one ever goes the same way:
- *   - `qwen/qwen3.8-27b` — smaller but genuinely non-reasoning, so it needs no
- *     special handling and is the safest emergency swap.
- *   - `qwen/qwen3.6-27b` — Groq lists it as a migration target, but it writes raw
- *     <think> blocks into `content`. Avoid unless reasoning_format is honoured.
+ * Verified against the live API before choosing:
+ *   - `openai/gpt-oss-120b` / `-20b` are reasoning models. They are larger and
+ *     Groq's own recommended replacement, but by default `content` stays empty
+ *     until reasoning completes — streaming showed nothing for 61 chunks. Usable
+ *     only with reasoning_format "hidden" (which we still send, see below), and
+ *     markedly more verbose, which is what forced the 4096 policy budget.
+ *   - `qwen/qwen3.6-27b` — also listed by Groq as a migration target, but it
+ *     writes raw <think> blocks into `content`. It would render as visible
+ *     garbage. Do not use.
  *   - `groq/compound` / `-mini` — decommissioned 2026-09-21. Do not use.
  */
-export const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+export const GROQ_MODEL = process.env.GROQ_MODEL || "qwen/qwen3.8-27b";
 
 /**
- * Strip reasoning from the response entirely. Harmless on non-reasoning models
- * (they ignore it), essential on reasoning ones — see the note above.
+ * Strip reasoning from the response entirely. The current default ignores this
+ * (it does not reason), but it is sent unconditionally so that overriding
+ * GROQ_MODEL to a reasoning model stays safe without a code change — which is
+ * the whole point of the env override.
  */
 const REASONING_FORMAT = "hidden";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
@@ -96,7 +97,7 @@ export async function groqComplete(
         model: GROQ_MODEL,
         messages,
         temperature: opts.temperature ?? 0.4,
-        max_tokens: opts.maxTokens ?? 4096,
+        max_tokens: opts.maxTokens ?? 3000,
         reasoning_format: REASONING_FORMAT,
       }),
       signal: controller.signal,

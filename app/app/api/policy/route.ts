@@ -91,10 +91,14 @@ export async function POST(req: Request) {
   ];
 
   try {
-    // 4096, not 2048: a full policy runs ~1,700-2,100 completion tokens and at
-    // 2048 it intermittently came back finish_reason "length" — a document cut
-    // off mid-section. The headroom also absorbs a reasoning model's overhead.
-    let body = await groqComplete(messages, { maxTokens: 4096, temperature: 0.4 });
+    // 3000 is deliberately between two failure modes. Below ~2,200 a policy
+    // truncates: real runs land at 2,000-2,100 completion tokens and 2048 came
+    // back finish_reason "length" — a document cut off mid-section. Above ~3,500
+    // it starts tripping Groq's free tier, which counts max_tokens as REQUESTED
+    // against the 8,000 tokens/minute budget whether or not they are used: at
+    // 4096 a second AI call in the same minute failed with "Limit 8000, Used
+    // 5630, Requested 4169". 3000 leaves room for a concurrent call.
+    let body = await groqComplete(messages, { maxTokens: 3000, temperature: 0.4 });
     // The model sometimes wraps the whole document in ``` fences, which would
     // render the saved policy as one giant code block — unwrap it.
     const fenced = /^```[a-zA-Z]*\n([\s\S]*?)\n?```\s*$/.exec(body.trim());

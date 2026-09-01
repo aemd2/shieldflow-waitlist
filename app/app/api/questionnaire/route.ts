@@ -103,7 +103,7 @@ export async function POST(req: Request) {
 
   let raw: string;
   try {
-    raw = await groqComplete(messages, { maxTokens: 4096, temperature: 0.3 });
+    raw = await groqComplete(messages, { maxTokens: 3000, temperature: 0.3 });
   } catch (err) {
     if (err instanceof GroqError) return NextResponse.json({ error: err.userMessage }, { status: err.status });
     return NextResponse.json({ error: "Failed to draft answers." }, { status: 500 });
