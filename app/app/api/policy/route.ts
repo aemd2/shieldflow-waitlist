@@ -91,7 +91,10 @@ export async function POST(req: Request) {
   ];
 
   try {
-    let body = await groqComplete(messages, { maxTokens: 2048, temperature: 0.4 });
+    // 4096, not 2048: a full policy runs ~1,700-2,100 completion tokens and at
+    // 2048 it intermittently came back finish_reason "length" — a document cut
+    // off mid-section. The headroom also absorbs a reasoning model's overhead.
+    let body = await groqComplete(messages, { maxTokens: 4096, temperature: 0.4 });
     // The model sometimes wraps the whole document in ``` fences, which would
     // render the saved policy as one giant code block — unwrap it.
     const fenced = /^```[a-zA-Z]*\n([\s\S]*?)\n?```\s*$/.exec(body.trim());

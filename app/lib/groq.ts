@@ -4,27 +4,38 @@
 /**
  * The chat model, overridable without a code change.
  *
- * Groq retires models with little notice — `llama-3.3-70b-versatile`, which this
- * used to hardcode, was removed from the catalogue entirely and every AI feature
- * started failing. Setting GROQ_MODEL in the environment is now the fast fix;
- * changing the default here is the considered one.
+ * Groq retires models with little notice: `llama-3.3-70b-versatile`, which this
+ * used to hardcode, was deprecated on 2026-06-17 and removed from the catalogue,
+ * and every AI feature started failing against a model that no longer existed.
+ * Setting GROQ_MODEL in the environment is the fast fix next time; changing the
+ * default here is the considered one.
  *
- * Why qwen3.8-27b is the default (checked against the live catalogue):
- *   - It returns a plain `content` string. `openai/gpt-oss-120b` and `-20b` are
- *     reasoning models: they emit a separate `reasoning` field and leave
- *     `content` empty until reasoning finishes. Our copilot streams and only
- *     forwards `delta.content`, so a reasoning model shows the user nothing for
- *     several seconds and then dumps the answer — and its reasoning tokens eat
- *     into max_tokens, truncating long replies.
- *   - `qwen/qwen3.6-27b` is worse: it writes raw `<think>` blocks *into*
- *     content, which would render as visible garbage.
- *   - `groq/compound` and `-mini` are being decommissioned on 2026-09-21.
+ * `openai/gpt-oss-120b` is Groq's own recommended replacement for the 70B Llama
+ * and the largest general model they serve (120B, 131k context) — a step up from
+ * what we had, not a step down.
  *
- * If output quality matters more than latency on a given call, `openai/gpt-oss-120b`
- * is the strongest model in the catalogue — but raise maxTokens well above the
- * reasoning overhead before using it anywhere that streams.
+ * It is a REASONING model, which is why REASONING_FORMAT below is not optional.
+ * Verified against the live API:
+ *   - default / "parsed": reasoning goes to a separate `reasoning` delta and
+ *     `content` stays empty until it finishes. Streaming showed nothing for the
+ *     first 61 chunks, so the copilot would look frozen and then dump an answer.
+ *   - "hidden": `content` starts at chunk 1 and reasoning never appears. This is
+ *     what makes a reasoning model usable behind a streaming UI.
+ *
+ * Alternatives, if this one ever goes the same way:
+ *   - `qwen/qwen3.8-27b` — smaller but genuinely non-reasoning, so it needs no
+ *     special handling and is the safest emergency swap.
+ *   - `qwen/qwen3.6-27b` — Groq lists it as a migration target, but it writes raw
+ *     <think> blocks into `content`. Avoid unless reasoning_format is honoured.
+ *   - `groq/compound` / `-mini` — decommissioned 2026-09-21. Do not use.
  */
-export const GROQ_MODEL = process.env.GROQ_MODEL || "qwen/qwen3.8-27b";
+export const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+
+/**
+ * Strip reasoning from the response entirely. Harmless on non-reasoning models
+ * (they ignore it), essential on reasoning ones — see the note above.
+ */
+const REASONING_FORMAT = "hidden";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const TIMEOUT_MS = 30_000;
 
@@ -85,7 +96,8 @@ export async function groqComplete(
         model: GROQ_MODEL,
         messages,
         temperature: opts.temperature ?? 0.4,
-        max_tokens: opts.maxTokens ?? 2048,
+        max_tokens: opts.maxTokens ?? 4096,
+        reasoning_format: REASONING_FORMAT,
       }),
       signal: controller.signal,
     });
@@ -139,6 +151,7 @@ export async function groqStream(
         messages,
         temperature: opts.temperature ?? 0.4,
         max_tokens: opts.maxTokens ?? 1024,
+        reasoning_format: REASONING_FORMAT,
         stream: true,
       }),
       signal: controller.signal,
