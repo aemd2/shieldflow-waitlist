@@ -1,7 +1,30 @@
 // Server-side Groq wrapper. The API key is read here and NEVER exposed to the client.
 // Centralizes the endpoint, timeout, and error mapping so both AI routes behave the same.
 
-export const GROQ_MODEL = "llama-3.3-70b-versatile";
+/**
+ * The chat model, overridable without a code change.
+ *
+ * Groq retires models with little notice — `llama-3.3-70b-versatile`, which this
+ * used to hardcode, was removed from the catalogue entirely and every AI feature
+ * started failing. Setting GROQ_MODEL in the environment is now the fast fix;
+ * changing the default here is the considered one.
+ *
+ * Why qwen3.8-27b is the default (checked against the live catalogue):
+ *   - It returns a plain `content` string. `openai/gpt-oss-120b` and `-20b` are
+ *     reasoning models: they emit a separate `reasoning` field and leave
+ *     `content` empty until reasoning finishes. Our copilot streams and only
+ *     forwards `delta.content`, so a reasoning model shows the user nothing for
+ *     several seconds and then dumps the answer — and its reasoning tokens eat
+ *     into max_tokens, truncating long replies.
+ *   - `qwen/qwen3.6-27b` is worse: it writes raw `<think>` blocks *into*
+ *     content, which would render as visible garbage.
+ *   - `groq/compound` and `-mini` are being decommissioned on 2026-09-21.
+ *
+ * If output quality matters more than latency on a given call, `openai/gpt-oss-120b`
+ * is the strongest model in the catalogue — but raise maxTokens well above the
+ * reasoning overhead before using it anywhere that streams.
+ */
+export const GROQ_MODEL = process.env.GROQ_MODEL || "qwen/qwen3.8-27b";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const TIMEOUT_MS = 30_000;
 
