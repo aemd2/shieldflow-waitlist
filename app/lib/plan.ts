@@ -42,11 +42,25 @@ export interface PlanDef {
   paid: boolean;
 }
 
-const STARTER_FEATURES = ["ai_copilot", "ai_policy", "reports_export"] as const;
+/**
+ * AI is available on every plan, Free included.
+ *
+ * It used to be the first thing a lapsed workspace lost, on the reasoning that
+ * "AI costs real money per call". That is no longer true — the models we use sit
+ * on Groq's free tier. Gating the most distinctive part of the product behind a
+ * paywall cost more in evaluation than it saved in inference.
+ *
+ * The real constraint is now a shared rate limit rather than a bill: Groq's free
+ * tier allows 8,000 tokens/minute across the whole account, not per customer. If
+ * Free-plan usage starts crowding out paying workspaces, the answer is per-plan
+ * rate limits in lib/rate-limit.ts, not removing the feature again.
+ */
+const AI_FEATURES = ["ai_copilot", "ai_policy", "ai_questionnaire"] as const;
+
+const STARTER_FEATURES = [...AI_FEATURES, "reports_export"] as const;
 
 const GROWTH_FEATURES = [
   ...STARTER_FEATURES,
-  "ai_questionnaire",
   "integrations",
   "vendors",
   "access_reviews",
@@ -58,11 +72,16 @@ export const PLANS: Record<PlanKey, PlanDef> = {
   free: {
     key: "free",
     name: "Free",
-    blurb: "The compliance tracker, free forever — upgrade for automation.",
-    // Deliberately keeps the core register usable: controls, policies, tasks,
-    // risks and training all still work. What's gone is the automation (AI,
-    // integrations) and the outward-facing surface (Trust Center).
-    features: [],
+    blurb: "The compliance tracker with AI, free forever — upgrade for automation.",
+    // Keeps the core register usable (controls, policies, tasks, risks,
+    // training) AND the AI, which is the product's most distinctive surface and
+    // the thing that makes a Free workspace worth returning to. What's gone is
+    // the automated evidence collection (integrations), the third-party modules
+    // (vendors, access reviews, questionnaires) and the outward-facing Trust
+    // Center. Note ai_questionnaire is granted here but unreachable without the
+    // `questionnaires` module above it — harmless, and correct if that module
+    // ever moves down a tier.
+    features: [...AI_FEATURES],
     limits: { frameworks: 1, evidence: 25, members: 3 },
     paid: false,
   },
