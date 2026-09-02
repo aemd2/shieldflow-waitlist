@@ -75,16 +75,19 @@ training, personnel, reports. It loses:
 
 | Locked on Free | Enforced in |
 | --- | --- |
-| AI Co-Pilot, AI Policy Generator, questionnaire AI | `app/api/{copilot,policy,questionnaire}/route.ts` → 403 |
 | Integrations (connect + sync; **disconnect stays open**) | all 10 provider actions |
 | Vendor risk, access reviews, questionnaires, subprocessors | each module's `companyOrError()` |
-| Trust Center — public page 404s | `updateTrustSettings` (enabling only) + `/trust/[slug]` |
 
 Caps: 1 framework, 25 evidence files, 3 team members (`assertWithinLimit`).
 
-Two deliberate exceptions, both so a lapsed workspace is never *stuck*:
-disconnecting an integration and switching the Trust Center **off** work on every
-plan.
+**No longer locked (changed 2026-09-02).** The AI (Co-Pilot, policy generation,
+questionnaire drafting) and the public Trust Center are now on *every* plan
+including Free — see the `FREE_FEATURES` note in `app/lib/plan.ts`. The AI gate
+existed because inference cost money, which stopped being true on Groq's free
+tier; the Trust Center gate was walling off our own distribution.
+
+One deliberate exception remains, so a lapsed workspace is never *stuck*:
+disconnecting an integration works on every plan.
 
 ## Where a user sees it
 

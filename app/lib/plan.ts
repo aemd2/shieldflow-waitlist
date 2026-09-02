@@ -57,7 +57,18 @@ export interface PlanDef {
  */
 const AI_FEATURES = ["ai_copilot", "ai_policy", "ai_questionnaire"] as const;
 
-const STARTER_FEATURES = [...AI_FEATURES, "reports_export"] as const;
+/**
+ * On every plan, Free included.
+ *
+ * The Trust Center joins the AI here for a different reason: it costs us almost
+ * nothing to serve (the public page is cached per slug and reads aggregates
+ * through one anon RPC) and every workspace that publishes one is a page on our
+ * domain pointing back at us. Gating our own distribution behind a paywall was
+ * the wrong trade.
+ */
+const FREE_FEATURES = [...AI_FEATURES, "trust_center"] as const;
+
+const STARTER_FEATURES = [...FREE_FEATURES, "reports_export"] as const;
 
 const GROWTH_FEATURES = [
   ...STARTER_FEATURES,
@@ -65,23 +76,24 @@ const GROWTH_FEATURES = [
   "vendors",
   "access_reviews",
   "questionnaires",
-  "trust_center",
 ] as const;
 
 export const PLANS: Record<PlanKey, PlanDef> = {
   free: {
     key: "free",
     name: "Free",
-    blurb: "The compliance tracker with AI, free forever — upgrade for automation.",
+    blurb: "The compliance tracker with AI and a public Trust Center, free forever.",
     // Keeps the core register usable (controls, policies, tasks, risks,
-    // training) AND the AI, which is the product's most distinctive surface and
-    // the thing that makes a Free workspace worth returning to. What's gone is
-    // the automated evidence collection (integrations), the third-party modules
-    // (vendors, access reviews, questionnaires) and the outward-facing Trust
-    // Center. Note ai_questionnaire is granted here but unreachable without the
-    // `questionnaires` module above it — harmless, and correct if that module
-    // ever moves down a tier.
-    features: [...AI_FEATURES],
+    // training), the AI, and the public Trust Center — the three things that
+    // make a Free workspace worth coming back to and worth telling people
+    // about. What's gone is automated evidence collection (integrations) and
+    // the third-party modules (vendors, access reviews, questionnaires), which
+    // are where the real operating cost sits.
+    //
+    // Note ai_questionnaire is granted here but unreachable without the
+    // `questionnaires` module above it — harmless, and already correct if that
+    // module ever moves down a tier.
+    features: [...FREE_FEATURES],
     limits: { frameworks: 1, evidence: 25, members: 3 },
     paid: false,
   },
