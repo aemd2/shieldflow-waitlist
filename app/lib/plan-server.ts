@@ -32,6 +32,45 @@ export interface CompanyPlan {
   subscriptionStatus: string | null;
 }
 
+/**
+ * Is this workspace owned by a known internal test account?
+ *
+ * Reads `test_accounts` (migration 0033), which has NO anon or authenticated RLS
+ * policies — only the service-role key can see it, so this can never be spoofed
+ * from the browser and a normal user cannot grant themselves anything by editing
+ * their email. The registry already existed to keep test workspaces out of real
+ * metrics; this reuses it rather than adding a second list to keep in sync.
+ *
+ * Fails closed: any error, or no admin key configured, means "not a test
+ * account" and the workspace keeps whatever plan it actually resolved to.
+ */
+async function isTestWorkspace(companyId: string): Promise<boolean> {
+  if (!isAdminConfigured()) return false;
+  try {
+    const admin = createAdminSupabase();
+    const { data: owner } = await admin
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", companyId)
+      .eq("role", "owner")
+      .maybeSingle();
+    if (!owner?.user_id) return false;
+
+    const { data: user } = await admin.auth.admin.getUserById(owner.user_id as string);
+    const email = user?.user?.email;
+    if (!email) return false;
+
+    const { data: hit } = await admin
+      .from("test_accounts")
+      .select("email")
+      .ilike("email", email)
+      .maybeSingle();
+    return Boolean(hit);
+  } catch {
+    return false;
+  }
+}
+
 /** Resolve the plan a workspace is really on right now. */
 export async function getCompanyPlan(
   supabase: SupabaseClient,
@@ -54,11 +93,17 @@ export async function getCompanyPlan(
   const sub = subRes.data as { plan: string | null; status: string | null } | null;
 
   const trialEndsAt = company?.trial_ends_at ?? null;
-  const plan = resolvePlan({
+  const resolved = resolvePlan({
     subscriptionPlan: sub?.plan ?? null,
     subscriptionStatus: sub?.status ?? null,
     trialEndsAt,
   });
+  // Internal test workspaces get full features so the maintainer can exercise
+  // the product without a Stripe subscription or a trial that expires — and,
+  // crucially, without it being lost every time a test workspace is recreated.
+  // Only consulted when the workspace would otherwise be Free, so real customers
+  // never pay for the extra lookup.
+  const plan = resolved === "free" && (await isTestWorkspace(companyId)) ? "growth" : resolved;
   const trialActive = isTrialActive(trialEndsAt);
 
   return {
