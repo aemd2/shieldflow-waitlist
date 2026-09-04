@@ -11,7 +11,7 @@ import {
   listSelectedFrameworkIds,
   listVendors,
 } from "@/lib/db/queries";
-import { assertFeature } from "@/lib/plan-server";
+import { assertFeature, assertIntegrationSlot } from "@/lib/plan-server";
 import { computeScore } from "@/lib/score";
 import { computeAlerts } from "@/lib/monitoring";
 import { sendSlackMessage, isValidSlackWebhook, SlackError } from "@/lib/slack";
@@ -53,7 +53,7 @@ export async function connectSlack(input: { webhookUrl: string }) {
   if (!company) return { error: "No company found." };
   const denied =
     (await assertCanWrite(supabase, company.id, user.id)) ??
-    (await assertFeature(supabase, company.id, "integrations"));
+    (await assertIntegrationSlot(supabase, company.id, "slack"));
   if (denied) return { error: denied };
   if (!isEncryptionConfigured()) return { error: ENCRYPTION_NOT_CONFIGURED };
 

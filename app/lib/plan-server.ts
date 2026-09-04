@@ -181,6 +181,10 @@ const LIMIT_NOUNS: Record<Limit, string> = {
   frameworks: "frameworks",
   evidence: "evidence files",
   members: "team members",
+  integrations: "connected integrations",
+  vendors: "vendors",
+  access_reviews: "access reviews",
+  questionnaires: "questionnaires",
 };
 
 /**
@@ -207,4 +211,32 @@ export async function assertWithinLimit(
     : "";
 
   return `Your ${PLANS[plan].name} plan includes ${cap} ${LIMIT_NOUNS[limit]}.${suffix}`;
+}
+
+/**
+ * Gate for connecting an integration: feature access AND the per-plan count cap.
+ *
+ * Reconnecting a provider you already have must never consume a slot, so the
+ * existing row for `provider` is excluded from the count — otherwise a Free
+ * workspace at its cap of 3 could never re-auth an expired token, which would be
+ * a trap rather than a limit. Disconnected rows don't count either.
+ *
+ * Replaces the bare assertFeature(..., "integrations") at all ten connect sites.
+ */
+export async function assertIntegrationSlot(
+  supabase: SupabaseClient,
+  companyId: string,
+  provider: string,
+): Promise<string | null> {
+  const denied = await assertFeature(supabase, companyId, "integrations");
+  if (denied) return denied;
+
+  const { count } = await supabase
+    .from("integrations")
+    .select("provider", { count: "exact", head: true })
+    .eq("company_id", companyId)
+    .neq("provider", provider)
+    .neq("status", "disconnected");
+
+  return assertWithinLimit(supabase, companyId, "integrations", count ?? 0);
 }

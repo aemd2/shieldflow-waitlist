@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, assertCanWrite, type Company } from "@/lib/db/queries";
-import { assertFeature } from "@/lib/plan-server";
+import { assertFeature, assertWithinLimit } from "@/lib/plan-server";
 import { logEvent } from "@/lib/audit";
 import { questionnaireCreateSchema, questionnaireItemSchema } from "@/lib/validation";
 
@@ -37,6 +37,13 @@ export async function createQuestionnaire(input: unknown) {
 
   const res = await companyOrError();
   if ("error" in res) return { error: res.error };
+
+  const { count } = await res.supabase
+    .from("questionnaires")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", res.company.id);
+  const over = await assertWithinLimit(res.supabase, res.company.id, "questionnaires", count ?? 0);
+  if (over) return { error: over };
 
   const { data: q, error } = await res.supabase
     .from("questionnaires")

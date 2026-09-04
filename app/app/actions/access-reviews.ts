@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, assertCanWrite, type Company } from "@/lib/db/queries";
-import { assertFeature } from "@/lib/plan-server";
+import { assertFeature, assertWithinLimit } from "@/lib/plan-server";
 import { logEvent } from "@/lib/audit";
 import { csvSafe, parseRosterCsv } from "@/lib/csv";
 import { newUuid } from "@/lib/uuid";
@@ -134,6 +134,13 @@ export async function createAccessReview(input: unknown) {
 
   const res = await companyOrError();
   if ("error" in res) return { error: res.error };
+
+  const { count } = await res.supabase
+    .from("access_reviews")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", res.company.id);
+  const over = await assertWithinLimit(res.supabase, res.company.id, "access_reviews", count ?? 0);
+  if (over) return { error: over };
 
   const { data: review, error } = await res.supabase
     .from("access_reviews")

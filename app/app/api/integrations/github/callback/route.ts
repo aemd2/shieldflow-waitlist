@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser } from "@/lib/db/queries";
+import { assertIntegrationSlot } from "@/lib/plan-server";
 import { exchangeGitHubCode, validateToken, isGitHubOAuthConfigured } from "@/lib/github";
 import { encryptSecret, isEncryptionConfigured } from "@/lib/crypto";
 
@@ -38,6 +39,12 @@ export async function GET(req: Request) {
     return done("error=db");
   }
   if (!company) return NextResponse.redirect(`${origin}/onboarding`);
+
+  // The connect server-actions enforce the plan's integration cap, but this
+  // OAuth callback writes the row directly — without this check it is a way
+  // round the limit for the three providers that use OAuth.
+  const denied = await assertIntegrationSlot(supabase, company.id, "github");
+  if (denied) return done("error=limit");
 
   try {
     const redirectUri = `${origin}/api/integrations/github/callback`;

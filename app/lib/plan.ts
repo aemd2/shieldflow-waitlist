@@ -29,7 +29,14 @@ export type Feature =
   | "sso";
 
 /** Countable things. Infinity = no cap. */
-export type Limit = "frameworks" | "evidence" | "members";
+export type Limit =
+  | "frameworks"
+  | "evidence"
+  | "members"
+  | "integrations"
+  | "vendors"
+  | "access_reviews"
+  | "questionnaires";
 
 export interface PlanDef {
   key: PlanKey;
@@ -66,35 +73,43 @@ const AI_FEATURES = ["ai_copilot", "ai_policy", "ai_questionnaire"] as const;
  * domain pointing back at us. Gating our own distribution behind a paywall was
  * the wrong trade.
  */
-const FREE_FEATURES = [...AI_FEATURES, "trust_center"] as const;
-
-const STARTER_FEATURES = [...FREE_FEATURES, "reports_export"] as const;
-
-const GROWTH_FEATURES = [
-  ...STARTER_FEATURES,
+const FREE_FEATURES = [
+  ...AI_FEATURES,
+  "trust_center",
   "integrations",
   "vendors",
   "access_reviews",
   "questionnaires",
 ] as const;
 
+const STARTER_FEATURES = [...FREE_FEATURES, "reports_export"] as const;
+
+// Same feature set as Starter on purpose. Since 2026-09-02 the tiers differ by
+// LIMIT rather than by access: every workspace can reach every module, and the
+// plan decides how many of each you get. Simpler to explain than a feature
+// matrix, and it means a Free user hits a wall they understand ("you have 3 of
+// 3 integrations") instead of one they resent ("not on your plan").
+const GROWTH_FEATURES = [...STARTER_FEATURES] as const;
+
 export const PLANS: Record<PlanKey, PlanDef> = {
   free: {
     key: "free",
     name: "Free",
     blurb: "The compliance tracker with AI and a public Trust Center, free forever.",
-    // Keeps the core register usable (controls, policies, tasks, risks,
-    // training), the AI, and the public Trust Center — the three things that
-    // make a Free workspace worth coming back to and worth telling people
-    // about. What's gone is automated evidence collection (integrations) and
-    // the third-party modules (vendors, access reviews, questionnaires), which
-    // are where the real operating cost sits.
-    //
-    // Note ai_questionnaire is granted here but unreachable without the
-    // `questionnaires` module above it — harmless, and already correct if that
-    // module ever moves down a tier.
+    // Nothing is hidden — every module is reachable. Free gets 3 of each of the
+    // countable things, which is enough to genuinely evaluate the product
+    // (connect a cloud, a repo and an IdP; assess three vendors) without it
+    // serving as a free tier for a real compliance programme.
     features: [...FREE_FEATURES],
-    limits: { frameworks: 1, evidence: 25, members: 3 },
+    limits: {
+      frameworks: 1,
+      evidence: 25,
+      members: 3,
+      integrations: 3,
+      vendors: 3,
+      access_reviews: 3,
+      questionnaires: 3,
+    },
     paid: false,
   },
   tester: {
@@ -104,7 +119,15 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     // Identical to Growth on purpose — a trial that hides features doesn't
     // tell the tester anything about the product they'd be buying.
     features: GROWTH_FEATURES,
-    limits: { frameworks: Infinity, evidence: Infinity, members: 50 },
+    limits: {
+      frameworks: Infinity,
+      evidence: Infinity,
+      members: 50,
+      integrations: Infinity,
+      vendors: Infinity,
+      access_reviews: Infinity,
+      questionnaires: Infinity,
+    },
     paid: false,
   },
   starter: {
@@ -112,7 +135,15 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     name: "Starter",
     blurb: "Get your first framework audit-ready.",
     features: STARTER_FEATURES,
-    limits: { frameworks: 2, evidence: 500, members: 10 },
+    limits: {
+      frameworks: 2,
+      evidence: 500,
+      members: 10,
+      integrations: 6,
+      vendors: 6,
+      access_reviews: 6,
+      questionnaires: 6,
+    },
     paid: true,
   },
   growth: {
@@ -120,10 +151,18 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     name: "Growth",
     blurb: "For scaling teams that need integrations.",
     features: GROWTH_FEATURES,
-    // Unlimited rather than a number: the landing page sells "all 8 frameworks
-    // included", and a hard count silently breaks that promise every time a
-    // framework is added. This was 5 back when 5 was the whole library.
-    limits: { frameworks: Infinity, evidence: Infinity, members: 50 },
+    // Unlimited across the board: Growth is "the whole product". A hard count
+    // here silently breaks the landing page's "all 8 frameworks included" every
+    // time a framework is added — frameworks was 5 back when 5 was the library.
+    limits: {
+      frameworks: Infinity,
+      evidence: Infinity,
+      members: 50,
+      integrations: Infinity,
+      vendors: Infinity,
+      access_reviews: Infinity,
+      questionnaires: Infinity,
+    },
     paid: true,
   },
   custom: {
@@ -131,7 +170,15 @@ export const PLANS: Record<PlanKey, PlanDef> = {
     name: "Custom",
     blurb: "Tailored to your team, frameworks, and contract.",
     features: [...GROWTH_FEATURES, "sso"],
-    limits: { frameworks: Infinity, evidence: Infinity, members: Infinity },
+    limits: {
+      frameworks: Infinity,
+      evidence: Infinity,
+      members: Infinity,
+      integrations: Infinity,
+      vendors: Infinity,
+      access_reviews: Infinity,
+      questionnaires: Infinity,
+    },
     paid: true,
   },
 };

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, assertCanWrite } from "@/lib/db/queries";
-import { assertFeature } from "@/lib/plan-server";
+import { assertFeature, assertIntegrationSlot } from "@/lib/plan-server";
 import { validateCredentials, fetchAccountSecurity, AwsError } from "@/lib/aws";
 import { awsCredentialsSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -42,7 +42,7 @@ export async function connectAWS(input: { accessKeyId: string; secretAccessKey: 
   if (!company) return { error: "No company found." };
   const denied =
     (await assertCanWrite(supabase, company.id, user.id)) ??
-    (await assertFeature(supabase, company.id, "integrations"));
+    (await assertIntegrationSlot(supabase, company.id, "aws"));
   if (denied) return { error: denied };
   if (!isEncryptionConfigured()) return { error: ENCRYPTION_NOT_CONFIGURED };
 
