@@ -66,7 +66,9 @@ export default function PrivacyPage() {
               Co-Pilot or paste into a questionnaire, from which we automatically strip detectable
               personal identifiers before it leaves our systems. We never send evidence files,
               policy contents, personnel records, vendor names or integration credentials. Groq
-              does not train on this data and does not retain it by default.
+              does not train on this data, and we have <b>Zero Data Retention enabled</b> on our
+              account, so inputs and outputs are not stored at all — Groq keeps only usage
+              metadata, which contains no customer data.
             </li>
             <li>
               <b>Stripe</b> — payment processing. We never see or store card details.

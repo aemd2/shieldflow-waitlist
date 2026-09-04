@@ -149,6 +149,20 @@ stakes if asked; never as reasons to switch. A technical evaluator will catch it
 > the evidence auditors expect listed alongside it, and it all exports. If they
 > have questions I'll get on the call. *(This is the weakest spot — see §9.)*
 
+**"How do I know your AI won't leak our data?"**
+> Three answers, and they're checkable. First, we don't send it: the model gets
+> control codes, counts and policy titles — never evidence files, policy contents,
+> personnel records, vendor names or credentials. Second, the one place you could
+> hand us personal data is the chat box, and we strip emails, phone numbers, IBANs
+> and card numbers server-side before anything leaves us. Third, our inference
+> provider is Groq, in the US, with **Zero Data Retention enabled** — inputs and
+> outputs aren't stored at all. It's named in our privacy policy with exactly what
+> we send.
+>
+> What I won't claim: if you type "our CFO Maria approved this" in prose, no filter
+> catches that. If your obligations require nothing leaves the EU, we can disable
+> AI for your workspace and the rest of the product is unaffected.
+
 **"What if you retire a framework / go out of business?"**
 > Everything exports, and cancelling is a month's notice. You keep your evidence.
 
