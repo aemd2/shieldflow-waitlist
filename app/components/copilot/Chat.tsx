@@ -153,19 +153,32 @@ export function Chat({
           e.preventDefault();
           send(input);
         }}
-        className="flex items-center gap-2 border-t border-border p-3"
+        className="flex flex-col gap-2 border-t border-border p-3"
       >
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={aiEnabled ? "Ask a question…" : "AI not configured"}
-          disabled={!aiEnabled || streaming}
-          maxLength={2000}
-          className="input flex-1"
-        />
-        <Button type="submit" disabled={!aiEnabled || streaming || !input.trim()} aria-label="Send">
-          <Send className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={aiEnabled ? "Ask a question…" : "AI not configured"}
+            disabled={!aiEnabled || streaming}
+            maxLength={2000}
+            className="input flex-1"
+          />
+          <Button type="submit" disabled={!aiEnabled || streaming || !input.trim()} aria-label="Send">
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+        {/* The chat is the only place a user can hand us free text, so it is the
+            only way personal data could reach our AI provider. We redact the
+            detectable identifiers server-side (lib/redact.ts); this says so, so
+            the protection is informed rather than silent. */}
+        {aiEnabled && (
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            Questions are sent to our AI provider. Don&rsquo;t paste personal data — emails,
+            phone numbers and account numbers are stripped automatically, but names in prose
+            are not.
+          </p>
+        )}
       </form>
     </div>
   );

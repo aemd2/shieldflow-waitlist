@@ -13,6 +13,7 @@ import { assertFeature } from "@/lib/plan-server";
 import { groqComplete, GroqError, isGroqConfigured, type ChatMessage } from "@/lib/groq";
 import { sanitizeForPrompt } from "@/lib/validation";
 import { checkRateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rate-limit";
+import { redactedText } from "@/lib/redact";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -95,7 +96,9 @@ export async function POST(req: Request) {
     {
       role: "user",
       content:
-        `COMPANY CONTEXT:\n${context}\n\nQUESTIONS:\n${numbered}\n\n` +
+        // The questions are pasted by the user and are the only free text here,
+        // so they are redacted on the way out. Context above is all aggregate.
+        `COMPANY CONTEXT:\n${context}\n\nQUESTIONS:\n${redactedText(numbered)}\n\n` +
         `Respond with ONLY a JSON array, one object per question in order, like ` +
         `[{"i":1,"answer":"...","grounded":true}]. No text outside the JSON.`,
     },

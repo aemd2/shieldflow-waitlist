@@ -11,6 +11,7 @@ import { countStatuses } from "@/lib/score";
 import { groqStream, GroqError, isGroqConfigured, type ChatMessage } from "@/lib/groq";
 import { copilotSchema, sanitizeForPrompt } from "@/lib/validation";
 import { checkRateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rate-limit";
+import { redactedText } from "@/lib/redact";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -108,15 +109,19 @@ export async function POST(req: Request) {
     `Control summary: ${counts.complete} complete, ${counts.in_progress} in progress, ${counts.not_started} not started.\n` +
     `Controls:\n${controlLines}\n\nPolicies:\n${policyTitles}`;
 
+  // The question and the transcript are the only user-authored text in this
+  // request, so they are the only place personal data can reach an external
+  // provider. The originals stay in copilot_messages (this tenant, RLS-scoped,
+  // EU-hosted); the copy that crosses the boundary is redacted. See lib/redact.ts.
   const priorTurns: ChatMessage[] = history
     .filter((m) => m.content !== question || m.role !== "user")
     .slice(-8)
-    .map((m) => ({ role: m.role, content: m.content }));
+    .map((m) => ({ role: m.role, content: redactedText(m.content) }));
 
   const messages: ChatMessage[] = [
     { role: "system", content: system },
     ...priorTurns,
-    { role: "user", content: question },
+    { role: "user", content: redactedText(question) },
   ];
 
   let upstream: Response;

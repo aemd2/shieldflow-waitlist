@@ -49,9 +49,32 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="5. Sub-processors">
-          We use trusted vendors to run the service, including infrastructure and database hosting,
-          authentication, email delivery, payment processing, and AI inference. Each processes data
-          only as needed to provide their service under a data-processing agreement.
+          We use the following vendors to run the service. Each processes data only as needed to
+          provide their service, under a data-processing agreement.
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>
+              <b>Supabase</b> — database, authentication and file storage. Hosted in the EU
+              (eu-west-1). This is where your compliance data lives at rest.
+            </li>
+            <li>
+              <b>Vercel</b> — application hosting and delivery.
+            </li>
+            <li>
+              <b>Groq</b> — AI inference for the Co-Pilot, policy generation and questionnaire
+              drafting. <b>Processed in the United States.</b> We send only aggregate context —
+              control codes and statuses, counts, policy titles — plus the text you type into the
+              Co-Pilot or paste into a questionnaire, from which we automatically strip detectable
+              personal identifiers before it leaves our systems. We never send evidence files,
+              policy contents, personnel records, vendor names or integration credentials. Groq
+              does not train on this data and does not retain it by default.
+            </li>
+            <li>
+              <b>Stripe</b> — payment processing. We never see or store card details.
+            </li>
+            <li>
+              <b>Resend</b> — transactional email (sign-in links, notifications).
+            </li>
+          </ul>
         </Section>
 
         <Section title="6. Data retention">
@@ -72,8 +95,12 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="9. International transfers">
-          Where data is transferred across borders, we rely on appropriate safeguards such as the
-          EU Standard Contractual Clauses.
+          Your compliance data is stored in the European Union. The one routine transfer outside
+          the EU is <b>AI inference, which is processed by Groq in the United States</b> — see
+          section 5 for exactly what is sent and what is not. Where data is transferred across
+          borders we rely on appropriate safeguards such as the EU Standard Contractual Clauses.
+          If your obligations require that no data leaves the EU, the AI features can be disabled
+          for your workspace on request; the rest of the product is unaffected.
         </Section>
 
         <Section title="10. Changes & contact">
