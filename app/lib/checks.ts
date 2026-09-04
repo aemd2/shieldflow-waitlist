@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { autoCompleteMeasuresFromChecks } from "@/lib/measures";
 import { listSelectedFrameworkIds } from "@/lib/db/queries";
 
 // Continuous control checks: turn the security posture each integration already
@@ -329,6 +330,10 @@ export async function recordChecksForSync(
       p_provider: provider,
       p_findings: buildFindings(raw),
     });
+    // A passing check has already proven the work — complete the measure it
+    // satisfies rather than leaving it for a human to confirm by hand, and let
+    // that fan out to every control the measure covers.
+    await autoCompleteMeasuresFromChecks(supabase, companyId, null);
   } catch {
     // Never let check recording break a sync.
   }
@@ -385,6 +390,12 @@ export async function recordChecksForSyncAdmin(
       })),
     );
   }
+
+  // Same as the manual path: a passing check completes the measure it proves.
+  // No userId here — the cron has no session, and measure_status.updated_by is
+  // nullable precisely so an automated write can leave it blank rather than
+  // attribute the change to whoever happened to connect the integration.
+  await autoCompleteMeasuresFromChecks(admin, companyId, null);
 
   return raw;
 }

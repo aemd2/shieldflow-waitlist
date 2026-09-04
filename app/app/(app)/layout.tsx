@@ -5,6 +5,7 @@ import {
   getCallerAccess,
   countUnreadNotifications,
   getControlsWithStatus,
+  getMeasuresWithStatus,
   listIntegrations,
   listPolicies,
   listCopilotMessages,
@@ -44,11 +45,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   let plan: CompanyPlan | null = null;
 
   if (company) {
-    const [acc, unreadCount, controls, integrations, policies, history, companyPlan] =
+    const [acc, unreadCount, controls, measures, integrations, policies, history, companyPlan] =
       await Promise.all([
         getCallerAccess(supabase, company.id, user.id),
         countUnreadNotifications(supabase, user.id, company.id),
         getControlsWithStatus(supabase, company.id),
+        getMeasuresWithStatus(supabase, company.id).catch(() => []),
         listIntegrations(supabase, company.id).catch(() => [] as Integration[]),
         listPolicies(supabase, company.id),
         listCopilotMessages(supabase, company.id, user.id, 50),
@@ -60,6 +62,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     sprintReady = computeSprint({
       connectedIntegrations: integrations.filter((i) => i.status === "connected").length,
       controls,
+      measures,
       approvedPolicies: policies.filter((p) => p.status === "final").length,
     }).ready;
     copilotHistory = history.map((m) => ({ role: m.role, content: m.content }));

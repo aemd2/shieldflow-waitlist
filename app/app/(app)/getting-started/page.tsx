@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import {
   getCompanyForUser,
   getControlsWithStatus,
+  getMeasuresWithStatus,
   listPolicies,
   listIntegrations,
   type Integration,
@@ -21,8 +22,9 @@ export default async function GettingStartedPage() {
   const company = await getCompanyForUser(supabase, user.id);
   if (!company) redirect("/onboarding");
 
-  const [controls, policies, integrations] = await Promise.all([
+  const [controls, measures, policies, integrations] = await Promise.all([
     getControlsWithStatus(supabase, company.id),
+    getMeasuresWithStatus(supabase, company.id).catch(() => []),
     listPolicies(supabase, company.id),
     listIntegrations(supabase, company.id).catch(() => [] as Integration[]),
   ]);
@@ -30,11 +32,14 @@ export default async function GettingStartedPage() {
   const connectedIntegrations = integrations.filter((i) => i.status === "connected").length;
   const approvedPolicies = policies.filter((p) => p.status === "final").length;
 
-  const sprint = computeSprint({ connectedIntegrations, controls, approvedPolicies });
+  const sprint = computeSprint({ connectedIntegrations, controls, measures, approvedPolicies });
 
-  const outstandingCore: OutstandingControl[] = controls
-    .filter((c) => c.criticality === "core" && c.status !== "complete")
-    .map((c) => ({ id: c.id, code: c.code, title: c.title }));
+  // The "what's left" list under the current phase now names measures, matching
+  // what the phase actually counts. Capped so a 64-item list doesn't bury the page.
+  const outstandingCore: OutstandingControl[] = measures
+    .filter((m) => m.importance === "mandatory" && m.status !== "complete")
+    .slice(0, 8)
+    .map((m) => ({ id: m.id, code: m.category, title: m.name }));
 
   return (
     <PageShell

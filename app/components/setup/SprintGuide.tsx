@@ -150,17 +150,17 @@ function CoreList({ controls }: { controls: OutstandingControl[] }) {
   return (
     <div className="ml-12 mt-2 rounded-lg border border-border bg-secondary/40 p-3">
       <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Core controls still open
+        Mandatory measures still open
       </div>
       <ul className="space-y-1">
         {controls.map((c) => (
           <li key={c.id}>
             <Link
-              href={`/controls/${c.id}`}
+              href="/measures"
               className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-secondary"
             >
               <span className="truncate text-foreground">
-                <span className="font-mono text-xs text-muted-foreground">{c.code}</span> {c.title}
+                <span className="text-xs text-muted-foreground">{c.code}</span> &middot; {c.title}
               </span>
               <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </Link>

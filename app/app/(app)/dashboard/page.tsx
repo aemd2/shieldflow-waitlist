@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import {
   getCompanyForUser,
   getControlsWithStatus,
+  getMeasuresWithStatus,
   listFrameworks,
   listSelectedFrameworkIds,
   listControlCountsByFramework,
@@ -36,9 +37,10 @@ export default async function DashboardPage() {
   const company = await getCompanyForUser(supabase, user.id);
   if (!company) redirect("/onboarding");
 
-  const [controls, allFrameworks, selectedIds, controlCounts, vendors, risks, training, checks, tasks, policies, policyAcks, memberCount, integrations, access] =
+  const [controls, measures, allFrameworks, selectedIds, controlCounts, vendors, risks, training, checks, tasks, policies, policyAcks, memberCount, integrations, access] =
     await Promise.all([
       getControlsWithStatus(supabase, company.id),
+      getMeasuresWithStatus(supabase, company.id).catch(() => []),
       listFrameworks(supabase),
       listSelectedFrameworkIds(supabase, company.id),
       listControlCountsByFramework(supabase).catch(() => ({}) as Record<string, number>),
@@ -69,6 +71,7 @@ export default async function DashboardPage() {
   const sprint = computeSprint({
     connectedIntegrations: integrations.filter((i) => i.status === "connected").length,
     controls,
+    measures,
     approvedPolicies: policies.filter((p) => p.status === "final").length,
   });
 
