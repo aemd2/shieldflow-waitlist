@@ -281,3 +281,79 @@ export function evaluateUntrackedAccounts(input: UntrackedInput): IdentityVerdic
     detail: `All ${live.length} active account(s) belong to someone recorded in Personnel.`,
   };
 }
+
+/** What we can see about how apps are signed into. Null when unreadable. */
+export interface SsoAppSummary {
+  total: number;
+  federated: number;
+  passwordVaulted: number;
+  passwordVaultedNames: string[];
+  truncated: boolean;
+}
+
+/**
+ * Is single sign-on actually enforced, or just available?
+ *
+ * The distinction that makes this honest: Okta can front an app two ways. SAML
+ * or OIDC means Okta is the only way in. Secure Web Authentication means Okta
+ * VAULTS a password and types it into the app's own login form — that password
+ * still exists, and going to the app directly still works. The second is SSO as
+ * a convenience, not SSO as a control, and it is exactly the bypass an auditor
+ * asks about.
+ *
+ * Counting apps would have proved nothing ("you have 40 apps in Okta" is not a
+ * control). Counting the bypassable ones proves something real, which is why
+ * this is allowed to gate the `sso` measure when a plain app count was not.
+ *
+ * The limit, stated in the passing message rather than hidden: an app nobody
+ * ever added to Okta is invisible here. No automated check can prove a negative
+ * about shadow IT, and every competitor has the same blind spot.
+ */
+export function evaluateSsoCoverage(apps: SsoAppSummary | null): IdentityVerdict {
+  if (!apps) {
+    return {
+      result: "inconclusive",
+      detail:
+        "The application list couldn't be read, so SSO coverage is unknown. The API token " +
+        "may not have permission to read apps.",
+    };
+  }
+
+  if (apps.total === 0) {
+    return {
+      result: "inconclusive",
+      detail:
+        "No applications with a sign-on credential are configured, so there is no SSO " +
+        "coverage to measure yet.",
+    };
+  }
+
+  if (apps.passwordVaulted > 0) {
+    return {
+      result: "fail",
+      detail:
+        `${apps.passwordVaulted} of ${apps.total} active applications sign in with a stored ` +
+        `password rather than federated SSO: ${list(apps.passwordVaultedNames)}. Those passwords ` +
+        "still work if someone goes to the application directly, so single sign-on isn't enforced " +
+        "for them. Convert them to SAML or OIDC.",
+      subjects: apps.passwordVaultedNames,
+    };
+  }
+
+  if (apps.truncated) {
+    return {
+      result: "inconclusive",
+      detail:
+        `The ${apps.total} applications we read all use federated SSO, but there are more ` +
+        "applications than we read in one sync, so others could still use a stored password.",
+    };
+  }
+
+  return {
+    result: "pass",
+    detail:
+      `All ${apps.total} active applications use federated SSO (SAML or OpenID Connect), so ` +
+      "there is no stored password that bypasses it. Applications never added to the identity " +
+      "provider aren't visible to this check.",
+  };
+}

@@ -9,6 +9,22 @@ const MAX_USERS_PER_PAGE = 200; // Okta's own per-page maximum
 // an unread page.
 const MAX_USER_PAGES = 5;
 const MAX_MFA_CHECKS = 50; // factor lookups are 1 request each — cap them
+const MAX_APP_PAGES = 2; // 2 x 200 apps is far more than the target market runs
+
+/**
+ * Okta's sign-on modes, split by whether the app is genuinely federated.
+ *
+ * This distinction is the whole point of the SSO check. SAML/OIDC/WS-Fed mean
+ * Okta is the only way in. BASIC_AUTH, BROWSER_PLUGIN and SECURE_PASSWORD_STORE
+ * are Secure Web Authentication — Okta VAULTS a password and types it into the
+ * app's own login form. That password still exists and still works if you go to
+ * the app directly, so SSO is not actually enforced for it.
+ *
+ * BOOKMARK is just a link with no credential at all, so it belongs in neither
+ * set and is excluded from the denominator.
+ */
+const FEDERATED_MODES = new Set(["SAML_2_0", "OPENID_CONNECT", "WS_FEDERATION"]);
+const PASSWORD_MODES = new Set(["BASIC_AUTH", "BROWSER_PLUGIN", "SECURE_PASSWORD_STORE", "AUTO_LOGIN"]);
 
 export class OktaError extends Error {
   constructor(
@@ -82,6 +98,8 @@ export interface OktaSecurityReport {
   passwordRequiresComplexity: boolean;
   /** Every user we read — the roster the identity checks reconcile against. */
   roster: OktaUser[];
+  /** Null when the app list couldn't be read (token lacks app scope, or it failed). */
+  apps: OktaAppSummary | null;
   /** True when the page budget ran out before Okta stopped returning pages. */
   truncated: boolean;
 }
@@ -90,6 +108,24 @@ export interface OktaUser {
   email: string;
   name?: string;
   status: string;
+}
+
+export interface OktaAppSummary {
+  /** Active apps that carry a credential (bookmarks excluded). */
+  total: number;
+  federated: number;
+  /** Apps where Okta stores a password that also works without Okta. */
+  passwordVaulted: number;
+  /** Names of the password-vaulted apps, so the finding can be acted on. */
+  passwordVaultedNames: string[];
+  truncated: boolean;
+}
+
+interface OktaRawApp {
+  label?: string;
+  name?: string;
+  status?: string;
+  signOnMode?: string;
 }
 
 interface OktaRawUser {
@@ -142,6 +178,44 @@ async function fetchAllUsers(
 
   // A path still in hand means we stopped on the budget, not on the data.
   return { users, truncated: path !== null };
+}
+
+/**
+ * Which apps are genuinely behind SSO, and which keep a bypassable password.
+ *
+ * Best-effort by design: a read-only token that can list users may not be
+ * allowed to list apps, and a 403 here must not cost us the user checks that
+ * already succeeded. Returns null on any failure, which the evaluator turns into
+ * `inconclusive` rather than a verdict.
+ */
+async function fetchApps(host: string, token: string): Promise<OktaAppSummary | null> {
+  try {
+    const apps: OktaRawApp[] = [];
+    let path: string | null = "/api/v1/apps?limit=200";
+    let pages = 0;
+
+    while (path && pages < MAX_APP_PAGES) {
+      const res = await oktaGet(host, path, token);
+      if (!res.ok) return null;
+      apps.push(...((await res.json()) as OktaRawApp[]));
+      path = nextPagePath(res, host);
+      pages++;
+    }
+
+    const active = apps.filter((a) => a.status === "ACTIVE");
+    const federated = active.filter((a) => FEDERATED_MODES.has(a.signOnMode ?? ""));
+    const vaulted = active.filter((a) => PASSWORD_MODES.has(a.signOnMode ?? ""));
+
+    return {
+      total: federated.length + vaulted.length,
+      federated: federated.length,
+      passwordVaulted: vaulted.length,
+      passwordVaultedNames: vaulted.map((a) => a.label || a.name || "unnamed app"),
+      truncated: path !== null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function toOktaUser(u: OktaRawUser): OktaUser {
@@ -207,5 +281,6 @@ export async function fetchUserSecurity(host: string, token: string): Promise<Ok
     passwordRequiresComplexity,
     roster: users.filter((u) => u.profile?.email).map(toOktaUser),
     truncated,
+    apps: await fetchApps(host, token),
   };
 }

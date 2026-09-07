@@ -13,6 +13,7 @@
 import {
   evaluateOffboardingDrift,
   evaluateUntrackedAccounts,
+  evaluateSsoCoverage,
   type PersonRecord,
   type IdentityAccount,
 } from "@/lib/identity-checks";
@@ -229,6 +230,35 @@ expect(
     roster: [acct("a@x.com")], truncated: true,
     people: [person({ name: "A", email: "a@x.com" })], dismissed: [],
   }).result,
+  "inconclusive",
+);
+
+console.log("\n--- sso coverage ---");
+
+function apps(federated: number, vaulted: string[], truncated = false) {
+  return {
+    total: federated + vaulted.length,
+    federated,
+    passwordVaulted: vaulted.length,
+    passwordVaultedNames: vaulted,
+    truncated,
+  };
+}
+
+expect("app list unreadable", evaluateSsoCoverage(null).result, "inconclusive");
+expect("no apps configured", evaluateSsoCoverage(apps(0, [])).result, "inconclusive");
+
+const allFederated = evaluateSsoCoverage(apps(12, []));
+expect("every app federated", allFederated.result, "pass");
+console.log(`      detail: ${allFederated.detail}`);
+
+const bypass = evaluateSsoCoverage(apps(9, ["Legacy CRM", "Old Billing Portal"]));
+expect("some apps keep a vaulted password", bypass.result, "fail");
+console.log(`      detail: ${bypass.detail}`);
+
+expect(
+  "federated but truncated -> must NOT pass",
+  evaluateSsoCoverage(apps(12, [], true)).result,
   "inconclusive",
 );
 

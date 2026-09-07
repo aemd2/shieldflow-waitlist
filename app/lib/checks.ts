@@ -4,6 +4,7 @@ import { listSelectedFrameworkIds } from "@/lib/db/queries";
 import {
   evaluateOffboardingDrift,
   evaluateUntrackedAccounts,
+  evaluateSsoCoverage,
   type IdentityAccount,
   type PersonRecord,
 } from "@/lib/identity-checks";
@@ -367,8 +368,10 @@ export const ASYNC_EVALUATORS: Record<
   string,
   (posture: any, db: SupabaseClient, companyId: string) => Promise<RawCheck[]>
 > = {
-  okta: (posture, db, companyId) =>
-    identityChecks(db, companyId, "okta", oktaAccounts(posture), Boolean(posture?.truncated)),
+  okta: async (posture, db, companyId) => [
+    ...(await identityChecks(db, companyId, "okta", oktaAccounts(posture), Boolean(posture?.truncated))),
+    ...(await ssoChecks(db, posture)),
+  ],
   google: (posture, db, companyId) =>
     identityChecks(db, companyId, "google", googleAccounts(posture), Boolean(posture?.truncated)),
   microsoft: (posture, db, companyId) =>
@@ -412,6 +415,24 @@ function googleAccounts(posture: any): IdentityAccount[] | null {
   return posture.roster
     .filter((u: any) => u?.primaryEmail)
     .map((u: any) => ({ email: String(u.primaryEmail), active: !u.suspended }));
+}
+
+/**
+ * Is SSO enforced, or merely available? Okta-only: the equivalent for Google
+ * would need a new OAuth scope, forcing every existing Google customer to
+ * reconnect for one check.
+ */
+async function ssoChecks(db: SupabaseClient, posture: any): Promise<RawCheck[]> {
+  const verdict = evaluateSsoCoverage(posture?.apps ?? null);
+  return [
+    {
+      checkKey: "okta.sso_coverage",
+      controlCodes: await controlCodesForMeasure(db, "sso"),
+      result: verdict.result,
+      detail: verdict.detail,
+      subjects: verdict.subjects,
+    },
+  ];
 }
 
 /** One Personnel read, one exceptions read, then two pure evaluations. */
