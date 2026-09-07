@@ -270,6 +270,26 @@ export const CHECK_PROVIDER_LABELS: Record<string, string> = {
  */
 export const INTERNAL_PROVIDER = "shieldflow";
 
+/**
+ * The `integrations` row and the `control_checks` row don't always use the same
+ * name for the same provider: we connect "google_workspace" but have always
+ * written its checks under "google".
+ *
+ * This is normalised inside the record functions rather than at each call site,
+ * because getting it wrong is quiet and nasty. control_checks is UNIQUE on
+ * (company_id, control_id, check_key) with no provider column in the key, so
+ * writing the same check under a second provider name means the delete-by-
+ * provider clears nothing, the insert then collides, and the checks silently
+ * stop updating — while clearChecksForProvider("google") on disconnect leaves
+ * half the rows behind.
+ */
+const CHECK_PROVIDER: Record<string, string> = { google_workspace: "google" };
+
+/** The name a provider's checks are stored under. Identity for most providers. */
+export function checkProviderFor(provider: string): string {
+  return CHECK_PROVIDER[provider] ?? provider;
+}
+
 export const ACCESS_REVIEW_CHECK_KEY = "shieldflow.access_review_cadence";
 
 /** SOC 2 CC6.2/CC6.3 don't name a period; quarterly is the near-universal practice. */
@@ -587,10 +607,11 @@ async function persistAsAdmin(
 export async function recordChecksForSync(
   supabase: SupabaseClient,
   companyId: string,
-  provider: string,
+  rawProvider: string,
   posture: unknown,
   evidenceId: string | null,
 ): Promise<void> {
+  const provider = checkProviderFor(rawProvider);
   try {
     const raw = await rawChecksFor(provider, posture, supabase, companyId);
     if (!raw) return;
@@ -615,10 +636,11 @@ export async function recordChecksForSync(
 export async function recordChecksForSyncAdmin(
   admin: SupabaseClient,
   companyId: string,
-  provider: string,
+  rawProvider: string,
   posture: unknown,
   evidenceId: string | null,
 ): Promise<RawCheck[]> {
+  const provider = checkProviderFor(rawProvider);
   const raw = await rawChecksFor(provider, posture, admin, companyId);
   if (!raw) return [];
 
@@ -729,8 +751,9 @@ export async function recordInternalChecks(
 export async function clearChecksForProvider(
   supabase: SupabaseClient,
   companyId: string,
-  provider: string,
+  rawProvider: string,
 ): Promise<void> {
+  const provider = checkProviderFor(rawProvider);
   try {
     await callRecord(supabase, companyId, provider, []);
     await supabase.rpc("record_integration_findings", {

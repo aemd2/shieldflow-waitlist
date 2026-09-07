@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { createAdminSupabase, isAdminConfigured } from "@/lib/supabase/admin";
-import { recordChecksForSyncAdmin, recordInternalChecks, INTERNAL_PROVIDER } from "@/lib/checks";
+import {
+  recordChecksForSyncAdmin,
+  recordInternalChecks,
+  checkProviderFor,
+  INTERNAL_PROVIDER,
+} from "@/lib/checks";
 import {
   fetchPostureFor,
   isAuthError,
@@ -53,7 +58,8 @@ async function run(req: Request) {
 
   const { data: integs } = await admin
     .from("integrations")
-    .select("id, company_id, provider, access_token")
+    // refresh_token/token_expires_at are Google's; the others ignore them.
+    .select("id, company_id, provider, access_token, refresh_token, token_expires_at")
     .eq("status", "connected")
     .in("provider", [...SYNCABLE_PROVIDERS]);
 
@@ -80,14 +86,18 @@ async function run(req: Request) {
     for (const integ of byCompany.get(companyId) ?? []) {
       summary.integrations++;
       try {
-        const posture = await fetchPostureFor(integ);
+        const posture = await fetchPostureFor(integ, admin);
 
         // Snapshot prior verdicts + keep the evidence link before re-recording.
+        // Read by the name the CHECKS are stored under, not the integration's:
+        // Google connects as "google_workspace" but writes checks as "google", so
+        // using integ.provider here would find nothing and silently report no
+        // drift for Google forever.
         const { data: prior } = await admin
           .from("control_checks")
           .select("check_key, result, evidence_id")
           .eq("company_id", companyId)
-          .eq("provider", integ.provider);
+          .eq("provider", checkProviderFor(integ.provider));
         const oldByKey = new Map<string, string>();
         let evidenceId: string | null = null;
         for (const r of prior ?? []) {
