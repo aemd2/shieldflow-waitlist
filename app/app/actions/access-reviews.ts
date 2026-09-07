@@ -12,9 +12,9 @@ import { newUuid } from "@/lib/uuid";
 import { accessReviewCreateSchema, accessReviewDecisionSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recordInternalChecks } from "@/lib/checks";
-import { decryptSecret, encryptIfConfigured } from "@/lib/crypto";
+import { decryptSecret } from "@/lib/crypto";
 import { fetchUsersRaw as fetchOktaUsersRaw, OktaError } from "@/lib/okta";
-import { fetchWorkspaceUsers, refreshAccessToken, GoogleError } from "@/lib/google";
+import { ensureGoogleAccessToken, fetchWorkspaceUsers, GoogleError, type GoogleTokenRow } from "@/lib/google";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";
 const ROSTER_PROVIDERS = ["okta", "google_workspace"] as const;
@@ -89,27 +89,7 @@ export async function pullRosterFrom(provider: RosterProvider) {
     }
 
     // google_workspace
-    let accessToken: string;
-    try {
-      accessToken = decryptSecret(integ.access_token as string);
-    } catch {
-      return { error: "Stored Google credentials are unreadable — please reconnect." };
-    }
-    const expiresAt = integ.token_expires_at ? new Date(integ.token_expires_at as string).getTime() : 0;
-    if (expiresAt < Date.now() + 60_000) {
-      if (!integ.refresh_token) return { error: "Google access expired. Please reconnect the integration." };
-      const fresh = await refreshAccessToken(decryptSecret(integ.refresh_token as string));
-      accessToken = fresh.access_token;
-      const ttl = Number.isFinite(fresh.expires_in) ? fresh.expires_in : 3600;
-      await supabase
-        .from("integrations")
-        .update({
-          access_token: encryptIfConfigured(fresh.access_token),
-          token_expires_at: new Date(Date.now() + ttl * 1000).toISOString(),
-          status: "connected",
-        })
-        .eq("id", integ.id);
-    }
+    const accessToken = await ensureGoogleAccessToken(supabase, integ as GoogleTokenRow);
     const users = await fetchWorkspaceUsers(accessToken);
     return {
       ok: true as const,

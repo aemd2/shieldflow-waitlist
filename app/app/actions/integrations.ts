@@ -6,8 +6,8 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, assertCanWrite } from "@/lib/db/queries";
 import { assertFeature } from "@/lib/plan-server";
 import {
-  fetchWorkspaceUsers,
-  refreshAccessToken,
+  ensureGoogleAccessToken,
+  fetchWorkspaceSecurity,
   GoogleError,
   isGoogleConfigured,
 } from "@/lib/google";
@@ -16,7 +16,7 @@ import { csvSafe } from "@/lib/csv";
 import { logEvent } from "@/lib/audit";
 import { INTEGRATION_LABELS } from "@/lib/integration-evidence";
 import { recordChecksForSync, clearChecksForProvider } from "@/lib/checks";
-import { decryptSecret, encryptIfConfigured } from "@/lib/crypto";
+import { encryptIfConfigured } from "@/lib/crypto";
 import { newUuid } from "@/lib/uuid";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";
@@ -60,40 +60,10 @@ export async function syncGoogleWorkspace() {
     return { error: "Google Workspace isn't connected yet." };
   }
 
-  let accessToken: string;
   try {
-    accessToken = decryptSecret(integ.access_token as string);
-  } catch {
-    return { error: "Stored Google credentials are unreadable — please reconnect." };
-  }
-
-  try {
-    // Refresh if the token expires within the next minute.
-    const expiresAt = integ.token_expires_at ? new Date(integ.token_expires_at).getTime() : 0;
-    if (expiresAt < Date.now() + 60_000) {
-      if (!integ.refresh_token) {
-        throw new GoogleError("auth", "Google access expired. Please reconnect the integration.");
-      }
-      const fresh = await refreshAccessToken(decryptSecret(integ.refresh_token));
-      accessToken = fresh.access_token;
-      // Google occasionally omits expires_in — fall back to its standard 1h.
-      const ttl = Number.isFinite(fresh.expires_in) ? fresh.expires_in : 3600;
-      await supabase
-        .from("integrations")
-        .update({
-          access_token: encryptIfConfigured(fresh.access_token),
-          token_expires_at: new Date(Date.now() + ttl * 1000).toISOString(),
-          status: "connected",
-        })
-        .eq("id", integ.id);
-    }
-
-    const users = await fetchWorkspaceUsers(accessToken);
-
-    const total = users.length;
-    const with2fa = users.filter((u) => u.isEnrolledIn2Sv).length;
-    const admins = users.filter((u) => u.isAdmin).length;
-    const suspended = users.filter((u) => u.suspended).length;
+    const accessToken = await ensureGoogleAccessToken(supabase, integ);
+    const report = await fetchWorkspaceSecurity(accessToken);
+    const { total, with2fa, admins, suspended, roster: users } = report;
 
     const lines = [
       `# Google Workspace user security report`,
@@ -143,7 +113,10 @@ export async function syncGoogleWorkspace() {
       .update({ last_synced_at: new Date().toISOString(), status: "connected" })
       .eq("id", integ.id);
 
-    await recordChecksForSync(supabase, company.id, "google", { total, with2fa }, inserted?.id ?? null);
+    // Pass the whole report, not just the two counts the 2FA check needs: the
+    // admin/suspended/roster fields were computed here and thrown away, and the
+    // identity checks read them.
+    await recordChecksForSync(supabase, company.id, "google", report, inserted?.id ?? null);
 
     revalidatePath("/integrations");
     revalidatePath("/evidence");
