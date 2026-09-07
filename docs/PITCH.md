@@ -91,6 +91,13 @@ Fifteen minutes. The order matters: land the mechanism before the features.
    Connect something live if you can. Hourly checks, drift alerts. Frame as
    "table stakes, but it works" — not as the differentiator.
 
+   **The one worth demoing on a blank workspace:** the access-review cadence
+   check needs nothing connected. Show it sitting at *inconclusive* — "we won't
+   mark a control green because you've done nothing" — complete a review, and
+   watch CC6.1, CC6.2 and CC6.3 move together off one action. That single moment
+   makes the measure layer concrete and shows the honesty policy at the same
+   time. See §6.7 for what not to overclaim about it.
+
 6. **Close on price** (2 min)
    Flat. No headcount bands. No renewal increase. Month to month. Then stop.
 
@@ -107,6 +114,13 @@ Fifteen minutes. The order matters: land the mechanism before the features.
 4. All eight frameworks in one price vs. per-framework pricing
 5. No agent on employee laptops — documented internal revolt at Vanta
 6. The Sprint is finishable; "difficulty in set up" is a top Vanta complaint
+7. **An overdue access review fails a control, not just a reminder.** Vanta,
+   Drata, Secureframe and Oneleet nudge the assignee and leave the dashboard
+   green if nobody acts. **Sprinto does test it** — so this is "we match the best
+   of them, and most of them don't do it", never "nobody does this". Say the
+   quiet part out loud, because it's the reason it matters: *six months in,
+   companies discover the quarterly review is overdue because nobody defined who
+   runs it.*
 
 **Tier 3 — true, but never lead with these.**
 Cross-framework mapping, continuous monitoring, AI policy generation, automated
@@ -125,6 +139,13 @@ stakes if asked; never as reasons to switch. A technical evaluator will catch it
 - **Do not claim cross-framework mapping is unique.** Vanta and Drata both have it.
   Ours is well-executed and central to the product — that's a different claim.
 - **Do not out-count integrations.** Seven versus 400+. Don't raise it.
+- **Do not say the access-review cadence check is unique.** Sprinto has it (§6.7).
+  "Most compliance tools remind you; we test it" is true. "Nobody else does this"
+  is not, and a Sprinto evaluator will know in one sentence.
+- **Do not imply the leaver check works without an identity provider.** It needs
+  Okta or Google Workspace connected. On Microsoft 365 it does not run at all
+  (§9). The access-review cadence check *does* work with nothing connected —
+  that one is safe to demo on a blank workspace.
 - **Do not promise a refund on anything you don't control.** The guarantee is
   "Type I ready in 90 days or the year is free" plus a price that never moves.
 
@@ -172,6 +193,13 @@ stakes if asked; never as reasons to switch. A technical evaluator will catch it
   moat is that auditors already know Vanta.
 - **No Type II evidence retention** (§7).
 - **Seven integrations.**
+- **No Microsoft 365 / Entra ID.** The identity checks (leavers who still have
+  access, accounts with nobody behind them) read Okta or Google Workspace. A
+  Microsoft shop gets the access-review cadence check and nothing else from that
+  set. Given how much of the EU mid-market runs Microsoft, this is the most
+  commercially expensive gap on the list after the auditor relationships — and
+  the cheapest to close, because the logic is provider-agnostic already; it needs
+  a Graph API reader, not a redesign.
 
 **The highest-leverage fix isn't a feature — it's two or three named partner
 auditors** who'll accept ShieldFlow output at a quoted fee. That converts the

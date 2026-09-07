@@ -274,6 +274,52 @@ A–D produces revenue.
 
 ---
 
+## 5b. Access control: what the field actually does (checked 2026-09-07)
+
+Added after building the CC6.1/6.2/6.3 automation. Seven platforms compared, so
+the claims in `PITCH.md` §6.7 stay defensible.
+
+| | Vanta / Drata | Sprinto | Oneleet | Comp AI | Secureframe |
+|---|---|---|---|---|---|
+| Leaver still has an account | Yes, from an HRIS | Yes | Yes | Yes | Yes |
+| Overdue access review **surfaced** | Reminders only | **Yes, as a monitor** | Slack task | — | Task due notice |
+| Accounts with nobody behind them | Not found | **Claims it** | Dormant accounts (≠ orphaned) | — | — |
+| Laptop agent | Vanta yes | — | Yes | Yes | Yes |
+
+Three conclusions, and the second one cost me an earlier assumption:
+
+1. **Offboarding drift is table stakes.** All seven have it. Build it, never
+   pitch it.
+2. **"Nobody turns an overdue review into a failing control" was wrong.**
+   Sprinto does, at least by its own marketing. The defensible claim is *most
+   don't*, not *nobody does*. Caveat: much of the comparison material is
+   published by Sprinto, so treat it as directional.
+3. **The fan-out is the actual edge, not any single check.** One cadence check
+   completes one measure that satisfies CC6.1, CC6.2 *and* CC6.3, and carries
+   ISO A.5.18, NIS2 and the rest with it. Competitors wire checks to controls one
+   at a time. That is the part nobody copies without our data model — which is
+   the same conclusion as §1: the moat is structural, not featural.
+
+The documented failure mode, worth quoting in a call because it *is* the pain:
+
+> Six months after buying Drata, Vanta, Secureframe, or any other compliance
+> automation platform, a company realizes the quarterly access review is overdue
+> because nobody defined who runs it.
+
+And why a quarterly checklist alone isn't enough — the argument for continuous
+drift detection alongside the cadence check:
+
+> Access drifts between cycles, not during them.
+
+**The gap this research exposed on our side:** the identity checks read Okta or
+Google Workspace. **No Microsoft 365 / Entra ID.** For the EU mid-market this
+matters more than anywhere, and it contradicts §4's EU thesis to sell into
+Microsoft shops with the identity half of the product dark. Cheapest fix on the
+board: the evaluation logic is already provider-agnostic, so it needs a Graph
+API reader, not a redesign.
+
+---
+
 ## 6. What not to do
 
 - **Don't compete on price.** You lose to free. (§1)
@@ -285,6 +331,11 @@ A–D produces revenue.
   the biggest fraud in the category's history.
 - **Don't build more features.** The product is *built*. Every angle above is positioning,
   packaging, or distribution — not code.
+  *One exception, added 2026-09-07:* closing a gap that makes a claim untrue isn't
+  a new feature, it's debt. Microsoft 365 identity (§5b) is the live example —
+  without it, half the access-control story is dark for a large share of the EU
+  buyers §4 tells us to target. Build that; don't take it as licence to build
+  anything else.
 
 ---
 
