@@ -2,7 +2,12 @@
 // evidence — user status breakdown, MFA enrollment, password policy — via a
 // read-only API token (SSWS). Host is allow-listed to *.okta.com to block SSRF.
 
-const MAX_USERS = 200; // one page is plenty for an evidence snapshot
+const MAX_USERS_PER_PAGE = 200; // Okta's own per-page maximum
+// 5 x 200 = 1000 users. The old code read a single page and reported no more, so
+// an org past 200 people silently lost the rest — fine for a count, fatal for the
+// roster checks, which would confidently pass while an offboarded person sat on
+// an unread page.
+const MAX_USER_PAGES = 5;
 const MAX_MFA_CHECKS = 50; // factor lookups are 1 request each — cap them
 
 export class OktaError extends Error {
@@ -75,6 +80,10 @@ export interface OktaSecurityReport {
   mfaEnrolled: number;
   passwordMinLength: number | null;
   passwordRequiresComplexity: boolean;
+  /** Every user we read — the roster the identity checks reconcile against. */
+  roster: OktaUser[];
+  /** True when the page budget ran out before Okta stopped returning pages. */
+  truncated: boolean;
 }
 
 export interface OktaUser {
@@ -83,28 +92,72 @@ export interface OktaUser {
   status: string;
 }
 
+interface OktaRawUser {
+  id: string;
+  status: string;
+  profile?: { email?: string; firstName?: string; lastName?: string };
+}
+
+/**
+ * The path of the next page, from Okta's RFC 5988 Link header.
+ *
+ * Returns null unless the URL points at the SAME already-allow-listed Okta host
+ * over https. The Link header is server-controlled data, and following it blindly
+ * would turn our own pagination into an SSRF primitive — the exact thing
+ * normalizeOktaHost exists to prevent.
+ */
+function nextPagePath(res: Response, host: string): string | null {
+  const link = res.headers.get("link");
+  if (!link) return null;
+  for (const part of link.split(",")) {
+    const match = part.match(/<([^>]+)>\s*;\s*rel="next"/i);
+    if (!match) continue;
+    try {
+      const url = new URL(match[1]);
+      if (url.protocol !== "https:" || url.host !== host) return null;
+      return `${url.pathname}${url.search}`;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Walk the user list, bounded by MAX_USER_PAGES, reporting whether we saw it all. */
+async function fetchAllUsers(
+  host: string,
+  token: string,
+): Promise<{ users: OktaRawUser[]; truncated: boolean }> {
+  const users: OktaRawUser[] = [];
+  let path: string | null = `/api/v1/users?limit=${MAX_USERS_PER_PAGE}`;
+  let pages = 0;
+
+  while (path && pages < MAX_USER_PAGES) {
+    const res = await oktaGet(host, path, token);
+    check(res);
+    users.push(...((await res.json()) as OktaRawUser[]));
+    path = nextPagePath(res, host);
+    pages++;
+  }
+
+  // A path still in hand means we stopped on the budget, not on the data.
+  return { users, truncated: path !== null };
+}
+
+function toOktaUser(u: OktaRawUser): OktaUser {
+  const name = [u.profile?.firstName, u.profile?.lastName].filter(Boolean).join(" ");
+  return { email: u.profile!.email as string, name: name || undefined, status: u.status };
+}
+
 /** Raw per-user list (email + name + status) — for pre-filling an access
  * review roster or the personnel list, not a full security report. */
 export async function fetchUsersRaw(host: string, token: string): Promise<OktaUser[]> {
-  const res = await oktaGet(host, `/api/v1/users?limit=${MAX_USERS}`, token);
-  check(res);
-  const users = (await res.json()) as Array<{
-    status: string;
-    profile?: { email?: string; firstName?: string; lastName?: string };
-  }>;
-  return users
-    .filter((u) => u.profile?.email)
-    .map((u) => {
-      const name = [u.profile?.firstName, u.profile?.lastName].filter(Boolean).join(" ");
-      return { email: u.profile!.email as string, name: name || undefined, status: u.status };
-    });
+  const { users } = await fetchAllUsers(host, token);
+  return users.filter((u) => u.profile?.email).map(toOktaUser);
 }
 
 export async function fetchUserSecurity(host: string, token: string): Promise<OktaSecurityReport> {
-  // Users (single capped page).
-  const usersRes = await oktaGet(host, `/api/v1/users?limit=${MAX_USERS}`, token);
-  check(usersRes);
-  const users = (await usersRes.json()) as Array<{ id: string; status: string }>;
+  const { users, truncated } = await fetchAllUsers(host, token);
 
   const counts = { active: 0, suspended: 0, deprovisioned: 0 };
   for (const u of users) {
@@ -152,5 +205,7 @@ export async function fetchUserSecurity(host: string, token: string): Promise<Ok
     mfaEnrolled,
     passwordMinLength,
     passwordRequiresComplexity,
+    roster: users.filter((u) => u.profile?.email).map(toOktaUser),
+    truncated,
   };
 }

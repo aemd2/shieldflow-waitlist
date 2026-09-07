@@ -1299,3 +1299,49 @@ export async function getMeasuresForControl(
     }))
     .sort((a: any, b: any) => a.name.localeCompare(b.name));
 }
+
+// ---------- Identity reconciliation (untracked accounts) ----------
+
+export interface UnmatchedAccounts {
+  /** Live identity-provider accounts that match nobody in Personnel. */
+  emails: string[];
+  /** Accounts the workspace has already marked as "not a person". */
+  dismissed: { email: string; reason: string | null }[];
+}
+
+/**
+ * The accounts the untracked-accounts check is currently failing on, read from
+ * the finding rows the checks engine already writes — no second provider call.
+ *
+ * Both identity providers can contribute, so the addresses are merged and
+ * de-duplicated: one person with an Okta and a Google account is one problem,
+ * not two.
+ */
+export async function getUnmatchedAccounts(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<UnmatchedAccounts> {
+  const [{ data: findings }, { data: exceptions }] = await Promise.all([
+    supabase
+      .from("integration_findings")
+      .select("check_key, result, raw")
+      .eq("company_id", companyId)
+      .eq("result", "fail"),
+    supabase
+      .from("identity_exceptions")
+      .select("email, reason")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: true }),
+  ]);
+
+  const emails = new Set<string>();
+  for (const f of (findings ?? []) as { check_key: string; raw: { subjects?: string[] } | null }[]) {
+    if (!f.check_key.endsWith(".untracked_accounts")) continue;
+    for (const email of f.raw?.subjects ?? []) emails.add(email);
+  }
+
+  return {
+    emails: [...emails].sort(),
+    dismissed: ((exceptions ?? []) as { email: string; reason: string | null }[]) ?? [],
+  };
+}

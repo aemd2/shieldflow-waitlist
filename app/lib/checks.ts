@@ -1,6 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { autoCompleteMeasuresFromChecks } from "@/lib/measures";
 import { listSelectedFrameworkIds } from "@/lib/db/queries";
+import {
+  evaluateOffboardingDrift,
+  evaluateUntrackedAccounts,
+  type IdentityAccount,
+  type PersonRecord,
+} from "@/lib/identity-checks";
 
 // Continuous control checks: turn the security posture each integration already
 // computes (root MFA, branch protection, 2FA %, TLS…) into pass/fail results
@@ -15,6 +21,13 @@ export interface RawCheck {
   controlCodes: string[];
   result: CheckResultValue;
   detail: string;
+  /**
+   * The specific things a failing check is about (e.g. the unmatched account
+   * addresses). Stored on the finding so the UI can offer an action per subject
+   * rather than making the user retype one out of a sentence. Never persisted to
+   * control_checks — those stay one row per (check x control).
+   */
+  subjects?: string[];
 }
 
 // Control-code sets — the real codes seeded across SOC 2, ISO 27001, HIPAA, GDPR
@@ -26,6 +39,14 @@ const CHANGE_MGMT = ["CC8.1", "A.8.28", "A.8.9", "Req 6"];
 const TLS = ["CC6.6", "A.8.24", "164.312(e)(1)", "Req 4", "Art. 32"];
 const LEAST_PRIV = ["CC6.1", "CC6.3", "A.5.15", "164.308(a)(4)", "Req 7"];
 const VISIBILITY = ["CC6.1", "CC6.6", "A.5.15"];
+
+/**
+ * Days after someone's leaving date before a still-open account is a finding.
+ * Fixed rather than configurable: an account open the day after someone leaves is
+ * normal, one open a week later is the thing auditors sample for. Revisit when a
+ * customer's own policy actually differs.
+ */
+export const OFFBOARDING_GRACE_DAYS = 7;
 
 function pct(n: number, d: number): number {
   return d > 0 ? Math.round((n / d) * 100) : 0;
@@ -312,14 +333,119 @@ interface FindingRow {
   check_key: string;
   result: CheckResultValue;
   detail: string;
-  raw: { control_codes: string[] };
+  raw: { control_codes: string[]; subjects?: string[] };
+}
+
+/**
+ * Checks that need the company's own data as well as the provider's posture —
+ * reconciling the identity roster against Personnel. Kept in a separate map so
+ * EVALUATORS stays synchronous and free of database access: the moment one
+ * evaluator can await, every evaluator becomes hard to reason about.
+ */
+export const ASYNC_EVALUATORS: Record<
+  string,
+  (posture: any, db: SupabaseClient, companyId: string) => Promise<RawCheck[]>
+> = {
+  okta: (posture, db, companyId) =>
+    identityChecks(db, companyId, "okta", oktaAccounts(posture), Boolean(posture?.truncated)),
+  google: (posture, db, companyId) =>
+    identityChecks(db, companyId, "google", googleAccounts(posture), Boolean(posture?.truncated)),
+};
+
+/**
+ * Okta: "still has access" is NOT (DEPROVISIONED || SUSPENDED), deliberately not
+ * `=== ACTIVE`. LOCKED_OUT, PASSWORD_EXPIRED and RECOVERY accounts still belong
+ * to the person and can be restored, so treating them as closed would let a real
+ * finding pass.
+ */
+function oktaAccounts(posture: any): IdentityAccount[] | null {
+  if (!Array.isArray(posture?.roster)) return null;
+  return posture.roster
+    .filter((u: any) => u?.email)
+    .map((u: any) => ({
+      email: String(u.email),
+      active: u.status !== "DEPROVISIONED" && u.status !== "SUSPENDED",
+    }));
+}
+
+function googleAccounts(posture: any): IdentityAccount[] | null {
+  if (!Array.isArray(posture?.roster)) return null;
+  return posture.roster
+    .filter((u: any) => u?.primaryEmail)
+    .map((u: any) => ({ email: String(u.primaryEmail), active: !u.suspended }));
+}
+
+/** One Personnel read, one exceptions read, then two pure evaluations. */
+async function identityChecks(
+  db: SupabaseClient,
+  companyId: string,
+  provider: string,
+  roster: IdentityAccount[] | null,
+  truncated: boolean,
+): Promise<RawCheck[]> {
+  // Control codes come from the measure crosswalk rather than a hardcoded list,
+  // so these checks cover whatever frameworks the measure covers — including any
+  // added later — and can never name a code that doesn't exist.
+  const [{ data: people }, { data: exceptions }, offCodes, onCodes] = await Promise.all([
+    db.from("personnel").select("name, email, status, ended_at").eq("company_id", companyId),
+    db.from("identity_exceptions").select("email").eq("company_id", companyId),
+    controlCodesForMeasure(db, "offboarding-checklist"),
+    controlCodesForMeasure(db, "onboarding-checklist"),
+  ]);
+
+  const records = (people ?? []) as PersonRecord[];
+  const dismissed = ((exceptions ?? []) as { email: string }[]).map((e) => e.email);
+
+  const drift = evaluateOffboardingDrift({
+    roster,
+    truncated,
+    people: records,
+    graceDays: OFFBOARDING_GRACE_DAYS,
+  });
+  const untracked = evaluateUntrackedAccounts({ roster, truncated, people: records, dismissed });
+
+  return [
+    {
+      checkKey: `${provider}.offboarding_drift`,
+      controlCodes: offCodes,
+      result: drift.result,
+      detail: drift.detail,
+    },
+    {
+      checkKey: `${provider}.untracked_accounts`,
+      controlCodes: onCodes,
+      result: untracked.result,
+      detail: untracked.detail,
+      subjects: untracked.subjects,
+    },
+  ];
 }
 
 /** Evaluate a provider's posture into raw checks (null if the provider has no evaluator). */
-function rawChecksFor(provider: string, posture: unknown): RawCheck[] | null {
-  const evaluator = EVALUATORS[provider];
-  if (!evaluator) return null;
-  return evaluator(posture);
+async function rawChecksFor(
+  provider: string,
+  posture: unknown,
+  db: SupabaseClient,
+  companyId: string,
+): Promise<RawCheck[] | null> {
+  const sync = EVALUATORS[provider];
+  const async_ = ASYNC_EVALUATORS[provider];
+  if (!sync && !async_) return null;
+
+  const checks: RawCheck[] = sync ? sync(posture) : [];
+
+  // Isolated on purpose. recordChecksForSyncAdmin has no try/catch of its own, so
+  // a throwing async evaluator would abort the cron's handler for this provider
+  // before anything was written — losing its passing checks too. A roster read
+  // that fails should cost us the roster checks, nothing else.
+  if (async_) {
+    try {
+      checks.push(...(await async_(posture, db, companyId)));
+    } catch {
+      // Leave the sync checks standing.
+    }
+  }
+  return checks;
 }
 
 /** Map every control code in the company's selected frameworks to its control id. */
@@ -366,7 +492,10 @@ function buildFindings(raw: RawCheck[]): FindingRow[] {
     check_key: rc.checkKey,
     result: rc.result,
     detail: rc.detail,
-    raw: { control_codes: rc.controlCodes },
+    raw: {
+      control_codes: rc.controlCodes,
+      ...(rc.subjects?.length ? { subjects: rc.subjects } : {}),
+    },
   }));
 }
 
@@ -463,7 +592,7 @@ export async function recordChecksForSync(
   evidenceId: string | null,
 ): Promise<void> {
   try {
-    const raw = rawChecksFor(provider, posture);
+    const raw = await rawChecksFor(provider, posture, supabase, companyId);
     if (!raw) return;
     const codeToId = await loadCodeToId(supabase, companyId);
     await persistViaRpc(supabase, companyId, provider, raw, codeToId, evidenceId);
@@ -490,7 +619,7 @@ export async function recordChecksForSyncAdmin(
   posture: unknown,
   evidenceId: string | null,
 ): Promise<RawCheck[]> {
-  const raw = rawChecksFor(provider, posture);
+  const raw = await rawChecksFor(provider, posture, admin, companyId);
   if (!raw) return [];
 
   const codeToId = await loadCodeToId(admin, companyId);

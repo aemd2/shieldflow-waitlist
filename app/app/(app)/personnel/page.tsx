@@ -6,8 +6,10 @@ import {
   listTraining,
   getCallerAccess,
   listIntegrations,
+  getUnmatchedAccounts,
 } from "@/lib/db/queries";
 import { PersonnelManager } from "@/components/personnel/PersonnelManager";
+import { UnmatchedAccounts } from "@/components/personnel/UnmatchedAccounts";
 import type { RosterProviderInfo } from "@/app/actions/access-reviews";
 import { PageShell } from "@/components/ui/page";
 
@@ -24,11 +26,13 @@ export default async function PersonnelPage() {
   const company = await getCompanyForUser(supabase, user.id);
   if (!company) redirect("/onboarding");
 
-  const [people, training, access, integrations] = await Promise.all([
+  const [people, training, access, integrations, unmatched] = await Promise.all([
     listPersonnel(supabase, company.id),
     listTraining(supabase, company.id),
     getCallerAccess(supabase, company.id, user.id),
     listIntegrations(supabase, company.id).catch(() => []),
+    // Never let the reconciliation panel take the page down with it.
+    getUnmatchedAccounts(supabase, company.id).catch(() => ({ emails: [], dismissed: [] })),
   ]);
   const canWrite = access?.canWrite ?? false;
 
@@ -44,6 +48,11 @@ export default async function PersonnelPage() {
       title="Personnel"
       subtitle="Who works here — joiners and leavers, roles, and security-training status (matched to training records by email). The roster auditors ask for."
     >
+      <UnmatchedAccounts
+        emails={unmatched.emails}
+        dismissed={unmatched.dismissed}
+        canWrite={canWrite}
+      />
       <PersonnelManager
         people={people}
         training={training}
