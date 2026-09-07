@@ -19,7 +19,8 @@ export type TokenIntegrationProvider =
   | "jira"
   | "linear"
   | "gcp"
-  | "cloudflare";
+  | "cloudflare"
+  | "microsoft";
 
 // Toast copy lives on the client — inline functions can't cross the RSC boundary
 // in production builds (Next.js only serializes "use server" actions).
@@ -38,6 +39,8 @@ function connectedToastFor(provider: TokenIntegrationProvider, res: any): string
       return `Connected to project ${res.project}`;
     case "cloudflare":
       return "Cloudflare connected";
+    case "microsoft":
+      return `Connected to ${res.org ?? "Microsoft 365"}`;
   }
 }
 
@@ -57,6 +60,8 @@ function syncToastFor(provider: TokenIntegrationProvider, res: any): string {
       return `Synced: ${s.owners} owners, ${s.editors} editors`;
     case "cloudflare":
       return `Synced: ${s.zones} zones`;
+    case "microsoft":
+      return `Synced: ${s.total} accounts, ${s.enabled} enabled`;
   }
 }
 

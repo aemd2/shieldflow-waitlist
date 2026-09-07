@@ -16,6 +16,7 @@ import { PageShell } from "@/components/ui/page";
 const ROSTER_LABELS: Record<string, string> = {
   okta: "Okta",
   google_workspace: "Google Workspace",
+  microsoft: "Microsoft 365",
 };
 
 export default async function PersonnelPage() {
@@ -39,8 +40,8 @@ export default async function PersonnelPage() {
   // Same identity-directory-only filter used on the access-reviews roster
   // picker — GitHub/AWS/etc. aren't "who works here" sources.
   const rosterProviders: RosterProviderInfo[] = integrations
-    .filter((i) => i.status === "connected" && (i.provider === "okta" || i.provider === "google_workspace"))
-    .map((i) => ({ provider: i.provider as "okta" | "google_workspace", label: ROSTER_LABELS[i.provider] }));
+    .filter((i) => i.status === "connected" && (i.provider === "okta" || i.provider === "google_workspace" || i.provider === "microsoft"))
+    .map((i) => ({ provider: i.provider as RosterProviderInfo["provider"], label: ROSTER_LABELS[i.provider] }));
 
   return (
     <PageShell

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decryptSecret } from "@/lib/crypto";
 import { ensureGoogleAccessToken, fetchWorkspaceSecurity } from "@/lib/google";
+import { fetchDirectorySecurity as fetchMicrosoftDirectory } from "@/lib/microsoft";
 import { fetchAccountSecurity } from "@/lib/aws";
 import { fetchRepoSecurity as fetchGithubRepoSecurity } from "@/lib/github";
 import { fetchUserSecurity as fetchOktaSecurity } from "@/lib/okta";
@@ -27,6 +28,7 @@ export const SYNCABLE_PROVIDERS = [
   "cloudflare",
   "gitlab",
   "google_workspace",
+  "microsoft",
 ] as const;
 export type SyncableProvider = (typeof SYNCABLE_PROVIDERS)[number];
 
@@ -86,6 +88,8 @@ export async function fetchPostureFor(
       return fetchCloudflareSecurity(secret);
     case "gitlab":
       return fetchGitlabRepoSecurity(secret);
+    case "microsoft":
+      return fetchMicrosoftDirectory(JSON.parse(secret));
     default:
       throw new Error(`provider ${integ.provider} is not syncable`);
   }

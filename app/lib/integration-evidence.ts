@@ -21,6 +21,7 @@ export const INTEGRATION_LABELS: Record<string, string> = {
   linear: "Linear",
   cloudflare: "Cloudflare",
   gcp: "Google Cloud",
+  microsoft: "Microsoft 365",
 };
 
 /**

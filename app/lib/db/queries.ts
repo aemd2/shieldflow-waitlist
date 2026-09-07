@@ -669,7 +669,8 @@ export type IntegrationProvider =
   | "gitlab"
   | "linear"
   | "cloudflare"
-  | "gcp";
+  | "gcp"
+  | "microsoft";
 
 export interface Integration {
   id: string;

@@ -11,6 +11,11 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { decryptSecret } from "@/lib/crypto";
 import { parsePersonnelCsv, nameFromEmail } from "@/lib/csv";
 import { fetchUsersRaw as fetchOktaUsersRaw, OktaError } from "@/lib/okta";
+import {
+  fetchDirectorySecurity as fetchMicrosoftDirectory,
+  MicrosoftError,
+  type MicrosoftCredentials,
+} from "@/lib/microsoft";
 import { ensureGoogleAccessToken, fetchWorkspaceUsers, GoogleError, type GoogleTokenRow } from "@/lib/google";
 import type { RosterProvider } from "@/app/actions/access-reviews";
 
@@ -104,6 +109,22 @@ export async function pullPersonnelFrom(provider: RosterProvider) {
       };
     }
 
+    if (provider === "microsoft") {
+      let creds: MicrosoftCredentials;
+      try {
+        creds = JSON.parse(decryptSecret(integ.access_token as string));
+      } catch {
+        return { error: "Stored credentials are corrupt — please reconnect Microsoft 365." };
+      }
+      const report = await fetchMicrosoftDirectory(creds);
+      return {
+        ok: true as const,
+        rows: report.roster
+          .filter((u) => u.enabled)
+          .map((u) => ({ name: u.name || nameFromEmail(u.email), email: u.email, role_title: "" })),
+      };
+    }
+
     // google_workspace
     const accessToken = await ensureGoogleAccessToken(supabase, integ as GoogleTokenRow);
     const users = await fetchWorkspaceUsers(accessToken);
@@ -114,7 +135,9 @@ export async function pullPersonnelFrom(provider: RosterProvider) {
         .map((u) => ({ name: u.fullName || nameFromEmail(u.primaryEmail), email: u.primaryEmail, role_title: "" })),
     };
   } catch (err) {
-    if (err instanceof OktaError || err instanceof GoogleError) return { error: err.userMessage };
+    if (err instanceof OktaError || err instanceof GoogleError || err instanceof MicrosoftError) {
+      return { error: err.userMessage };
+    }
     return { error: "Couldn't pull the roster. Please try again." };
   }
 }

@@ -260,6 +260,7 @@ export const CHECK_PROVIDER_LABELS: Record<string, string> = {
   gcp: "Google Cloud",
   cloudflare: "Cloudflare",
   gitlab: "GitLab",
+  microsoft: "Microsoft 365",
   shieldflow: "ShieldFlow",
 };
 
@@ -370,6 +371,8 @@ export const ASYNC_EVALUATORS: Record<
     identityChecks(db, companyId, "okta", oktaAccounts(posture), Boolean(posture?.truncated)),
   google: (posture, db, companyId) =>
     identityChecks(db, companyId, "google", googleAccounts(posture), Boolean(posture?.truncated)),
+  microsoft: (posture, db, companyId) =>
+    identityChecks(db, companyId, "microsoft", microsoftAccounts(posture), Boolean(posture?.truncated)),
 };
 
 /**
@@ -385,6 +388,22 @@ function oktaAccounts(posture: any): IdentityAccount[] | null {
     .map((u: any) => ({
       email: String(u.email),
       active: u.status !== "DEPROVISIONED" && u.status !== "SUSPENDED",
+    }));
+}
+
+/**
+ * Entra ID: `accountEnabled` is the whole story — a disabled account cannot sign
+ * in. Both addresses are carried through because `mail` and the sign-on UPN
+ * frequently differ, and Personnel may hold either one.
+ */
+function microsoftAccounts(posture: any): IdentityAccount[] | null {
+  if (!Array.isArray(posture?.roster)) return null;
+  return posture.roster
+    .filter((u: any) => u?.email)
+    .map((u: any) => ({
+      email: String(u.email),
+      active: u.enabled !== false,
+      aliases: Array.isArray(u.aliases) ? u.aliases.map(String) : [],
     }));
 }
 

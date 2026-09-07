@@ -14,10 +14,15 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { recordInternalChecks } from "@/lib/checks";
 import { decryptSecret } from "@/lib/crypto";
 import { fetchUsersRaw as fetchOktaUsersRaw, OktaError } from "@/lib/okta";
+import {
+  fetchDirectorySecurity as fetchMicrosoftDirectory,
+  MicrosoftError,
+  type MicrosoftCredentials,
+} from "@/lib/microsoft";
 import { ensureGoogleAccessToken, fetchWorkspaceUsers, GoogleError, type GoogleTokenRow } from "@/lib/google";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";
-const ROSTER_PROVIDERS = ["okta", "google_workspace"] as const;
+const ROSTER_PROVIDERS = ["okta", "google_workspace", "microsoft"] as const;
 export type RosterProvider = (typeof ROSTER_PROVIDERS)[number];
 export interface RosterProviderInfo {
   provider: RosterProvider;
@@ -88,6 +93,23 @@ export async function pullRosterFrom(provider: RosterProvider) {
       };
     }
 
+    if (provider === "microsoft") {
+      let creds: MicrosoftCredentials;
+      try {
+        creds = JSON.parse(decryptSecret(integ.access_token as string));
+      } catch {
+        return { error: "Stored credentials are corrupt — please reconnect Microsoft 365." };
+      }
+      const report = await fetchMicrosoftDirectory(creds);
+      return {
+        ok: true as const,
+        rows: report.roster.map((u) => ({
+          subject: u.email,
+          access: u.enabled ? "Enabled" : "Disabled",
+        })),
+      };
+    }
+
     // google_workspace
     const accessToken = await ensureGoogleAccessToken(supabase, integ as GoogleTokenRow);
     const users = await fetchWorkspaceUsers(accessToken);
@@ -99,7 +121,9 @@ export async function pullRosterFrom(provider: RosterProvider) {
       })),
     };
   } catch (err) {
-    if (err instanceof OktaError || err instanceof GoogleError) return { error: err.userMessage };
+    if (err instanceof OktaError || err instanceof GoogleError || err instanceof MicrosoftError) {
+      return { error: err.userMessage };
+    }
     return { error: "Couldn't pull the roster. Please try again." };
   }
 }

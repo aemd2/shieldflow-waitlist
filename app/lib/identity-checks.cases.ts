@@ -26,6 +26,10 @@ function person(p: Partial<PersonRecord>): PersonRecord {
 function acct(email: string, active = true): IdentityAccount {
   return { email, active };
 }
+/** Entra-shaped: one account reachable at both `mail` and the sign-on UPN. */
+function dual(mail: string, upn: string, active = true): IdentityAccount {
+  return { email: mail, active, aliases: [upn] };
+}
 
 let failures = 0;
 function expect(label: string, got: string, want: string) {
@@ -202,6 +206,19 @@ expect(
   evaluateUntrackedAccounts({
     roster: [acct("a@x.com"), acct("old@x.com", false)], truncated: false,
     people: [person({ name: "A", email: "a@x.com" })], dismissed: [],
+  }).result,
+  "pass",
+);
+
+expect(
+  "Entra account known by its UPN only — must NOT be reported as an orphan",
+  evaluateUntrackedAccounts({
+    roster: [acct("a@x.com"), dual("b@x.com", "b@x.onmicrosoft.com")], truncated: false,
+    people: [
+      person({ name: "A", email: "a@x.com" }),
+      person({ name: "B", email: "b@x.onmicrosoft.com" }),
+    ],
+    dismissed: [],
   }).result,
   "pass",
 );

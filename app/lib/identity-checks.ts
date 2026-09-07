@@ -31,6 +31,19 @@ export interface IdentityAccount {
    * their access and can come back.
    */
   active: boolean;
+  /**
+   * Other addresses that reach the same account. Entra ID routinely has two —
+   * `mail` (user@company.com) and the sign-on UPN
+   * (user@company.onmicrosoft.com) — and Personnel may hold either. Matching on
+   * only one would report the person's own account as belonging to nobody, and
+   * a check that invents findings gets switched off.
+   */
+  aliases?: string[];
+}
+
+/** Every address that reaches an account, normalised. */
+function addressesOf(account: IdentityAccount): string[] {
+  return [account.email, ...(account.aliases ?? [])].map(norm).filter(Boolean);
 }
 
 /** One row of the Personnel register. */
@@ -151,7 +164,12 @@ export function evaluateOffboardingDrift(input: DriftInput): IdentityVerdict {
   // One bad row must not disable the check: evaluate everyone we can match and
   // say how many were skipped.
   const activeByEmail = new Map<string, boolean>();
-  for (const account of roster) activeByEmail.set(norm(account.email), account.active);
+  for (const account of roster) {
+    // Any address that reaches a live account means the person still has access.
+    for (const address of addressesOf(account)) {
+      activeByEmail.set(address, (activeByEmail.get(address) ?? false) || account.active);
+    }
+  }
 
   const stillOpen = withEmail.filter((p) => activeByEmail.get(norm(p.email)) === true);
   const skipped = withoutEmail ? ` ${withoutEmail} other leaver(s) skipped: no email recorded.` : "";
@@ -222,7 +240,11 @@ export function evaluateUntrackedAccounts(input: UntrackedInput): IdentityVerdic
   }
 
   const live = roster.filter((a) => a.active && norm(a.email));
-  const unmatched = live.filter((a) => !known.has(norm(a.email)) && !ignored.has(norm(a.email)));
+  // An account is accounted for if ANY of its addresses is known or dismissed.
+  const unmatched = live.filter((a) => {
+    const addresses = addressesOf(a);
+    return !addresses.some((address) => known.has(address) || ignored.has(address));
+  });
 
   // If half the directory is unknown the roster is what's broken, not the IdP.
   // Failing here would bury a real finding under dozens of false ones.

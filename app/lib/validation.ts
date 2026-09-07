@@ -54,6 +54,18 @@ export const oktaSchema = z.object({
   token: z.string().trim().min(20, "That token looks too short.").max(200),
 });
 
+/**
+ * Microsoft 365 / Entra ID app-only credentials. The customer registers an app
+ * in their own tenant and pastes the three values, so nothing here is a user
+ * password — it is a service credential they can revoke without touching anyone's
+ * account.
+ */
+export const microsoftSchema = z.object({
+  tenantId: z.string().trim().min(3, "Enter your tenant ID or domain.").max(255),
+  clientId: z.string().trim().min(10, "That application (client) ID looks too short.").max(100),
+  clientSecret: z.string().trim().min(10, "That client secret looks too short.").max(300),
+});
+
 export const gitlabTokenSchema = z.object({
   token: z
     .string()

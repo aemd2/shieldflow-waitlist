@@ -30,6 +30,7 @@ import { AwsCard } from "@/components/integrations/AwsCard";
 import { IntegrationConnectCard } from "@/components/integrations/IntegrationConnectCard";
 import { IntegrationsUrlToast } from "@/components/integrations/IntegrationsUrlToast";
 import { connectOkta, syncOkta, disconnectOkta } from "@/app/actions/okta";
+import { connectMicrosoft, syncMicrosoft, disconnectMicrosoft } from "@/app/actions/microsoft";
 import { connectGitLab, syncGitLab, disconnectGitLab } from "@/app/actions/gitlab";
 import { connectJira, syncJira, disconnectJira } from "@/app/actions/jira";
 import { connectLinear, syncLinear, disconnectLinear } from "@/app/actions/linear";
@@ -63,6 +64,7 @@ export default async function IntegrationsPage() {
   const slack = byProvider("slack");
   const aws = byProvider("aws");
   const okta = byProvider("okta");
+  const microsoft = byProvider("microsoft");
   const gitlab = byProvider("gitlab");
   const jira = byProvider("jira");
   const linear = byProvider("linear");
@@ -119,6 +121,37 @@ export default async function IntegrationsPage() {
             disconnectConfirm="Disconnect Okta? Collected evidence stays in the vault."
             setupHint={
               <>Okta Admin → Security → API → Tokens → create a read-only token; paste your org URL above.</>
+            }
+          />
+        </IntegrationCard>
+
+        <IntegrationCard
+          name="Microsoft 365"
+          description="Entra ID directory — who has an account and whether it's still enabled. Powers the leaver and untracked-account checks."
+          icon={<KeyRound className="h-5 w-5 text-muted-foreground" />}
+          status={cardStatus(microsoft)}
+        >
+          <IntegrationConnectCard
+            provider="microsoft"
+            status={microsoft?.status ?? null}
+            lastSyncedAt={microsoft?.last_synced_at ?? null}
+            identityLabel={microsoft ? `Connected to ${meta(microsoft).org ?? "your tenant"}` : null}
+            fields={[
+              { name: "tenantId", placeholder: "Tenant ID or contoso.onmicrosoft.com" },
+              { name: "clientId", placeholder: "Application (client) ID" },
+              { name: "clientSecret", placeholder: "Client secret value", type: "password" },
+            ]}
+            connectAction={connectMicrosoft}
+            syncAction={syncMicrosoft}
+            disconnectAction={disconnectMicrosoft}
+            disconnectConfirm="Disconnect Microsoft 365? Collected evidence stays in the vault."
+            setupHint={
+              <>
+                Entra admin centre → App registrations → New registration. Then API permissions →
+                Microsoft Graph → <b>Application permissions</b> → <b>User.Read.All</b> → Grant admin
+                consent. Finally Certificates &amp; secrets → New client secret, and paste the
+                secret <b>Value</b> (not the Secret ID) above.
+              </>
             }
           />
         </IntegrationCard>
