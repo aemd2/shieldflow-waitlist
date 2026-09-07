@@ -15,6 +15,7 @@ import {
 } from "@/lib/db/queries";
 import type { ControlCheck } from "@/lib/db/queries";
 import { flattenControlOrder } from "@/lib/controls-order";
+import { CHECK_PROVIDER_LABELS } from "@/lib/checks";
 import { cn } from "@/lib/cn";
 import { buttonClasses } from "@/components/ui/Button";
 import { StatusPicker } from "@/components/dashboard/StatusPicker";
@@ -269,7 +270,8 @@ function CheckRow({ check }: { check: ControlCheck }) {
       <div className="min-w-0">
         <div className="text-sm text-foreground">{check.detail ?? check.check_key}</div>
         <div className="text-xs text-muted-foreground">
-          {check.provider} &middot; {new Date(check.evaluated_at).toLocaleDateString()}
+          {CHECK_PROVIDER_LABELS[check.provider] ?? check.provider} &middot;{" "}
+          {new Date(check.evaluated_at).toLocaleDateString()}
         </div>
       </div>
     </li>

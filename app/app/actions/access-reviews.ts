@@ -11,6 +11,7 @@ import { csvSafe, parseRosterCsv } from "@/lib/csv";
 import { newUuid } from "@/lib/uuid";
 import { accessReviewCreateSchema, accessReviewDecisionSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { recordInternalChecks } from "@/lib/checks";
 import { decryptSecret, encryptIfConfigured } from "@/lib/crypto";
 import { fetchUsersRaw as fetchOktaUsersRaw, OktaError } from "@/lib/okta";
 import { fetchWorkspaceUsers, refreshAccessToken, GoogleError } from "@/lib/google";
@@ -335,8 +336,17 @@ export async function completeAccessReview(id: string) {
     metadata: { subjects: rows.length, revoked: rows.filter((r) => r.decision === "revoke").length },
   });
 
+  // Re-evaluate the cadence check straight away rather than waiting for the next
+  // hourly cron: completing a review is exactly the act that turns it green, and
+  // it satisfies the `access-reviews` measure — which alone carries CC6.1, CC6.2
+  // and CC6.3. The user should see all three move before they leave the page.
+  await recordInternalChecks(res.supabase, res.company.id);
+
   revalidatePath("/access-reviews");
   revalidatePath("/evidence");
+  revalidatePath("/controls");
+  revalidatePath("/measures");
+  revalidatePath("/dashboard");
   return { ok: true };
 }
 

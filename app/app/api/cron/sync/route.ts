@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminSupabase, isAdminConfigured } from "@/lib/supabase/admin";
-import { recordChecksForSyncAdmin } from "@/lib/checks";
+import { recordChecksForSyncAdmin, recordInternalChecks, INTERNAL_PROVIDER } from "@/lib/checks";
 import {
   fetchPostureFor,
   isAuthError,
@@ -49,7 +49,7 @@ async function run(req: Request) {
   }
 
   const admin = createAdminSupabase();
-  const summary = { companies: 0, integrations: 0, synced: 0, drift: 0, failing: 0, errors: 0 };
+  const summary = { companies: 0, integrations: 0, synced: 0, internal: 0, drift: 0, failing: 0, errors: 0 };
 
   const { data: integs } = await admin
     .from("integrations")
@@ -65,12 +65,19 @@ async function run(req: Request) {
     byCompany.set(row.company_id, list);
   }
 
-  for (const [companyId, list] of byCompany) {
+  // Internal checks need no integration, so the run covers every workspace — not
+  // just the ones with something connected. A company that has never connected
+  // anything still has an access-review cadence to keep.
+  const { data: allCompanies } = await admin.from("companies").select("id");
+  const companyIds = new Set<string>((allCompanies ?? []).map((c) => (c as { id: string }).id));
+  for (const id of byCompany.keys()) companyIds.add(id);
+
+  for (const companyId of companyIds) {
     summary.companies++;
     let companyDrift = 0;
     let companyFailing = 0;
 
-    for (const integ of list) {
+    for (const integ of byCompany.get(companyId) ?? []) {
       summary.integrations++;
       try {
         const posture = await fetchPostureFor(integ);
@@ -108,6 +115,30 @@ async function run(req: Request) {
         if (isAuthError(err)) {
           await admin.from("integrations").update({ status: "error" }).eq("id", integ.id);
         }
+      }
+    }
+
+    // Checks derived from our own data. recordInternalChecks never throws, so it
+    // sits outside the try/catch above by design.
+    const { data: priorInternal } = await admin
+      .from("control_checks")
+      .select("check_key, result")
+      .eq("company_id", companyId)
+      .eq("provider", INTERNAL_PROVIDER);
+    const oldInternal = new Map<string, string>(
+      (priorInternal ?? []).map((r) => [
+        (r as { check_key: string }).check_key,
+        (r as { result: string }).result,
+      ]),
+    );
+
+    const internal = await recordInternalChecks(admin, companyId, { admin: true });
+    if (internal.length > 0) summary.internal++;
+    for (const rc of internal) {
+      const old = oldInternal.get(rc.checkKey);
+      if (old && old !== rc.result && (rc.result === "fail" || old === "fail")) {
+        companyDrift++;
+        if (rc.result === "fail") companyFailing++;
       }
     }
 

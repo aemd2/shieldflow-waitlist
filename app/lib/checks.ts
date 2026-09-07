@@ -225,6 +225,81 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
   },
 };
 
+/**
+ * Human-readable names for the `provider` column on a check. This is a different
+ * namespace from INTEGRATION_LABELS in lib/integration-evidence.ts: that one keys
+ * off the `integrations` row ("google_workspace"), this one off whatever the check
+ * was written under ("google"), and it also has to name the internal provider.
+ */
+export const CHECK_PROVIDER_LABELS: Record<string, string> = {
+  aws: "AWS",
+  github: "GitHub",
+  okta: "Okta",
+  google: "Google Workspace",
+  gcp: "Google Cloud",
+  cloudflare: "Cloudflare",
+  gitlab: "GitLab",
+  shieldflow: "ShieldFlow",
+};
+
+/**
+ * Checks derived from ShieldFlow's own data rather than a provider API. They live
+ * under their own provider string so the delete-then-insert contract keeps them in
+ * a separate bucket from any integration.
+ */
+export const INTERNAL_PROVIDER = "shieldflow";
+
+export const ACCESS_REVIEW_CHECK_KEY = "shieldflow.access_review_cadence";
+
+/** SOC 2 CC6.2/CC6.3 don't name a period; quarterly is the near-universal practice. */
+export const ACCESS_REVIEW_MAX_AGE_DAYS = 90;
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Did an access review actually happen inside the cadence?
+ *
+ * Pure so the three verdicts are readable without a database. The important one is
+ * the third: a workspace that has never completed a review is INCONCLUSIVE, never
+ * a pass. Vacuously passing a control by having done nothing is the exact failure
+ * mode that makes automated compliance untrustworthy.
+ */
+export function evaluateAccessReviewCadence(
+  lastCompletedAt: string | null | undefined,
+  now: Date = new Date(),
+): { result: CheckResultValue; detail: string } {
+  if (!lastCompletedAt) {
+    return {
+      result: "inconclusive",
+      detail:
+        "No access review has been completed yet, so the cadence can't be evidenced. " +
+        "Run one to prove access is reviewed periodically.",
+    };
+  }
+
+  const completed = new Date(lastCompletedAt);
+  if (Number.isNaN(completed.getTime())) {
+    return {
+      result: "inconclusive",
+      detail: "The most recent access review has no usable completion date.",
+    };
+  }
+
+  const days = Math.floor((now.getTime() - completed.getTime()) / DAY_MS);
+  const on = completed.toISOString().slice(0, 10);
+
+  if (days <= ACCESS_REVIEW_MAX_AGE_DAYS) {
+    return {
+      result: "pass",
+      detail: `Access review completed ${on} (${days} day(s) ago) — within the ${ACCESS_REVIEW_MAX_AGE_DAYS}-day cadence.`,
+    };
+  }
+  return {
+    result: "fail",
+    detail: `The last access review completed ${on}, ${days} days ago — past the ${ACCESS_REVIEW_MAX_AGE_DAYS}-day cadence. Start a new review.`,
+  };
+}
+
 interface ResultRow {
   control_id: string;
   check_key: string;
@@ -309,6 +384,73 @@ async function callRecord(
 }
 
 /**
+ * Persist through the SECURITY DEFINER RPCs. Used whenever there is a user
+ * session, because the RPCs gate on the caller's auth.uid() and own the
+ * delete-then-insert contract.
+ */
+async function persistViaRpc(
+  supabase: SupabaseClient,
+  companyId: string,
+  provider: string,
+  raw: RawCheck[],
+  codeToId: Map<string, string>,
+  evidenceId: string | null,
+): Promise<void> {
+  await callRecord(supabase, companyId, provider, buildResults(raw, codeToId, evidenceId));
+  await supabase.rpc("record_integration_findings", {
+    p_company_id: companyId,
+    p_provider: provider,
+    p_findings: buildFindings(raw),
+  });
+}
+
+/**
+ * Persist by direct write. Used by the cron, which holds a service-role client and
+ * therefore has no auth.uid() for the RPCs to gate on. Mirrors what the RPCs do,
+ * including replacing the provider's rows rather than appending to them.
+ */
+async function persistAsAdmin(
+  admin: SupabaseClient,
+  companyId: string,
+  provider: string,
+  raw: RawCheck[],
+  codeToId: Map<string, string>,
+  evidenceId: string | null,
+): Promise<void> {
+  const results = buildResults(raw, codeToId, evidenceId);
+
+  await admin.from("control_checks").delete().eq("company_id", companyId).eq("provider", provider);
+  if (results.length > 0) {
+    await admin.from("control_checks").insert(
+      results.map((r) => ({
+        company_id: companyId,
+        control_id: r.control_id,
+        check_key: r.check_key,
+        provider,
+        result: r.result,
+        detail: r.detail,
+        evidence_id: r.evidence_id,
+      })),
+    );
+  }
+
+  await admin.from("integration_findings").delete().eq("company_id", companyId).eq("provider", provider);
+  const findings = buildFindings(raw);
+  if (findings.length > 0) {
+    await admin.from("integration_findings").insert(
+      findings.map((f) => ({
+        company_id: companyId,
+        provider,
+        check_key: f.check_key,
+        result: f.result,
+        detail: f.detail,
+        raw: f.raw,
+      })),
+    );
+  }
+}
+
+/**
  * Manual-sync path (user session). Evaluate a sync's posture into checks +
  * findings and persist both through the SECURITY DEFINER RPCs (the tamper-safe
  * writers). Best-effort: a failure here never breaks the sync that called it.
@@ -324,12 +466,7 @@ export async function recordChecksForSync(
     const raw = rawChecksFor(provider, posture);
     if (!raw) return;
     const codeToId = await loadCodeToId(supabase, companyId);
-    await callRecord(supabase, companyId, provider, buildResults(raw, codeToId, evidenceId));
-    await supabase.rpc("record_integration_findings", {
-      p_company_id: companyId,
-      p_provider: provider,
-      p_findings: buildFindings(raw),
-    });
+    await persistViaRpc(supabase, companyId, provider, raw, codeToId, evidenceId);
     // A passing check has already proven the work — complete the measure it
     // satisfies rather than leaving it for a human to confirm by hand, and let
     // that fan out to every control the measure covers.
@@ -357,39 +494,7 @@ export async function recordChecksForSyncAdmin(
   if (!raw) return [];
 
   const codeToId = await loadCodeToId(admin, companyId);
-  const results = buildResults(raw, codeToId, evidenceId);
-
-  // Replace this provider's checks (delete + insert), mirroring record_control_checks.
-  await admin.from("control_checks").delete().eq("company_id", companyId).eq("provider", provider);
-  if (results.length > 0) {
-    await admin.from("control_checks").insert(
-      results.map((r) => ({
-        company_id: companyId,
-        control_id: r.control_id,
-        check_key: r.check_key,
-        provider,
-        result: r.result,
-        detail: r.detail,
-        evidence_id: r.evidence_id,
-      })),
-    );
-  }
-
-  // Replace this provider's findings.
-  await admin.from("integration_findings").delete().eq("company_id", companyId).eq("provider", provider);
-  const findings = buildFindings(raw);
-  if (findings.length > 0) {
-    await admin.from("integration_findings").insert(
-      findings.map((f) => ({
-        company_id: companyId,
-        provider,
-        check_key: f.check_key,
-        result: f.result,
-        detail: f.detail,
-        raw: f.raw,
-      })),
-    );
-  }
+  await persistAsAdmin(admin, companyId, provider, raw, codeToId, evidenceId);
 
   // Same as the manual path: a passing check completes the measure it proves.
   // No userId here — the cron has no session, and measure_status.updated_by is
@@ -398,6 +503,97 @@ export async function recordChecksForSyncAdmin(
   await autoCompleteMeasuresFromChecks(admin, companyId, null);
 
   return raw;
+}
+
+/**
+ * Every control code a measure satisfies, read from the crosswalk rather than
+ * hardcoded. buildResults then drops the ones outside the company's selected
+ * frameworks. Reading it live means adding a framework to the measure's crosswalk
+ * extends this check for free; a hardcoded list would silently stop covering it.
+ */
+async function controlCodesForMeasure(
+  db: SupabaseClient,
+  measureKey: string,
+): Promise<string[]> {
+  const { data: measure } = await db
+    .from("measures")
+    .select("id")
+    .eq("key", measureKey)
+    .maybeSingle();
+  if (!measure) return [];
+
+  const { data: links } = await db
+    .from("measure_controls")
+    .select("controls(code)")
+    .eq("measure_id", (measure as { id: string }).id);
+
+  const codes = new Set<string>();
+  for (const link of (links ?? []) as unknown as { controls: { code: string } | null }[]) {
+    if (link.controls?.code) codes.add(link.controls.code);
+  }
+  return [...codes];
+}
+
+/**
+ * Checks computed from ShieldFlow's own tables, with no provider API involved.
+ *
+ * Today that is one check — did an access review actually happen inside the
+ * cadence — and it is the highest-leverage one we have: the `access-reviews`
+ * measure is mandatory on CC6.1, CC6.2 and CC6.3 at once, so a single verdict
+ * moves all three. With no integration to connect, it works on day one for every
+ * workspace.
+ *
+ * Runs on both paths (`admin: true` from the cron, the RPCs from a user session)
+ * and swallows its own errors: the cron calls this outside the per-integration
+ * try/catch, and a throw here must not cost a company its other check results.
+ */
+export async function recordInternalChecks(
+  db: SupabaseClient,
+  companyId: string,
+  opts: { admin?: boolean } = {},
+): Promise<RawCheck[]> {
+  try {
+    // The newest completed review. Its own evidence CSV becomes the artifact
+    // attached to every control this check lands on, so the auditor gets the
+    // attestation itself and not just a green tick.
+    const { data: review } = await db
+      .from("access_reviews")
+      .select("completed_at, evidence_id")
+      .eq("company_id", companyId)
+      .eq("status", "completed")
+      .not("completed_at", "is", null)
+      .order("completed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const latest = review as { completed_at: string | null; evidence_id: string | null } | null;
+
+    const verdict = evaluateAccessReviewCadence(latest?.completed_at);
+    const raw: RawCheck[] = [
+      {
+        checkKey: ACCESS_REVIEW_CHECK_KEY,
+        controlCodes: await controlCodesForMeasure(db, "access-reviews"),
+        result: verdict.result,
+        detail: verdict.detail,
+      },
+    ];
+
+    const codeToId = await loadCodeToId(db, companyId);
+    // Only attach the CSV when the review is current. A stale review's evidence
+    // would otherwise keep counting toward the control long after it went red.
+    const evidenceId = verdict.result === "pass" ? (latest?.evidence_id ?? null) : null;
+
+    if (opts.admin) {
+      await persistAsAdmin(db, companyId, INTERNAL_PROVIDER, raw, codeToId, evidenceId);
+    } else {
+      await persistViaRpc(db, companyId, INTERNAL_PROVIDER, raw, codeToId, evidenceId);
+    }
+    await autoCompleteMeasuresFromChecks(db, companyId, null);
+
+    return raw;
+  } catch {
+    // Best-effort, exactly like recordChecksForSync.
+    return [];
+  }
 }
 
 /** Clear a provider's checks + findings (used on disconnect so no stale data lingers). */
