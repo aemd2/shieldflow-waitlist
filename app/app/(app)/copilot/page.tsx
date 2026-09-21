@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, getRequestUser } from "@/lib/supabase/server";
 import { getCompanyForUser, listCopilotMessages } from "@/lib/db/queries";
 import { isGroqConfigured } from "@/lib/groq";
 import { Chat } from "@/components/copilot/Chat";
@@ -7,7 +7,7 @@ import { PageShell, Alert } from "@/components/ui/page";
 
 export default async function CopilotPage() {
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getRequestUser();
   if (!user) redirect("/login");
 
   const company = await getCompanyForUser(supabase, user.id);

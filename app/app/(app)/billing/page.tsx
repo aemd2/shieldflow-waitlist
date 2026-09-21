@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, getRequestUser } from "@/lib/supabase/server";
 import { getCompanyForUser, getCallerAccess } from "@/lib/db/queries";
 import { reconcileCheckout, reconcilePortalReturn } from "@/lib/billing-sync";
 
@@ -14,7 +14,7 @@ export default async function BillingPage({
   searchParams: Promise<{ status?: string; session_id?: string; portal?: string }>;
 }) {
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getRequestUser();
   if (!user) redirect("/login");
 
   const company = await getCompanyForUser(supabase, user.id);

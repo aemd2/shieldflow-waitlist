@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, getRequestUser } from "@/lib/supabase/server";
 import {
   getCompanyForUser,
   listFrameworks,
@@ -19,7 +19,7 @@ export default async function PoliciesPage({
   searchParams: Promise<{ policy?: string }>;
 }) {
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getRequestUser();
   if (!user) redirect("/login");
 
   const company = await getCompanyForUser(supabase, user.id);

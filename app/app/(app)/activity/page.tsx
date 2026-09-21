@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, getRequestUser } from "@/lib/supabase/server";
 import { getCompanyForUser, listAuditEvents } from "@/lib/db/queries";
 import { PageShell, FilterChips } from "@/components/ui/page";
 import { buttonClasses } from "@/components/ui/Button";
@@ -29,9 +29,7 @@ export default async function ActivityPage({
   searchParams: Promise<{ type?: string; page?: string }>;
 }) {
   const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getRequestUser();
   if (!user) redirect("/login");
 
   const company = await getCompanyForUser(supabase, user.id);

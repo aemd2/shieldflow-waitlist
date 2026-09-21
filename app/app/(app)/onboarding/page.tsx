@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { Sparkles } from "lucide-react";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, getRequestUser } from "@/lib/supabase/server";
 import { getCompanyForUser, listFrameworks } from "@/lib/db/queries";
 import { lookupTrialInvite } from "@/lib/trial-server";
 import { OnboardingForm } from "@/components/onboarding/OnboardingForm";
@@ -12,7 +12,7 @@ export default async function OnboardingPage({
   searchParams: Promise<{ trial?: string }>;
 }) {
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getRequestUser();
   if (!user) redirect("/login");
 
   const existing = await getCompanyForUser(supabase, user.id);

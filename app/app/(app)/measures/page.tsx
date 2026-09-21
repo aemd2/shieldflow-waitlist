@@ -1,14 +1,12 @@
 import { redirect } from "next/navigation";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, getRequestUser } from "@/lib/supabase/server";
 import { getCompanyForUser, getCallerAccess, getMeasuresWithStatus } from "@/lib/db/queries";
 import { MeasureManager } from "@/components/measures/MeasureManager";
 import { PageShell } from "@/components/ui/page";
 
 export default async function MeasuresPage() {
   const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getRequestUser();
   if (!user) redirect("/login");
 
   const company = await getCompanyForUser(supabase, user.id);

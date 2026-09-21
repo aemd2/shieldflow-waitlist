@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { KeyRound, Clock } from "lucide-react";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, getRequestUser } from "@/lib/supabase/server";
 import {
   getCompanyForUser,
   getCallerAccess,
@@ -44,7 +44,7 @@ export default async function SettingsPage({
   searchParams: Promise<{ tab?: string; status?: string }>;
 }) {
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getRequestUser();
   if (!user) redirect("/login");
 
   const company = await getCompanyForUser(supabase, user.id);

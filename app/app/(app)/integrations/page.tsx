@@ -10,7 +10,7 @@ import {
   Fingerprint,
   Mail,
 } from "lucide-react";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, getRequestUser } from "@/lib/supabase/server";
 import {
   getCompanyForUser,
   getCallerAccess,
@@ -39,7 +39,7 @@ import { connectGcp, syncGcp, disconnectGcp } from "@/app/actions/gcp";
 
 export default async function IntegrationsPage() {
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getRequestUser();
   if (!user) redirect("/login");
 
   const company = await getCompanyForUser(supabase, user.id);

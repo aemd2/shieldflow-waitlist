@@ -1,7 +1,4 @@
-import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { createServerSupabase } from "@/lib/supabase/server";
-import { getCompanyForUser } from "@/lib/db/queries";
 import { Landing } from "@/components/marketing/Landing";
 
 export const metadata: Metadata = {
@@ -17,18 +14,18 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootPage() {
-  const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  // Signed in → straight into the product. This route is the post-login hub:
-  // AuthForm and /api/auth/confirm both default their `next` to "/".
-  if (user) {
-    const company = await getCompanyForUser(supabase, user.id);
-    if (!company) redirect("/onboarding");
-    redirect("/dashboard");
-  }
-
-  // Signed out → the public marketing site is the face.
+/**
+ * The public marketing page, and nothing else.
+ *
+ * It used to check whether you were signed in and redirect you into the product.
+ * That one call made the whole page render per-request, so it could never be
+ * cached — every visitor waited for a round trip to the database in Ireland
+ * before seeing a page that is identical for everyone. From the US that is the
+ * slowest thing about the site, and it is the first thing a prospect touches.
+ *
+ * The signed-in redirect now happens in proxy.ts, which already knows whether a
+ * session cookie is present. Behaviour is unchanged; the page is static.
+ */
+export default function RootPage() {
   return <Landing />;
 }
