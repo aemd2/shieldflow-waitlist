@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { Landing } from "@/components/marketing/Landing";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://shieldflow.com"),
+  // Falls back to the domain we actually own. NEXT_PUBLIC_SITE_URL isn't set in
+  // Vercel, so the old fallback pointed link previews at shieldflow.com — a
+  // domain that isn't ours, on the one page that gets pasted into LinkedIn.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://shieldflow.cloud"),
   title: "ShieldFlow — AI-native GRC & compliance automation",
   description:
     "Get SOC 2, ISO 27001, HIPAA, GDPR & PCI DSS ready with automated evidence collection, continuous control monitoring, and an AI Co-Pilot — for up to 80% less than Vanta.",
