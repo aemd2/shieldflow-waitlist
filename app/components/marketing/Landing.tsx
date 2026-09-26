@@ -204,8 +204,8 @@ function Offer() {
     "All 8 frameworks included — not priced one at a time",
     "328 requirements pre-mapped onto 71 measures you actually do",
     "NIS2, DORA & Cyber Resilience Act — which Vanta and Drata don't cover",
-    "Automated evidence from your cloud, identity and code, checked hourly",
-    "Continuous monitoring + drift alerts the moment something breaks",
+    "Automated evidence from your cloud, identity and code, re-checked daily",
+    "Drift alerts when a check starts failing — no waiting for the quarterly review",
     "AI-generated policies, approvals and employee acknowledgements",
     "Risk register, vendor risk, access reviews and personnel tracking",
     "Public Trust Center your sales team can send to any prospect",
@@ -321,12 +321,12 @@ function Features() {
     {
       icon: Zap,
       title: "Automated evidence",
-      body: "Connect AWS, GitHub, Okta, Jira and more in minutes. We pull every screenshot and log on autopilot — no folder of stale evidence.",
+      body: "Connect AWS, GitHub, Okta, Google Workspace or Microsoft 365 in minutes. We read your security settings and file them as dated evidence — no folder of stale screenshots.",
     },
     {
       icon: Shield,
       title: "Continuous monitoring",
-      body: "S3 bucket goes public? MFA disabled? You get a Slack ping in seconds — not at the quarterly review when it's too late.",
+      body: "Root MFA switched off? A repo went public? Someone left and still has access? Checks re-run every day and flag what changed — not at the quarterly review when it's too late.",
     },
     {
       icon: Star,

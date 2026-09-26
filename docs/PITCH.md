@@ -88,7 +88,7 @@ Fifteen minutes. The order matters: land the mechanism before the features.
    A finishable path, not a 300-item checklist. Say **Type I** out loud (see §7).
 
 5. **Automated evidence** (3 min)
-   Connect something live if you can. Hourly checks, drift alerts. Frame as
+   Connect something live if you can. Daily checks, drift alerts. Frame as
    "table stakes, but it works" — not as the differentiator.
 
    **The one worth demoing on a blank workspace:** the access-review cadence
@@ -132,7 +132,7 @@ stakes if asked; never as reasons to switch. A technical evaluator will catch it
 - **Do not say "Type II."** The Sprint gets you **Type I** — controls suitably
   designed at a point in time. Type II requires an observation window of 3–12
   months and no software can compress a calendar. ShieldFlow also does not yet
-  *retain* check history (the hourly sync still overwrites it), so we cannot
+  *retain* check history (each sync overwrites the last), so we cannot
   currently produce Type II evidence at all. Say Type I. It's true, it's still
   valuable, and the honesty is a differentiator in a market that just watched a
   $300M competitor collapse over faked reports.
