@@ -79,7 +79,7 @@ export default function TermsPage() {
 
         <Section title="11. Contact">
           Questions about these Terms? Email{" "}
-          <a className="underline" href="mailto:legal@shieldflow.com">legal@shieldflow.com</a>.
+          <a className="underline" href="mailto:legal@shieldflow.cloud">legal@shieldflow.cloud</a>.
         </Section>
       </div>
 

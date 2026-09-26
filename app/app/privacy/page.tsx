@@ -25,7 +25,7 @@ export default function PrivacyPage() {
           ShieldFlow (&quot;ShieldFlow&quot;, &quot;we&quot;, &quot;us&quot;) provides an AI-powered
           governance, risk and compliance platform. This policy explains what personal data we
           process and why. For privacy questions, contact{" "}
-          <a className="underline" href="mailto:privacy@shieldflow.com">privacy@shieldflow.com</a>.
+          <a className="underline" href="mailto:privacy@shieldflow.cloud">privacy@shieldflow.cloud</a>.
         </Section>
 
         <Section title="2. Data we collect">
@@ -107,7 +107,7 @@ export default function PrivacyPage() {
 
         <Section title="10. Changes & contact">
           We may update this policy and will revise the date above. Questions? Email{" "}
-          <a className="underline" href="mailto:privacy@shieldflow.com">privacy@shieldflow.com</a>.
+          <a className="underline" href="mailto:privacy@shieldflow.cloud">privacy@shieldflow.cloud</a>.
         </Section>
       </div>
 

@@ -324,7 +324,7 @@ export function PlanCards({
             ))}
           </ul>
           <a
-            href="mailto:sales@shieldflow.com?subject=ShieldFlow%20custom%20plan%20enquiry"
+            href="mailto:sales@shieldflow.cloud?subject=ShieldFlow%20custom%20plan%20enquiry"
             className={`${buttonClasses("outline")} mt-5 w-full`}
           >
             Contact us
