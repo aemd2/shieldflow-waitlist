@@ -19,6 +19,8 @@
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
+import { seedEvidence } from "./evidence";
+
 const COMPANY_NAME = "Northwind Analytics";
 
 /** Framework the workspace should already have. NIS2 is left out on purpose —
@@ -146,8 +148,18 @@ async function main() {
     })),
     { onConflict: "company_id,measure_id" },
   );
-  const advanced = await propagateMeasuresToControls(db, companyId, measureIds, null);
-  log(`${measureIds.length} measures complete → ${advanced} requirements advanced`);
+  // Propagate EVERY started measure, not just the ones seeded here. Measures the
+  // AWS checks had already completed were credited before SOC 2 was switched on,
+  // so without this SOC 2 would start under-credited — the exact bug the
+  // framework fix addresses, reproduced by the seed.
+  const { data: started } = await db
+    .from("measure_status").select("measure_id").eq("company_id", companyId).neq("status", "not_started");
+  const advanced = await propagateMeasuresToControls(
+    db, companyId, (started ?? []).map((m) => m.measure_id as string), null,
+  );
+  log(`${started?.length ?? 0} measures started → ${advanced} requirements advanced`);
+
+  await seedEvidence(db, companyId, user.id, log);
 
   // --- identity checks, through the real evaluators ---------------------------
   const roster = [

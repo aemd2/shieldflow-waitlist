@@ -15,6 +15,58 @@ something none of them do.
 
 ---
 
+## Status — 2026-09-27
+
+**Tier 1 is recorded, clips 1–5.** Clip 6 is scripted and waits on a working
+`GROQ_API_KEY` locally — the current one is rejected by Groq.
+
+Everything is generated from the real app by scripts in `app/scripts/recording/`,
+so any clip can be re-shot in a minute after a UI change. Output goes to
+`recordings/` (git-ignored):
+
+| File | What |
+|---|---|
+| `clean/NN-name.mp4` | Each clip with no text — for voice-over |
+| `captioned/NN-name.mp4` | Same footage with captions — for silent autoplay |
+| `walkthrough-clean.mp4` / `walkthrough-captioned.mp4` | Tier 1 in one ~60s cut, with title and end cards |
+| `VOICEOVER.md` | What to say, and the second each line starts |
+
+```
+cd app
+npm run build && npm run start                 # port 3001, or the shieldflow-prod launch config
+npx tsx scripts/recording/seed.ts              # once: Northwind Analytics + sample evidence
+npx tsx scripts/recording/scene.ts save        # once, after seeding
+npx tsx scripts/recording/record.ts            # all clips (or: record.ts 02 05)
+npx tsx scripts/recording/stitch.ts            # walkthrough + voice-over script
+```
+
+`RECORDING_EMAIL` in `app/.env.local` names the workspace. Sign-in uses a
+one-time admin token, so no password is involved and no email is sent. Every
+take restores the workspace first, so clips that change it (1 completes a
+measure, 2 adds NIS2) can be re-shot.
+
+### What recording turned up in the product
+
+- **Fixed — adding a framework ignored finished work.** Now credited on add
+  (clip 2 shows NIS2 starting at 23%).
+- **Fixed — "Draft with AI" answers didn't appear** until a manual reload: each
+  row kept its first-render value.
+- **Fixed — a rejected AI key looked like being signed out.** Groq's 401 was
+  passed through as ours, and the page sends a 401 to the login screen.
+- **Open — evidence attaches per requirement, not per measure.** Completing a
+  measure credits every framework, but the document proving it has to be
+  attached to each requirement separately, or each one raises "Completed
+  without evidence". The seed does that attaching itself (51 links for 14
+  documents); a real user would do it by hand. This is the biggest gap left in
+  "do the work once".
+- **Open — Complete on the measures page flickers** back to "Not started" for a
+  moment before the save lands. Clip 1 cuts it out; users see it.
+- **Open — every active high-risk vendor is its own alert**, even with its SOC 2
+  report on file and its review done. Four of the 13 alerts in the sample
+  workspace are this.
+
+---
+
 ## The rules for every clip
 
 1. **One moment.** If a clip needs two captions to explain, it's two clips.
@@ -48,7 +100,7 @@ The recording workspace needs:
 | Two or three policies, one approved | Clip 8 |
 | Google Workspace or Okta connected | Clips 3 and 4 need live checks |
 
-This can be seeded into the `mikesmith` test workspace. Nothing on it is real.
+Seeded into the test workspace named by `RECORDING_EMAIL`. Nothing on it is real.
 
 ### 2. Fix the framework-add gap — blocks clip 2
 
@@ -210,8 +262,9 @@ register. **15 · Activity log.** Scroll, then open one entry.
 
 ## Order of work
 
-1. Fix the framework-add gap
-2. Seed the recording workspace
-3. Record tier 1 (clips 1, 3, 4, 5, 6 — then 2 once fixed)
-4. Put clip 1 on the homepage and clips 1, 3, 4, 5 on `/demo`
-5. Record tier 2 as the site's feature sections get built
+1. ~~Fix the framework-add gap~~ — done
+2. ~~Seed the recording workspace~~ — done
+3. ~~Record tier 1~~ — clips 1–5 done; clip 6 needs a working Groq key
+4. Record the voice-over over `walkthrough-clean.mp4`
+5. Put clip 1 on the homepage and clips 1, 3, 4, 5 on `/demo`
+6. Record tier 2 as the site's feature sections get built

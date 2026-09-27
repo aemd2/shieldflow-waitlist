@@ -8,6 +8,7 @@ import {
   type IdentityAccount,
   type PersonRecord,
 } from "@/lib/identity-checks";
+import { plural, agree } from "@/lib/plural";
 
 // Continuous control checks: turn the security posture each integration already
 // computes (root MFA, branch protection, 2FA %, TLS…) into pass/fail results
@@ -109,7 +110,7 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
         detail:
           unprotected === 0
             ? `All ${p.checked} checked repositories enforce branch protection.`
-            : `${unprotected} active repository(ies) have no branch protection on the default branch.`,
+            : `${plural(unprotected, "active repository", "active repositories")} ${agree(unprotected, "has", "have")} no branch protection on the default branch.`,
       });
     }
     checks.push({
@@ -119,7 +120,7 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
       detail:
         p.publicCount === 0
           ? "No public repositories."
-          : `${p.publicCount} public repository(ies) — confirm this exposure is intended.`,
+          : `${plural(p.publicCount, "public repository", "public repositories")} — confirm this exposure is intended.`,
     });
     return checks;
   },
@@ -180,7 +181,7 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
         result: p.owners <= 3 ? "pass" : "fail",
         detail:
           p.owners <= 3
-            ? `${p.owners} project owner(s) — within least-privilege guidance.`
+            ? `${plural(p.owners, "project owner")} — within least-privilege guidance.`
             : `${p.owners} project owners — review for least privilege (≤3 recommended).`,
       },
     ];
@@ -206,7 +207,7 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
         detail:
           weak.length === 0
             ? `All ${p.totalZones} zones enforce strong TLS (full/strict SSL, min TLS ≥ 1.2, always-HTTPS).`
-            : `${weak.length} zone(s) have weak TLS settings (SSL mode, minimum TLS, or always-HTTPS).`,
+            : `${plural(weak.length, "zone")} ${agree(weak.length, "has", "have")} weak TLS settings (SSL mode, minimum TLS, or always-HTTPS).`,
       },
     ];
   },
@@ -231,7 +232,7 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
         detail:
           unprotected === 0
             ? `All ${p.total} projects have protected branches.`
-            : `${unprotected} project(s) have no protected branches.`,
+            : `${plural(unprotected, "project")} ${agree(unprotected, "has", "have")} no protected branches.`,
       });
     }
     checks.push({
@@ -241,7 +242,7 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
       detail:
         p.publicCount === 0
           ? "No public projects."
-          : `${p.publicCount} public project(s) — confirm this exposure is intended.`,
+          : `${plural(p.publicCount, "public project")} — confirm this exposure is intended.`,
     });
     return checks;
   },
@@ -334,7 +335,7 @@ export function evaluateAccessReviewCadence(
   if (days <= ACCESS_REVIEW_MAX_AGE_DAYS) {
     return {
       result: "pass",
-      detail: `Access review completed ${on} (${days} day(s) ago) — within the ${ACCESS_REVIEW_MAX_AGE_DAYS}-day cadence.`,
+      detail: `Access review completed ${on} (${days <= 0 ? "today" : `${plural(days, "day")} ago`}) — within the ${ACCESS_REVIEW_MAX_AGE_DAYS}-day cadence.`,
     };
   }
   return {

@@ -13,6 +13,7 @@ import {
   type ConnectedIntegration,
 } from "@/lib/integration-sync";
 import { notifyCompanyViaAdmin } from "@/lib/notify";
+import { plural, agree } from "@/lib/plural";
 
 // Real provider HTTP calls + DB writes — needs the Node runtime and a session-free
 // admin client. Never statically rendered.
@@ -160,8 +161,8 @@ async function run(req: Request) {
         title: "Automated monitoring update",
         body:
           companyFailing > 0
-            ? `${companyDrift} automated check(s) changed — ${companyFailing} now failing. Review your dashboard.`
-            : `${companyDrift} automated check(s) recovered.`,
+            ? `${plural(companyDrift, "automated check")} changed — ${companyFailing} now failing. Review your dashboard.`
+            : `${plural(companyDrift, "automated check")} ${agree(companyDrift, "has", "have")} recovered.`,
         link: "/dashboard",
       });
     }

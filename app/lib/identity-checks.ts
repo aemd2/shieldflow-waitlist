@@ -274,8 +274,9 @@ export function evaluateUntrackedAccounts(input: UntrackedInput): IdentityVerdic
       detail:
         `${plural(unmatched.length, "active account")} ${agree(unmatched.length, "belongs", "belong")} ` +
         `to nobody in Personnel: ` +
-        `${list(unmatched.map((a) => a.email))}. Add them as people, or mark them as not a person ` +
-        "(use a role of “Service account” for non-human accounts).",
+        `${list(unmatched.map((a) => a.email))}. ` +
+        `${agree(unmatched.length, "Add it as a person, or mark it as", "Add them as people, or mark them as")} ` +
+        "not a person (use a role of “Service account” for non-human accounts).",
       subjects: unmatched.map((a) => a.email),
     };
   }

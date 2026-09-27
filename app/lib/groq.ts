@@ -67,6 +67,16 @@ function mapStatus(status: number): string {
   return "The AI request failed. Please try again.";
 }
 
+/**
+ * The status our own routes answer with when Groq fails. Groq rejecting OUR key
+ * (401/403) must not reach the browser as a 401: the client reads that as the
+ * user's session having expired and sends them to the login page, so a dead AI
+ * key looks like being signed out. It's an upstream failure — 502.
+ */
+function upstreamStatus(status: number): number {
+  return status === 401 || status === 403 ? 502 : status;
+}
+
 interface GroqOptions {
   maxTokens?: number;
   temperature?: number;
@@ -104,7 +114,7 @@ export async function groqComplete(
     });
 
     if (!res.ok) {
-      throw new GroqError(res.status, mapStatus(res.status));
+      throw new GroqError(upstreamStatus(res.status), mapStatus(res.status));
     }
 
     const json = await res.json();
@@ -167,7 +177,7 @@ export async function groqStream(
   clearTimeout(timeout);
 
   if (!res.ok || !res.body) {
-    throw new GroqError(res.status || 502, mapStatus(res.status || 502));
+    throw new GroqError(upstreamStatus(res.status || 502), mapStatus(res.status || 502));
   }
   return res;
 }

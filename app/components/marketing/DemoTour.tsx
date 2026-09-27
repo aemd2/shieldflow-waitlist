@@ -55,7 +55,7 @@ const CHECKS: { name: string; source: string; verdict: Verdict; detail: string }
     source: "Google Workspace + Personnel",
     verdict: "fail",
     detail:
-      "1 person(s) left more than 7 days ago but their account is still open: Priya Nair (left 2026-08-19). Deprovision or suspend them at the identity provider.",
+      "1 person left more than 7 days ago but their account is still open: Priya Nair (left 2026-08-19). Deprovision or suspend it at the identity provider.",
   },
   {
     name: "Access reviewed in the last 90 days",
@@ -440,7 +440,7 @@ function SceneEmail() {
               Automated monitoring update
             </h4>
             <p style={{ color: "#444", margin: "0 0 16px" }}>
-              1 automated check(s) changed — 1 now failing. Review your dashboard.
+              1 automated check changed — 1 now failing. Review your dashboard.
             </p>
             <span
               style={{

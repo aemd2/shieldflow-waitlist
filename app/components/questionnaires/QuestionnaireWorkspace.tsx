@@ -236,6 +236,16 @@ function QItemRow({ item, canWrite }: { item: QuestionnaireItem; canWrite: boole
   const [status, setStatus] = useState<QuestionnaireItemStatus>(item.status);
   const [pending, start] = useTransition();
 
+  // The server's copy changed underneath us (Draft with AI, then a refresh):
+  // take it. Without this the fields keep their first-render values and the
+  // drafted answers only appear after a manual reload.
+  const [seen, setSeen] = useState({ answer: item.answer, status: item.status });
+  if (seen.answer !== item.answer || seen.status !== item.status) {
+    setSeen({ answer: item.answer, status: item.status });
+    setAnswer(item.answer ?? "");
+    setStatus(item.status);
+  }
+
   function save() {
     start(async () => {
       const res = await saveQuestionnaireItem({ id: item.id, answer, status }).catch(() => ({ error: NETWORK }));
