@@ -13,7 +13,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Browser } from "playwright-core";
 import { BASE_URL, OUT_DIR, Take, launch, pointAt, scrollTo, signIn, visibleClick } from "./lib";
-import { CLIP_QUESTIONNAIRE, restoreScene } from "./scene";
+import { CLIP_QUESTIONNAIRE, recordingCompanyId, restoreScene } from "./scene";
 
 type State = Awaited<ReturnType<typeof signIn>>;
 type Clip = { name: string; run: (b: Browser, s: State) => Promise<Take> };
@@ -287,7 +287,328 @@ const clip06: Clip = {
   },
 };
 
-const ALL = [clip01, clip02, clip03, clip04, clip05, clip06];
+/** Wait for the page to finish a server round-trip we triggered, off camera. */
+async function offCamera(t: Take, work: () => Promise<unknown>) {
+  t.cutFrom();
+  await work();
+  await t.page.waitForLoadState("networkidle");
+  await t.page.waitForTimeout(250);
+  t.cutTo();
+}
+
+/** Resolve once `read()` has stopped changing for `quietMs` — a streamed answer. */
+async function untilStill(read: () => Promise<string>, quietMs = 1500, maxMs = 90_000) {
+  const start = Date.now();
+  let last = await read();
+  let since = Date.now();
+  while (Date.now() - start < maxMs) {
+    await new Promise((r) => setTimeout(r, 250));
+    const now = await read();
+    if (now !== last) { last = now; since = Date.now(); }
+    else if (last.length > 0 && Date.now() - since >= quietMs) return last;
+  }
+  return last;
+}
+
+/* ---------- 07 · access review ---------- */
+const CLIP_REVIEW = "Q3 2026 — Google Workspace access review";
+/** In the order the page lists them (alphabetical), so the cursor works down. */
+const REVIEW_ROWS = [
+  { subject: "amara@northwind.test", access: "Admin — user management", decide: "Keep" },
+  { subject: "daniel@northwind.test", access: "Super admin", decide: "Keep" },
+  { subject: "priya@northwind.test", access: "User", decide: "Revoke" },
+  { subject: "sam@northwind.test", access: "Super admin", decide: "Keep" },
+] as const;
+
+const clip07: Clip = {
+  name: "07-access-review",
+  async run(browser, state) {
+    // The review is set up off camera, as if Sam had started it earlier.
+    const { createAdminSupabase } = await import("@/lib/supabase/admin");
+    const db = createAdminSupabase();
+    const companyId = await recordingCompanyId(db);
+    const { data: review } = await db.from("access_reviews")
+      .insert({ company_id: companyId, name: CLIP_REVIEW, reviewer_email: "sam@northwind.test" })
+      .select("id").single();
+    const { data: sys } = await db.from("access_review_systems")
+      .insert({ review_id: review!.id, company_id: companyId, name: "Google Workspace", provider: "google" })
+      .select("id").single();
+    await db.from("access_review_items").insert(REVIEW_ROWS.map((r) => ({
+      review_id: review!.id, system_id: sys!.id, company_id: companyId, subject: r.subject, access: r.access,
+    })));
+
+    const t = new Take(this.name);
+    const page = await t.open(browser, state);
+    await page.goto(`${BASE_URL}/access-reviews`);
+    await page.waitForLoadState("networkidle");
+    await page.getByRole("heading", { name: CLIP_REVIEW }).waitFor();
+    // Lift the rows clear of where captions sit.
+    await scrollTo(page, page.getByRole("heading", { name: CLIP_REVIEW }), 24);
+
+    await t.action();
+    t.cue("Review who still needs access.");
+    for (const r of REVIEW_ROWS) {
+      const row = page.locator("li").filter({ hasText: r.subject });
+      const button = row.getByRole("button", { name: r.decide });
+      const handle = await button.elementHandle();
+      await visibleClick(page, button);
+      // Decisions round-trip to the server before the row turns; cut the wait.
+      await offCamera(t, () => page.waitForFunction(
+        (el) => /bg-(success-muted|destructive)/.test(el!.className),
+        handle,
+        { timeout: 15_000 },
+      ));
+      await t.hold(0.25);
+    }
+    const complete = page.getByRole("button", { name: /Complete & file evidence/ });
+    await visibleClick(page, complete);
+    await offCamera(t, () => page.getByText("Review completed — evidence filed").waitFor({ timeout: 20_000 }));
+    t.cue("Signed and filed as evidence.");
+    await pointAt(page, page.getByText(/attestations were filed as evidence/), 0.4);
+    await t.hold(3.0);
+    return t;
+  },
+};
+
+/* ---------- 08 · policy ---------- */
+const clip08: Clip = {
+  name: "08-policy",
+  async run(browser, state) {
+    const t = new Take(this.name);
+    const page = await t.open(browser, state);
+    await page.goto(`${BASE_URL}/policies`);
+    await page.waitForLoadState("networkidle");
+
+    await t.action();
+    t.cue("Need a policy? Pick one.");
+    await visibleClick(page, page.getByRole("button", { name: /New policy/ }));
+    await t.hold(0.4);
+    await page.locator("select").filter({ has: page.locator("option", { hasText: "Access Control Policy" }) }).first()
+      .selectOption({ label: "Access Control Policy" });
+    await t.hold(0.7);
+    await visibleClick(page, page.getByRole("button", { name: /Generate with AI/ }));
+    await offCamera(t, async () => {
+      await page.getByText("Policy generated").waitFor({ timeout: 90_000 });
+      await page.getByRole("button", { name: "Approve", exact: true }).waitFor({ timeout: 20_000 });
+    });
+    t.cue("A first draft in seconds.");
+    const body = page.locator("main h1, main h2, main h3").filter({ hasText: /purpose|scope/i }).first();
+    if (await body.count()) await pointAt(page, body, 0.3);
+    await t.hold(2.2);
+
+    // Keep the text: it has to be read before the clip is used.
+    const text = await page.locator("main").innerText();
+    writeFileSync(path.join(OUT_DIR, "08-policy.txt"), text);
+
+    await visibleClick(page, page.getByRole("button", { name: "Approve", exact: true }));
+    await offCamera(t, () => page.getByText("Policy approved").waitFor({ timeout: 20_000 }));
+    t.cue("You read it, then approve it.");
+    await pointAt(page, page.getByText(/Approved — publish it/), 0.4);
+    await t.hold(2.8);
+    return t;
+  },
+};
+
+/* ---------- 09 · trust center ---------- */
+const clip09: Clip = {
+  name: "09-trust-center",
+  async run(browser) {
+    const { createAdminSupabase } = await import("@/lib/supabase/admin");
+    const db = createAdminSupabase();
+    const { data: co } = await db.from("companies").select("trust_slug").eq("id", await recordingCompanyId(db)).single();
+
+    // What a prospect sees: signed out.
+    const t = new Take(this.name);
+    const page = await t.open(browser, { cookies: [], origins: [] });
+    await page.goto(`${BASE_URL}/trust/${co!.trust_slug}`);
+    await page.waitForLoadState("networkidle");
+
+    await t.action();
+    t.cue("Send prospects a live page, not a PDF.");
+    await pointAt(page, page.getByText("Overall compliance readiness"), 0.4);
+    await t.hold(1.6);
+    await pointAt(page, page.getByText("Frameworks", { exact: true }), 0.3);
+    await t.hold(1.0);
+    await page.mouse.wheel(0, 380);
+    await t.hold(1.0);
+    t.cue("It updates itself as you work.");
+    await pointAt(page, page.getByRole("button", { name: /Request access/ }).or(page.getByText("Request access")).first(), 0.5);
+    await t.hold(2.6);
+    return t;
+  },
+};
+
+/* ---------- 10 · the 14-day sprint ---------- */
+const clip10: Clip = {
+  name: "10-sprint",
+  async run(browser, state) {
+    const t = new Take(this.name);
+    const page = await t.open(browser, state);
+    await page.goto(`${BASE_URL}/getting-started`);
+    await page.waitForLoadState("networkidle");
+
+    await t.action();
+    t.cue("Four phases to Type I readiness.");
+    await pointAt(page, page.getByText(/phases done/).first(), 0.3);
+    await t.hold(1.4);
+    await scrollTo(page, page.getByText("Work through your measures"), 200);
+    await pointAt(page, page.getByText("Work through your measures"), 0.3);
+    await t.hold(1.0);
+    t.cue("Each one opens up on real progress.");
+    await scrollTo(page, page.getByText("Document & sign off"), 260);
+    await pointAt(page, page.getByText("Finish the mandatory measures"), 0.3);
+    await t.hold(1.2);
+    await pointAt(page, page.getByText("Document & sign off"), 0.3);
+    await t.hold(2.0);
+    return t;
+  },
+};
+
+/* ---------- 11 · evidence ---------- */
+const clip11: Clip = {
+  name: "11-evidence",
+  async run(browser, state) {
+    const t = new Take(this.name);
+    const page = await t.open(browser, state);
+    await page.goto(`${BASE_URL}/evidence`);
+    await page.waitForLoadState("networkidle");
+
+    await t.action();
+    t.cue("Every document, dated.");
+    await pointAt(page, page.getByText(/ago$/).first(), 0.5);
+    await t.hold(1.2);
+    const mfa = page.getByText(/Password and MFA Standard/).first();
+    await scrollTo(page, mfa, 160);
+    t.cue("And linked to what it proves.");
+    await pointAt(page, page.getByText(/linked to CC6\.1/).first(), 0.6);
+    await t.hold(1.2);
+    await pointAt(page, page.getByText(/linked to A\.8\.5/).first(), 0.6);
+    await t.hold(2.2);
+    return t;
+  },
+};
+
+/* ---------- 12 · report ---------- */
+const clip12: Clip = {
+  name: "12-report",
+  async run(browser, state) {
+    const t = new Take(this.name);
+    const page = await t.open(browser, state);
+    await page.goto(`${BASE_URL}/reports`);
+    await page.waitForLoadState("networkidle");
+
+    await t.action();
+    t.cue("One page for prospects and auditors.");
+    await pointAt(page, page.getByText("Overall readiness"), 0.4);
+    await t.hold(1.2);
+    await scrollTo(page, page.getByText(/framework progress/i).first(), 120);
+    await pointAt(page, page.getByText(/framework progress/i).first(), 0.3);
+    await t.hold(1.4);
+    await scrollTo(page, page.getByText("Audit report", { exact: true }), 40);
+    t.cue("Saved as a PDF in one click.");
+    await pointAt(page, page.getByRole("button", { name: /Print \/ Save as PDF/ }), 0.5);
+    await t.hold(2.6);
+    return t;
+  },
+};
+
+/* ---------- 13 · co-pilot ---------- */
+const clip13: Clip = {
+  name: "13-copilot",
+  async run(browser, state) {
+    const t = new Take(this.name);
+    const page = await t.open(browser, state);
+    await page.goto(`${BASE_URL}/copilot`);
+    await page.waitForLoadState("networkidle");
+    const ask = page.getByRole("button", { name: "What should I prioritize this week?" });
+    await ask.waitFor();
+
+    await t.action();
+    t.cue("Ask what to do next.");
+    await pointAt(page, ask, 0.5);
+    await t.hold(0.6);
+    await visibleClick(page, ask);
+    await t.hold(0.6);
+    // The answer streams in; show it arriving briefly, cut the rest of the wait.
+    // The assistant's bubble inside the chat panel (not any other flex row).
+    const answer = page.locator("div.overflow-y-auto > div.flex.justify-start > div").last();
+    const read = async () => {
+      const s = (await answer.innerText().catch(() => "")).trim();
+      return s === "Thinking…" ? "" : s;
+    };
+    await page.waitForFunction(() => {
+      const b = [...document.querySelectorAll("div.overflow-y-auto > div.flex.justify-start > div")].pop();
+      return !!b && (b.textContent ?? "").trim().length > 30;
+    }, undefined, { timeout: 60_000 });
+    await t.hold(1.2);
+    let text = "";
+    await offCamera(t, async () => { text = await untilStill(read); });
+    writeFileSync(path.join(OUT_DIR, "13-copilot.txt"), text);
+    t.cue("Answered from your own workspace.");
+    await pointAt(page, answer, 0.5);
+    await t.hold(3.4);
+    return t;
+  },
+};
+
+/* ---------- 14 · vendors & risks ---------- */
+const clip14: Clip = {
+  name: "14-vendors-risks",
+  async run(browser, state) {
+    const t = new Take(this.name);
+    const page = await t.open(browser, state);
+    await page.goto(`${BASE_URL}/vendors`);
+    await page.waitForLoadState("networkidle");
+
+    await t.action();
+    t.cue("Every vendor, its risk and its last review.");
+    await pointAt(page, page.getByText("SOC 2 on file").first(), 0.5);
+    await t.hold(1.0);
+    await pointAt(page, page.getByText(/reviewed 2026-03-10/).first(), 0.7);
+    await t.hold(1.4);
+    await visibleClick(page, page.getByRole("link", { name: "Risk Register" }));
+    await offCamera(t, async () => {
+      await page.waitForURL(/\/risks/);
+      await page.getByText("Risk heat-map").waitFor();
+    });
+    t.cue("Every risk, and what you're doing about it.");
+    await pointAt(page, page.getByText("Risk heat-map"), 0.3);
+    await t.hold(1.2);
+    const risk = page.getByText("A leaver keeps access to production");
+    await scrollTo(page, risk, 200);
+    await pointAt(page, page.getByText("Mitigating").first(), 0.5);
+    await t.hold(2.4);
+    return t;
+  },
+};
+
+/* ---------- 15 · activity log ---------- */
+const clip15: Clip = {
+  name: "15-activity",
+  async run(browser, state) {
+    const t = new Take(this.name);
+    const page = await t.open(browser, state);
+    await page.goto(`${BASE_URL}/activity`);
+    await page.waitForLoadState("networkidle");
+
+    await t.action();
+    t.cue("Every change: who, what and when.");
+    const firstEntry = page.locator("main li").first();
+    await pointAt(page, firstEntry, 0.4);
+    await t.hold(1.4);
+    await page.mouse.move(700, 500);
+    await page.mouse.wheel(0, 320);
+    await t.hold(1.4);
+    await page.mouse.wheel(0, -320);
+    await t.hold(0.6);
+    t.cue("Nobody on the team can edit it.");
+    await pointAt(page, page.getByText(/access review completed/).first(), 0.4);
+    await t.hold(2.6);
+    return t;
+  },
+};
+
+const ALL = [clip01, clip02, clip03, clip04, clip05, clip06, clip07, clip08, clip09, clip10, clip11, clip12, clip13, clip14, clip15];
 
 async function main() {
   const wanted = process.argv.slice(2);
@@ -298,9 +619,15 @@ async function main() {
     for (const clip of clips) {
       await restoreScene();
       process.stdout.write(`${clip.name} … `);
-      const take = await clip.run(browser, state);
-      const out = await take.finish();
-      console.log(`${out.seconds.toFixed(1)}s  ${out.cues.map((c) => `[${c.at.toFixed(1)}s] ${c.text}`).join("  ")}`);
+      try {
+        const take = await clip.run(browser, state);
+        const out = await take.finish();
+        console.log(`${out.seconds.toFixed(1)}s  ${out.cues.map((c) => `[${c.at.toFixed(1)}s] ${c.text}`).join("  ")}`);
+      } catch (e) {
+        // One broken clip shouldn't cost the rest of the batch.
+        console.log(`FAILED: ${((e as Error).message ?? String(e)).split("\n")[0]}`);
+        process.exitCode = 1;
+      }
     }
   } finally {
     await restoreScene();

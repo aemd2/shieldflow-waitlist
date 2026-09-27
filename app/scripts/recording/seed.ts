@@ -68,6 +68,13 @@ const VENDORS = [
   { name: "Stripe", website: "https://stripe.com", category: "Payments", risk_level: "high", data_sensitivity: "pii", soc2_status: "requested", reviewed_at: "2026-04-20" },
 ];
 
+/** Shown on the public Trust Center (clip 9). */
+const SUBPROCESSORS = [
+  { name: "Amazon Web Services", purpose: "Hosting and database", location: "EU (Ireland)", url: "https://aws.amazon.com" },
+  { name: "Google Workspace", purpose: "Email and customer support", location: "EU / US", url: "https://workspace.google.com" },
+  { name: "Stripe", purpose: "Payments and billing", location: "EU / US", url: "https://stripe.com" },
+];
+
 const RISKS = [
   { title: "A leaver keeps access to production", category: "Access", likelihood: "medium", impact: "high", status: "mitigating", treatment: "Daily offboarding check against the Personnel register." },
   { title: "One engineer holds the AWS root credentials", category: "Access", likelihood: "low", impact: "high", status: "open", treatment: "Move root to a hardware key held by two people." },
@@ -134,6 +141,12 @@ async function main() {
     await db.from("vendors").update({ reviewed_at: v.reviewed_at })
       .eq("company_id", companyId).eq("name", v.name).is("reviewed_at", null);
   }
+
+  const { data: existingSubs } = await db.from("subprocessors").select("name").eq("company_id", companyId);
+  const haveSub = new Set((existingSubs ?? []).map((s) => s.name));
+  const newSubs = SUBPROCESSORS.filter((s) => !haveSub.has(s.name));
+  if (newSubs.length) await db.from("subprocessors").insert(newSubs.map((s) => ({ ...s, company_id: companyId })));
+  log(`${newSubs.length} subprocessors added`);
 
   const { data: existingRisks } = await db.from("risks").select("title").eq("company_id", companyId);
   const haveRisk = new Set((existingRisks ?? []).map((r) => r.title));

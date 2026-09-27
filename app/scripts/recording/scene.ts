@@ -27,6 +27,10 @@ type Scene = {
   frameworks: string[];
   controls: { control_id: string; status: string }[];
   measures: { measure_id: string; status: string; notes: string | null }[];
+  /** Row ids that existed at save time. Anything newer was made by a clip. */
+  accessReviews?: string[];
+  policies?: string[];
+  copilotMessages?: string[];
 };
 
 async function admin(): Promise<SupabaseClient> {
@@ -48,16 +52,23 @@ export async function recordingCompanyId(db: SupabaseClient): Promise<string> {
 export async function saveScene() {
   const db = await admin();
   const companyId = await recordingCompanyId(db);
-  const [fw, cs, ms] = await Promise.all([
+  const [fw, cs, ms, ar, po, cm] = await Promise.all([
     db.from("company_frameworks").select("framework_id").eq("company_id", companyId),
     db.from("control_status").select("control_id, status").eq("company_id", companyId),
     db.from("measure_status").select("measure_id, status, notes").eq("company_id", companyId),
+    db.from("access_reviews").select("id").eq("company_id", companyId),
+    db.from("policies").select("id").eq("company_id", companyId),
+    db.from("copilot_messages").select("id").eq("company_id", companyId),
   ]);
+  const ids = (r: { data: { id: unknown }[] | null }) => (r.data ?? []).map((x) => x.id as string);
   const scene: Scene = {
     companyId,
     frameworks: (fw.data ?? []).map((r) => r.framework_id as string),
     controls: (cs.data ?? []) as Scene["controls"],
     measures: (ms.data ?? []) as Scene["measures"],
+    accessReviews: ids(ar),
+    policies: ids(po),
+    copilotMessages: ids(cm),
   };
   mkdirSync(path.dirname(SNAP), { recursive: true });
   writeFileSync(SNAP, JSON.stringify(scene));
@@ -69,6 +80,36 @@ export async function restoreScene() {
   const scene = JSON.parse(readFileSync(SNAP, "utf8")) as Scene;
   const db = await admin();
   const { companyId } = scene;
+
+  // Access reviews a clip completed: the review, the evidence CSV it filed, and
+  // the cadence check it turned green. First, so the check is back to its old
+  // verdict before statuses are restored below.
+  const { data: reviewsNow } = await db.from("access_reviews").select("id, evidence_id").eq("company_id", companyId);
+  // A snapshot from before these lists existed has no record of them: touch nothing.
+  const newReviews = scene.accessReviews
+    ? (reviewsNow ?? []).filter((r) => !scene.accessReviews!.includes(r.id as string))
+    : [];
+  if (newReviews.length) {
+    const evidenceIds = newReviews.map((r) => r.evidence_id as string | null).filter((x): x is string => !!x);
+    await db.from("access_reviews").delete().in("id", newReviews.map((r) => r.id as string));
+    if (evidenceIds.length) {
+      const { data: files } = await db.from("evidence").select("storage_path").in("id", evidenceIds);
+      await db.storage.from("evidence").remove((files ?? []).map((f) => f.storage_path as string));
+      await db.from("evidence").delete().in("id", evidenceIds);
+    }
+    const { recordInternalChecks } = await import("@/lib/checks");
+    await recordInternalChecks(db, companyId, { admin: true });
+  }
+
+  // Policies generated and chats started on camera.
+  const dropNew = async (table: string, keep: string[] | undefined) => {
+    if (!keep) return;
+    const { data } = await db.from(table).select("id").eq("company_id", companyId);
+    const extra = (data ?? []).map((r) => r.id as string).filter((id) => !keep.includes(id));
+    if (extra.length) await db.from(table).delete().in("id", extra);
+  };
+  await dropNew("policies", scene.policies);
+  await dropNew("copilot_messages", scene.copilotMessages);
 
   // Frameworks added on camera (NIS2), and their requirements.
   const { data: fwNow } = await db.from("company_frameworks").select("framework_id").eq("company_id", companyId);

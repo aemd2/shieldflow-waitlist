@@ -1023,10 +1023,14 @@ export async function listAccessReviewItems(
   supabase: SupabaseClient,
   companyId: string,
 ): Promise<AccessReviewItem[]> {
+  // Ordered, or Postgres hands back each row just decided last and the list
+  // reshuffles under the reviewer's cursor after every Keep/Revoke click.
   const { data, error } = await supabase
     .from("access_review_items")
     .select("*")
     .eq("company_id", companyId)
+    .order("subject", { ascending: true })
+    .order("id", { ascending: true })
     .limit(5000);
   if (error) throw error;
   return (data ?? []) as AccessReviewItem[];

@@ -12,6 +12,7 @@ import { groqStream, GroqError, isGroqConfigured, type ChatMessage } from "@/lib
 import { copilotSchema, sanitizeForPrompt } from "@/lib/validation";
 import { checkRateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rate-limit";
 import { redactedText } from "@/lib/redact";
+import { workspaceFacts } from "@/lib/ai-context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -74,12 +75,13 @@ export async function POST(req: Request) {
   }
 
   // Build a COMPACT grounding context — summaries only, never full bodies.
-  let controls, policies, history;
+  let controls, policies, history, facts;
   try {
-    [controls, policies, history] = await Promise.all([
+    [controls, policies, history, facts] = await Promise.all([
       getControlsWithStatus(supabase, company.id),
       listPolicies(supabase, company.id),
       listCopilotMessages(supabase, company.id, user.id, 10),
+      workspaceFacts(supabase, company.id),
     ]);
   } catch {
     return NextResponse.json({ error: DB_UNAVAILABLE }, { status: 503 });
@@ -104,9 +106,12 @@ export async function POST(req: Request) {
   const system =
     "You are ShieldFlow's Compliance Co-Pilot. Answer questions about the company's compliance " +
     "posture using ONLY the context provided. Be concise and practical. If something isn't in the " +
-    "context, say so. Never invent control IDs or evidence.\n\n" +
+    "context, say so. Never invent control IDs or evidence. When asked what to do next, put " +
+    "failing automated checks first — they are problems happening now, not paperwork — and " +
+    "keep plans realistic for a small team.\n\n" +
     `Company: ${sanitizeForPrompt(company.name)}\n` +
     `Control summary: ${counts.complete} complete, ${counts.in_progress} in progress, ${counts.not_started} not started.\n` +
+    `${facts.join("\n")}\n\n` +
     `Controls:\n${controlLines}\n\nPolicies:\n${policyTitles}`;
 
   // The question and the transcript are the only user-authored text in this

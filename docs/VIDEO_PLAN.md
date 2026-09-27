@@ -17,8 +17,8 @@ something none of them do.
 
 ## Status — 2026-09-27
 
-**Tier 1 is recorded, clips 1–5.** Clip 6 is scripted and waits on a working
-`GROQ_API_KEY` locally — the current one is rejected by Groq.
+**All 15 clips are recorded**, plus two stitched cuts with a timed voice-over
+script: the pitch (clips 1–6, ~70s) and a full tour (all 15, ~2:40).
 
 Everything is generated from the real app by scripts in `app/scripts/recording/`,
 so any clip can be re-shot in a minute after a UI change. Output goes to
@@ -28,7 +28,8 @@ so any clip can be re-shot in a minute after a UI change. Output goes to
 |---|---|
 | `clean/NN-name.mp4` | Each clip with no text — for voice-over |
 | `captioned/NN-name.mp4` | Same footage with captions — for silent autoplay |
-| `walkthrough-clean.mp4` / `walkthrough-captioned.mp4` | Tier 1 in one ~60s cut, with title and end cards |
+| `walkthrough-*.mp4` | Tier 1 (clips 1–6) in one ~70s cut, with title and end cards |
+| `full-tour-*.mp4` | All 15 clips, ~2:40 |
 | `VOICEOVER.md` | What to say, and the second each line starts |
 
 ```
@@ -37,13 +38,15 @@ npm run build && npm run start                 # port 3001, or the shieldflow-pr
 npx tsx scripts/recording/seed.ts              # once: Northwind Analytics + sample evidence
 npx tsx scripts/recording/scene.ts save        # once, after seeding
 npx tsx scripts/recording/record.ts            # all clips (or: record.ts 02 05)
-npx tsx scripts/recording/stitch.ts            # walkthrough + voice-over script
+npx tsx scripts/recording/stitch.ts            # both cuts + voice-over script
 ```
 
 `RECORDING_EMAIL` in `app/.env.local` names the workspace. Sign-in uses a
 one-time admin token, so no password is involved and no email is sent. Every
 take restores the workspace first, so clips that change it (1 completes a
-measure, 2 adds NIS2) can be re-shot.
+measure, 2 adds NIS2, 7 completes a review, 8 approves a policy, 13 starts a
+chat) can be re-shot. AI clips (6, 8, 13) write what the AI said to
+`recordings/` — read it before using the clip.
 
 ### What recording turned up in the product
 
@@ -53,6 +56,15 @@ measure, 2 adds NIS2) can be re-shot.
   row kept its first-render value.
 - **Fixed — a rejected AI key looked like being signed out.** Groq's 401 was
   passed through as ours, and the page sends a 401 to the login screen.
+- **Fixed — questionnaire answers and Co-Pilot ignored the work done.** Both
+  only saw requirement statuses, so a drafted answer read "the provided context
+  does not specify" for an incident plan the company had on file, and Co-Pilot's
+  "this week" advice never mentioned a leaver whose account was still open. Both
+  now see finished measures, check results, document names and vendor reviews
+  (`lib/ai-context.ts`, still aggregate — no names). Certification, audit and
+  pen-test questions are always sent to review, whatever the model says.
+- **Fixed — access review rows reshuffled after every click.** The query had no
+  order, so each decided row jumped to the bottom.
 - **Open — evidence attaches per requirement, not per measure.** Completing a
   measure credits every framework, but the document proving it has to be
   attached to each requirement separately, or each one raises "Completed
@@ -64,6 +76,20 @@ measure, 2 adds NIS2) can be re-shot.
 - **Open — every active high-risk vendor is its own alert**, even with its SOC 2
   report on file and its review done. Four of the 13 alerts in the sample
   workspace are this.
+- **Open — the Trust Center's framework figures disagree with the dashboard.**
+  Its per-framework bars count only finished requirements (SOC 2: 6%) while its
+  own overall score and the dashboard give in-progress half credit (SOC 2: 20%).
+  A prospect sees a lower number than the customer does. Needs the
+  `get_trust_center` function to return in-progress counts.
+- **Open — the report leaves failing checks out of "Open items".** The
+  dashboard lists the leaver and the untracked account; the one-page report
+  handed to auditors and prospects does not.
+- **Open — the activity log says "tamper-evident".** It is append-only for users
+  (no update or delete policy), but nothing makes tampering evident — there is
+  no hash chain. Say "append-only", or build the chain.
+- **Open — generated policies carry dated defaults**: forced password changes
+  every 90 days (current NIST guidance says don't), and a "Security Operations
+  team" a 13-person company doesn't have.
 
 ---
 
@@ -264,7 +290,6 @@ register. **15 · Activity log.** Scroll, then open one entry.
 
 1. ~~Fix the framework-add gap~~ — done
 2. ~~Seed the recording workspace~~ — done
-3. ~~Record tier 1~~ — clips 1–5 done; clip 6 needs a working Groq key
-4. Record the voice-over over `walkthrough-clean.mp4`
+3. ~~Record tiers 1–3~~ — all 15 done, plus the walkthrough and full-tour cuts
+4. Record the voice-over (`recordings/VOICEOVER.md`)
 5. Put clip 1 on the homepage and clips 1, 3, 4, 5 on `/demo`
-6. Record tier 2 as the site's feature sections get built

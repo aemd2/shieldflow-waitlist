@@ -1,16 +1,19 @@
 /**
- * Join the recorded clips into one walkthrough, and write the voice-over script
+ * Join the recorded clips into finished videos, and write the voice-over script
  * with the exact second each line starts at.
  *
  *   npx tsx scripts/recording/stitch.ts
+ *
+ * Two cuts:
+ *   walkthrough  the pitch — tier 1 (clips 1–6), about a minute
+ *   full-tour    every clip, 1–15
  *
  * Each clip gets a short freeze on its last frame, so a narrator has room to
  * finish the line before the picture moves on. Clips that haven't been recorded
  * yet are skipped. The narration lives here, next to the clip list, so the
  * script and the video can't drift apart.
  *
- * Writes recordings/walkthrough-clean.mp4, walkthrough-captioned.mp4 and
- * VOICEOVER.md.
+ * Writes recordings/<cut>-clean.mp4, <cut>-captioned.mp4 and VOICEOVER.md.
  */
 import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -30,18 +33,31 @@ type Segment = {
   say: string;
 };
 
-const SEGMENTS: Segment[] = [
-  {
-    card: {
-      seconds: 5.5,
-      lines: [
-        { text: "ShieldFlow", size: 84, color: "white" },
-        { text: "Do the work once.", size: 40, color: "0x34D399" },
-        { text: "Recorded in the real product · Northwind Analytics is a sample company", size: 22, color: "0x94A3B8" },
-      ],
-    },
-    say: "This is ShieldFlow — the real product, with a made-up company called Northwind.",
+const TITLE: Segment = {
+  card: {
+    seconds: 5.5,
+    lines: [
+      { text: "ShieldFlow", size: 84, color: "white" },
+      { text: "Do the work once.", size: 40, color: "0x34D399" },
+      { text: "Recorded in the real product · Northwind Analytics is a sample company", size: 22, color: "0x94A3B8" },
+    ],
   },
+  say: "This is ShieldFlow — the real product, with a made-up company called Northwind.",
+};
+
+const END: Segment = {
+  card: {
+    seconds: 4.8,
+    lines: [
+      { text: "Do the work once.", size: 64, color: "white" },
+      { text: "shieldflow.cloud", size: 40, color: "0x34D399" },
+    ],
+  },
+  say: "ShieldFlow. Do the work once. Find us at shieldflow dot cloud.",
+};
+
+/** Tier 1 — the pitch. */
+const PITCH: Segment[] = [
   {
     clip: "01-work-once",
     hold: 3.0,
@@ -72,16 +88,60 @@ const SEGMENTS: Segment[] = [
     hold: 1.5,
     say: "A customer sends a security questionnaire? Paste it in. ShieldFlow drafts the answers from your workspace, and flags the ones it can't back up.",
   },
+];
+
+/** Tiers 2 and 3 — the rest of the product. */
+const MORE: Segment[] = [
   {
-    card: {
-      seconds: 4.8,
-      lines: [
-        { text: "Do the work once.", size: 64, color: "white" },
-        { text: "shieldflow.cloud", size: 40, color: "0x34D399" },
-      ],
-    },
-    say: "ShieldFlow. Do the work once. Find us at shieldflow dot cloud.",
+    clip: "07-access-review",
+    hold: 1.2,
+    say: "Access reviews: go down the list, keep or revoke. When you're done, ShieldFlow files the signed record as evidence.",
   },
+  {
+    clip: "08-policy",
+    hold: 1.2,
+    say: "Need a policy? Pick one, and you get a first draft in seconds. You read it, edit it, and approve it.",
+  },
+  {
+    clip: "09-trust-center",
+    hold: 1.2,
+    say: "Your Trust Center is a live page you send to prospects. It updates itself as you work.",
+  },
+  {
+    clip: "10-sprint",
+    hold: 1.2,
+    say: "New to all this? The 14-day sprint breaks it into four phases, and each one opens up as you make real progress.",
+  },
+  {
+    clip: "11-evidence",
+    hold: 1.5,
+    say: "Every document is dated, and linked to the requirements it proves.",
+  },
+  {
+    clip: "12-report",
+    hold: 1.2,
+    say: "The report puts it all on one page for a prospect or an auditor, and saves as a PDF.",
+  },
+  {
+    clip: "13-copilot",
+    hold: 1.5,
+    say: "Not sure what to do next? Ask the Co-Pilot. It answers from your own workspace — starting with what's actually broken.",
+  },
+  {
+    clip: "14-vendors-risks",
+    hold: 1.2,
+    say: "Vendors and risks live here too: each vendor with its risk and last review, each risk with what you're doing about it.",
+  },
+  {
+    clip: "15-activity",
+    hold: 1.5,
+    say: "And every change is logged — who did what, and when. Nobody on the team can edit it.",
+  },
+];
+
+const CUTS: { name: string; title: string; segments: Segment[] }[] = [
+  { name: "walkthrough", title: "Walkthrough — the pitch (clips 1–6)", segments: [TITLE, ...PITCH, END] },
+  { name: "full-tour", title: "Full tour — every feature (clips 1–15)", segments: [TITLE, ...PITCH, ...MORE, END] },
 ];
 
 function run(args: string[]) {
@@ -116,7 +176,7 @@ function drawCard(card: NonNullable<Segment["card"]>, name: string): string {
   return path.join(TMP, out);
 }
 
-function stitch(variant: "clean" | "captioned", parts: { file: string; hold: number }[]) {
+function stitch(file: string, parts: { file: string; hold: number }[]) {
   const lengths = parts.map((p) => duration(p.file) + p.hold);
   const inputs = parts.flatMap((p) => ["-i", p.file]);
   const prep = parts.map(
@@ -133,30 +193,27 @@ function stitch(variant: "clean" | "captioned", parts: { file: string; hold: num
     chain.push(`[${prev}][v${i}]xfade=transition=fade:duration=${FADE}:offset=${offset.toFixed(3)}[${out}]`);
     prev = out;
   }
-  const file = path.join(OUT_DIR, `walkthrough-${variant}.mp4`);
   run([
     ...inputs,
     "-filter_complex", [...prep, ...chain].join(";"),
     "-map", "[out]",
     "-c:v", "libx264", "-preset", "slow", "-crf", "22", "-movflags", "+faststart", file,
   ]);
-  return { file, starts, total: offset + lengths[lengths.length - 1] };
+  return { starts, total: offset + lengths[lengths.length - 1] };
 }
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}.${Math.floor((s % 1) * 10)}`;
+const words = (t: string) => t.split(/\s+/).filter(Boolean).length;
 
-function main() {
-  rmSync(TMP, { recursive: true, force: true });
-  mkdirSync(TMP, { recursive: true });
-  copyFileSync("C:/Windows/Fonts/segoeuib.ttf", path.join(TMP, "font.ttf"));
-
+/** Build one cut in both variants; return its section of the voice-over script. */
+function buildCut(cut: (typeof CUTS)[number]): string[] {
   const used: Segment[] = [];
   const skipped: string[] = [];
   const clean: { file: string; hold: number }[] = [];
   const captioned: { file: string; hold: number }[] = [];
-  SEGMENTS.forEach((s, i) => {
+  cut.segments.forEach((s, i) => {
     if (s.card) {
-      const f = drawCard(s.card, `card${i}`);
+      const f = drawCard(s.card, `${cut.name}-card${i}`);
       clean.push({ file: f, hold: 0 });
       captioned.push({ file: f, hold: 0 });
       used.push(s);
@@ -170,33 +227,50 @@ function main() {
     used.push(s);
   });
 
-  const a = stitch("clean", clean);
-  stitch("captioned", captioned);
+  const a = stitch(path.join(OUT_DIR, `${cut.name}-clean.mp4`), clean);
+  stitch(path.join(OUT_DIR, `${cut.name}-captioned.mp4`), captioned);
 
-  const words = (t: string) => t.split(/\s+/).filter(Boolean).length;
   const rows = used.map((s, i) => {
     const end = i + 1 < a.starts.length ? a.starts[i + 1] : a.total;
     const secs = end - a.starts[i];
-    const pace = words(s.say) / secs;
-    const flag = pace > 2.8 ? " ⚠ fast — trim a few words or speak quickly" : "";
+    const flag = words(s.say) / secs > 2.8 ? " ⚠ fast — trim a few words or speak quickly" : "";
     return `| ${mmss(a.starts[i])} | ${s.clip ?? "card"} | ${s.say} | ${secs.toFixed(1)}s, ${words(s.say)} words${flag} |`;
   });
 
-  const md = [
-    "# Voice-over script — ShieldFlow walkthrough",
+  console.log(`${cut.name} ${mmss(a.total)} · ${used.length} segments${skipped.length ? ` · skipped ${skipped.join(", ")}` : ""}`);
+  for (const r of rows.filter((r) => r.includes("⚠"))) console.log(r);
+
+  return [
+    `## ${cut.title}`,
     "",
-    `Video: \`walkthrough-clean.mp4\` (no captions — record over this one). Length ${mmss(a.total)}.`,
-    "`walkthrough-captioned.mp4` is the same cut with captions, for silent autoplay.",
-    "",
-    "Read each line starting at its time. A relaxed pace is about 2.5 words a second;",
-    "every line fits its slot at that pace. The last frame of each clip is held so you",
-    "can finish the sentence — you don't need to rush the ends.",
+    `Record over \`${cut.name}-clean.mp4\` (no captions). Length ${mmss(a.total)}.`,
+    `\`${cut.name}-captioned.mp4\` is the same cut with captions, for silent autoplay.`,
     "",
     "| Starts | Clip | Say | Room |",
     "|---|---|---|---|",
     ...rows,
     "",
     ...(skipped.length ? [`Not in this cut (not recorded yet): ${skipped.join(", ")}.`, ""] : []),
+  ];
+}
+
+function main() {
+  rmSync(TMP, { recursive: true, force: true });
+  mkdirSync(TMP, { recursive: true });
+  copyFileSync("C:/Windows/Fonts/segoeuib.ttf", path.join(TMP, "font.ttf"));
+
+  const sections = CUTS.flatMap(buildCut);
+  const md = [
+    "# Voice-over script — ShieldFlow",
+    "",
+    "Read each line starting at its time. A relaxed pace is about 2.5 words a second;",
+    "every line fits its slot at that pace. The last frame of each clip is held so you",
+    "can finish the sentence — you don't need to rush the ends.",
+    "",
+    "The full tour starts with the same six lines as the walkthrough, so one recording",
+    "session covers both.",
+    "",
+    ...sections,
     "## Recording tips",
     "",
     "- Record in a quiet, soft room (a wardrobe full of clothes works). Phone voice memo held 20 cm away is fine.",
@@ -207,9 +281,6 @@ function main() {
   ].join("\n");
   writeFileSync(path.join(OUT_DIR, "VOICEOVER.md"), md, "utf8");
   rmSync(TMP, { recursive: true, force: true });
-
-  console.log(`walkthrough ${mmss(a.total)} · ${used.length} segments${skipped.length ? ` · skipped ${skipped.join(", ")}` : ""}`);
-  for (const r of rows) console.log(r);
 }
 
 main();

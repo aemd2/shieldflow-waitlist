@@ -149,6 +149,16 @@ const DOCS: Doc[] = [
       <h2>Configuration</h2><p>Infrastructure is defined as code and changed only through reviewed pull requests.</p>`),
   },
   {
+    codes: ["A.8.28"],
+    file: "Secure Development Standard v1.0.pdf",
+    kind: "pdf",
+    content: pdfPage("Secure Development Standard", "Version 1.0 · Approved 20 May 2026", `
+      <h2>Reviews</h2><p>Every change to production code is reviewed by a second engineer before merge. Main is protected.</p>
+      <h2>Secrets</h2><p>No secrets in code. Pushes are scanned for keys, and anything found is rotated.</p>
+      <h2>Dependencies</h2><p>Scanned on every pull request; see the Vulnerability and Configuration Management standard for fix times.</p>
+      <h2>Training</h2><p>Engineers complete secure-coding training when they join and yearly after that.</p>`),
+  },
+  {
     codes: ["A.7.1", "A.8.1"],
     file: "Remote Work and Device Policy v1.0.pdf",
     kind: "pdf",
