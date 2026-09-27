@@ -59,7 +59,7 @@ export function AddFrameworkButton({
     const framework = available.find((f) => f.id === choice);
     if (!framework) return;
     const ok = confirm(
-      `Add ${framework.name}? This adds ${framework.controlCount} new control${framework.controlCount === 1 ? "" : "s"} at 0% and may lower your compliance score and reopen your 14-Day Sprint until they're addressed.`,
+      `Add ${framework.name}? This adds ${framework.controlCount} control${framework.controlCount === 1 ? "" : "s"}. Any already covered by measures you've worked on are credited straight away; the rest start at 0%, so your compliance score may dip and your 14-Day Sprint may reopen until they're addressed.`,
     );
     if (!ok) return;
 
@@ -69,7 +69,15 @@ export function AddFrameworkButton({
         toast("error", res.error);
         return;
       }
-      toast("success", `${framework.name} added`);
+      // Say how much was already done — that's the whole point of shared
+      // measures, and without it the new framework just looks like more work.
+      const credited = res && "credited" in res ? (res.credited ?? 0) : 0;
+      toast(
+        "success",
+        credited > 0
+          ? `${framework.name} added — ${credited} requirement${credited === 1 ? "" : "s"} already credited from work you've done`
+          : `${framework.name} added`,
+      );
       setOpen(false);
       router.refresh();
     });

@@ -7,6 +7,13 @@
       "runtimeArgs": ["run", "dev"],
       "cwd": "app",
       "port": 3001
+    },
+    {
+      "name": "shieldflow-prod",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start"],
+      "cwd": "app",
+      "port": 3001
     }
   ]
 }

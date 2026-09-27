@@ -32,3 +32,4 @@ next-env.d.ts
 
 # Test-account credentials — never commit (see test_accounts table instead)
 docs/00-user.md
+/recordings/

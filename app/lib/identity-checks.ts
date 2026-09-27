@@ -20,6 +20,7 @@
  */
 
 import type { CheckResultValue } from "@/lib/checks";
+import { plural, agree } from "@/lib/plural";
 
 /** One account as seen at the identity provider. */
 export interface IdentityAccount {
@@ -142,9 +143,11 @@ export function evaluateOffboardingDrift(input: DriftInput): IdentityVerdict {
     return {
       result: "inconclusive",
       detail: undated
-        ? `${undated} offboarded person(s) have no leaving date recorded, so the ${graceDays}-day ` +
-          `deprovisioning window can't be measured. Add their end date in Personnel.`
-        : `${offboarded.length} person(s) offboarded, all still inside the ${graceDays}-day ` +
+        ? `${plural(undated, "offboarded person", "offboarded people")} ${agree(undated, "has", "have")} ` +
+          `no leaving date recorded, so the ${graceDays}-day deprovisioning window can't be ` +
+          `measured. Add their end date in Personnel.`
+        : `${plural(offboarded.length, "person", "people")} offboarded, ` +
+          `${agree(offboarded.length, "still", "all still")} inside the ${graceDays}-day ` +
           `deprovisioning window. Nothing is overdue.`,
     };
   }
@@ -156,8 +159,10 @@ export function evaluateOffboardingDrift(input: DriftInput): IdentityVerdict {
     return {
       result: "inconclusive",
       detail:
-        `${due.length} person(s) are past the ${graceDays}-day deprovisioning window but have no ` +
-        `email recorded in Personnel, so their accounts can't be matched. Add their work email.`,
+        `${plural(due.length, "person", "people")} ${agree(due.length, "is", "are")} past the ` +
+        `${graceDays}-day deprovisioning window but ${agree(due.length, "has", "have")} no email ` +
+        `recorded in Personnel, so ${agree(due.length, "the account", "their accounts")} can't be ` +
+        `matched. Add ${agree(due.length, "a work email", "their work emails")}.`,
     };
   }
 
@@ -172,7 +177,9 @@ export function evaluateOffboardingDrift(input: DriftInput): IdentityVerdict {
   }
 
   const stillOpen = withEmail.filter((p) => activeByEmail.get(norm(p.email)) === true);
-  const skipped = withoutEmail ? ` ${withoutEmail} other leaver(s) skipped: no email recorded.` : "";
+  const skipped = withoutEmail
+    ? ` ${plural(withoutEmail, "other leaver")} skipped: no email recorded.`
+    : "";
 
   if (stillOpen.length > 0) {
     const named = list(
@@ -181,8 +188,9 @@ export function evaluateOffboardingDrift(input: DriftInput): IdentityVerdict {
     return {
       result: "fail",
       detail:
-        `${stillOpen.length} person(s) left more than ${graceDays} days ago but their account is ` +
-        `still open: ${named}. Deprovision or suspend them at the identity provider.${skipped}`,
+        `${plural(stillOpen.length, "person", "people")} left more than ${graceDays} days ago but ` +
+        `${agree(stillOpen.length, "their account is", "their accounts are")} still open: ${named}. ` +
+        `Deprovision or suspend ${agree(stillOpen.length, "it", "them")} at the identity provider.${skipped}`,
     };
   }
 
@@ -190,15 +198,17 @@ export function evaluateOffboardingDrift(input: DriftInput): IdentityVerdict {
     return {
       result: "inconclusive",
       detail:
-        `The ${withEmail.length} leaver(s) we could check have no open account, but ${TRUNCATED_NOTE}.${skipped}`,
+        `The ${plural(withEmail.length, "leaver")} we could check ${agree(withEmail.length, "has", "have")} ` +
+        `no open account, but ${TRUNCATED_NOTE}.${skipped}`,
     };
   }
 
   return {
     result: "pass",
     detail:
-      `All ${withEmail.length} person(s) offboarded more than ${graceDays} days ago have had their ` +
-      `access removed.${skipped}`,
+      `${agree(withEmail.length, "The", "All")} ${plural(withEmail.length, "person", "people")} offboarded ` +
+      `more than ${graceDays} days ago ${agree(withEmail.length, "has", "have")} had their access ` +
+      `removed.${skipped}`,
   };
 }
 
@@ -262,7 +272,8 @@ export function evaluateUntrackedAccounts(input: UntrackedInput): IdentityVerdic
     return {
       result: "fail",
       detail:
-        `${unmatched.length} active account(s) belong to nobody in Personnel: ` +
+        `${plural(unmatched.length, "active account")} ${agree(unmatched.length, "belongs", "belong")} ` +
+        `to nobody in Personnel: ` +
         `${list(unmatched.map((a) => a.email))}. Add them as people, or mark them as not a person ` +
         "(use a role of “Service account” for non-human accounts).",
       subjects: unmatched.map((a) => a.email),
@@ -272,13 +283,17 @@ export function evaluateUntrackedAccounts(input: UntrackedInput): IdentityVerdic
   if (truncated) {
     return {
       result: "inconclusive",
-      detail: `The ${live.length} account(s) we read all match someone in Personnel, but ${TRUNCATED_NOTE}.`,
+      detail:
+        `The ${plural(live.length, "account")} we read ${agree(live.length, "matches", "all match")} ` +
+        `someone in Personnel, but ${TRUNCATED_NOTE}.`,
     };
   }
 
   return {
     result: "pass",
-    detail: `All ${live.length} active account(s) belong to someone recorded in Personnel.`,
+    detail:
+      `${agree(live.length, "The", "All")} ${plural(live.length, "active account")} ` +
+      `${agree(live.length, "belongs", "belong")} to someone recorded in Personnel.`,
   };
 }
 
