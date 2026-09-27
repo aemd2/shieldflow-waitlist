@@ -59,12 +59,13 @@ const PEOPLE: { name: string; email: string; role: string; started: string }[] =
 /** A live account with no person behind it — the untracked-accounts finding. */
 const ORPHAN = "ci-deploy@northwind.test";
 
+/** `reviewed_at` matches vendor-review-log-2026.csv in evidence.ts. */
 const VENDORS = [
-  { name: "Amazon Web Services", website: "https://aws.amazon.com", category: "Infrastructure", risk_level: "critical", data_sensitivity: "pii", soc2_status: "on_file" },
-  { name: "GitHub", website: "https://github.com", category: "Source control", risk_level: "high", data_sensitivity: "internal", soc2_status: "on_file" },
-  { name: "Google Workspace", website: "https://workspace.google.com", category: "Identity & email", risk_level: "high", data_sensitivity: "pii", soc2_status: "on_file" },
-  { name: "Slack", website: "https://slack.com", category: "Communication", risk_level: "medium", data_sensitivity: "internal", soc2_status: "on_file" },
-  { name: "Stripe", website: "https://stripe.com", category: "Payments", risk_level: "high", data_sensitivity: "pii", soc2_status: "requested" },
+  { name: "Amazon Web Services", website: "https://aws.amazon.com", category: "Infrastructure", risk_level: "critical", data_sensitivity: "pii", soc2_status: "on_file", reviewed_at: "2026-03-10" },
+  { name: "GitHub", website: "https://github.com", category: "Source control", risk_level: "high", data_sensitivity: "internal", soc2_status: "on_file", reviewed_at: "2026-03-12" },
+  { name: "Google Workspace", website: "https://workspace.google.com", category: "Identity & email", risk_level: "high", data_sensitivity: "pii", soc2_status: "on_file", reviewed_at: "2026-03-12" },
+  { name: "Slack", website: "https://slack.com", category: "Communication", risk_level: "medium", data_sensitivity: "internal", soc2_status: "on_file", reviewed_at: "2026-04-02" },
+  { name: "Stripe", website: "https://stripe.com", category: "Payments", risk_level: "high", data_sensitivity: "pii", soc2_status: "requested", reviewed_at: "2026-04-20" },
 ];
 
 const RISKS = [
@@ -128,6 +129,11 @@ async function main() {
     await db.from("vendors").insert(newVendors.map((v) => ({ ...v, company_id: companyId, status: "active", review_cadence_months: 12 })));
   }
   log(`${newVendors.length} vendors added`);
+  // Workspaces seeded before review dates existed: fill them in, never overwrite.
+  for (const v of VENDORS) {
+    await db.from("vendors").update({ reviewed_at: v.reviewed_at })
+      .eq("company_id", companyId).eq("name", v.name).is("reviewed_at", null);
+  }
 
   const { data: existingRisks } = await db.from("risks").select("title").eq("company_id", companyId);
   const haveRisk = new Set((existingRisks ?? []).map((r) => r.title));
