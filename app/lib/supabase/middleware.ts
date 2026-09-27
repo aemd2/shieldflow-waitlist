@@ -18,6 +18,8 @@ const PUBLIC_PATHS = [
   // Tester-plan invite links (/trial/<code>) are handed to prospects who have no
   // account yet — the page itself pitches the trial and routes them into signup.
   "/trial",
+  // The product demo — shown to people before they have an account, by design.
+  "/demo",
   "/privacy",
   "/terms",
   "/thanks",

@@ -47,6 +47,12 @@ function Nav() {
           <span className="text-lg font-black tracking-tight">ShieldFlow</span>
         </Link>
         <div className="flex items-center gap-3 sm:gap-5">
+          <Link
+            href="/demo"
+            className="hidden text-sm font-medium text-muted-foreground hover:text-foreground sm:inline"
+          >
+            See how it works
+          </Link>
           <a
             href={LOGIN_URL}
             className="hidden text-sm font-medium text-muted-foreground hover:text-foreground sm:inline"
@@ -111,9 +117,15 @@ function Hero() {
             Sign in &amp; claim your spot
             <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" strokeWidth={3} />
           </a>
-          <div className="text-xs text-muted-foreground">
-            No credit card • 2-min signup • Cancel anytime
-          </div>
+          <Link
+            href="/demo"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border px-8 py-4 text-base font-bold text-foreground transition hover:bg-card sm:w-auto"
+          >
+            See how it works
+          </Link>
+        </div>
+        <div className="mt-4 text-xs text-muted-foreground">
+          No credit card • 2-min signup • Cancel anytime
         </div>
 
         <div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-muted-foreground">
