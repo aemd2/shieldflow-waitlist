@@ -90,8 +90,19 @@ function escapeHtml(s: string): string {
  * Service-role notification fan-out for sessionless paths (the sync cron). The
  * notify_users() RPC can't be used here because it derives membership from
  * auth.uid(), which a service-role client doesn't have — so we insert in-app rows
- * directly (the admin client bypasses RLS), honoring each member's in-app pref.
- * In-app only and best-effort; never throws.
+ * directly (the admin client bypasses RLS) and resolve email recipients the same
+ * way the RPC does.
+ *
+ * This used to write the in-app row and stop, which made the whole daily check
+ * pointless: it would find a control had started failing and tell nobody unless
+ * they happened to log in and look at the bell. The alert only earns its keep if
+ * it reaches you before your customer does.
+ *
+ * The two preferences are independent on purpose — someone can mute the bell and
+ * still want the email, or the reverse — so email recipients are filtered on
+ * email_enabled, never on the in-app set.
+ *
+ * Best-effort throughout; never throws.
  */
 export async function notifyCompanyViaAdmin(
   admin: SupabaseClient,
@@ -108,17 +119,26 @@ export async function notifyCompanyViaAdmin(
 
     const { data: prefs } = await admin
       .from("notification_prefs")
-      .select("user_id, in_app_enabled")
+      .select("user_id, in_app_enabled, email_enabled")
       .eq("company_id", companyId)
       .eq("type", payload.type);
-    const optedOut = new Set(
-      (prefs ?? [])
-        .filter((p: { in_app_enabled: boolean }) => p.in_app_enabled === false)
-        .map((p: { user_id: string }) => p.user_id),
+    const prefRows = (prefs ?? []) as {
+      user_id: string;
+      in_app_enabled: boolean;
+      email_enabled: boolean;
+    }[];
+
+    // Both prefs default to true when a member has no row, matching the RPC's
+    // coalesce(..., true).
+    const inAppOptedOut = new Set(
+      prefRows.filter((p) => p.in_app_enabled === false).map((p) => p.user_id),
+    );
+    const emailOptedOut = new Set(
+      prefRows.filter((p) => p.email_enabled === false).map((p) => p.user_id),
     );
 
     const rows = ids
-      .filter((id) => !optedOut.has(id))
+      .filter((id) => !inAppOptedOut.has(id))
       .map((id) => ({
         company_id: companyId,
         user_id: id,
@@ -128,6 +148,21 @@ export async function notifyCompanyViaAdmin(
         link: payload.link ?? null,
       }));
     if (rows.length > 0) await admin.from("notifications").insert(rows);
+
+    // auth.users isn't exposed through PostgREST, so addresses come from the
+    // admin auth API rather than a join. One lookup per recipient, settled
+    // individually so one failure can't cost everyone else their email.
+    const recipients = ids.filter((id) => !emailOptedOut.has(id));
+    if (recipients.length === 0) return;
+
+    const looked = await Promise.allSettled(
+      recipients.map((id) => admin.auth.admin.getUserById(id)),
+    );
+    const emails = looked
+      .map((r) => (r.status === "fulfilled" ? r.value.data?.user?.email : null))
+      .filter((e): e is string => Boolean(e));
+
+    await sendEmails(emails, payload);
   } catch {
     // best-effort
   }
