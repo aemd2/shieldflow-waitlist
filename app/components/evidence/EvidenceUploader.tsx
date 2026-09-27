@@ -13,12 +13,21 @@ function uuid(): string {
   return (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 }
 
+/**
+ * Upload a file as evidence — for one requirement (`controlId`), or for a measure
+ * (`measureId`), which makes it evidence for every requirement the measure
+ * covers, in every framework.
+ */
 export function EvidenceUploader({
   companyId,
   controlId,
+  measureId,
+  label = "Upload evidence",
 }: {
   companyId: string;
-  controlId: string;
+  controlId?: string;
+  measureId?: string;
+  label?: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -48,7 +57,8 @@ export function EvidenceUploader({
 
     setBusy(true);
     const supabase = createBrowserSupabase();
-    const path = `${companyId}/${controlId}/${uuid()}-${sanitizeFileName(file.name)}`;
+    const folder = measureId ? `measures/${measureId}` : controlId;
+    const path = `${companyId}/${folder}/${uuid()}-${sanitizeFileName(file.name)}`;
 
     const { error: upErr } = await supabase.storage
       .from("evidence")
@@ -71,7 +81,7 @@ export function EvidenceUploader({
     }
 
     const res = await recordEvidence({
-      controlId,
+      ...(measureId ? { measureId } : { controlId }),
       storagePath: path,
       fileName: file.name,
       mimeType: file.type,
@@ -109,7 +119,7 @@ export function EvidenceUploader({
         loading={busy}
         leftIcon={<Upload className="h-4 w-4" />}
       >
-        {busy ? "Uploading..." : "Upload evidence"}
+        {busy ? "Uploading..." : label}
       </Button>
       <p className="mt-2 text-xs text-muted-foreground">
         PDF, PNG, JPEG, CSV, or Word · max 10MB

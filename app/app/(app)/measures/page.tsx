@@ -23,7 +23,7 @@ export default async function MeasuresPage() {
       title="Measures"
       subtitle="The things you actually do. Each one satisfies requirements in one or more frameworks, so the work — and the evidence — happens once instead of once per framework."
     >
-      <MeasureManager measures={measures} canWrite={access?.canWrite ?? false} />
+      <MeasureManager measures={measures} canWrite={access?.canWrite ?? false} companyId={company.id} />
     </PageShell>
   );
 }

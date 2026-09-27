@@ -9,11 +9,10 @@ import {
   getControlsWithStatus,
   listFrameworks,
   listSelectedFrameworkIds,
-  listVendors,
 } from "@/lib/db/queries";
 import { assertFeature, assertIntegrationSlot } from "@/lib/plan-server";
 import { computeScore } from "@/lib/score";
-import { computeAlerts } from "@/lib/monitoring";
+import { loadAlerts } from "@/lib/workspace-alerts";
 import { sendSlackMessage, isValidSlackWebhook, SlackError } from "@/lib/slack";
 import { slackWebhookSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -126,11 +125,10 @@ export async function sendComplianceDigest() {
 
   let text: string;
   try {
-    const [controls, allFrameworks, selectedIds, vendors] = await Promise.all([
+    const [controls, allFrameworks, selectedIds] = await Promise.all([
       getControlsWithStatus(supabase, company.id),
       listFrameworks(supabase),
       listSelectedFrameworkIds(supabase, company.id),
-      listVendors(supabase, company.id),
     ]);
     const frameworks = allFrameworks.filter((f) => selectedIds.includes(f.id));
     const score = computeScore(controls.map((c) => c.status));
@@ -138,7 +136,7 @@ export async function sendComplianceDigest() {
       name: f.name,
       pct: computeScore(controls.filter((c) => c.framework_id === f.id).map((c) => c.status)),
     }));
-    const alerts = computeAlerts(controls, frameworkProgress, vendors);
+    const alerts = await loadAlerts(supabase, company.id, controls, frameworkProgress);
 
     const high = alerts.filter((a) => a.severity === "high").length;
     const warning = alerts.filter((a) => a.severity === "warning").length;

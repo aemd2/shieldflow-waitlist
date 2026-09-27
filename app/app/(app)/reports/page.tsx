@@ -10,7 +10,7 @@ import {
   listAllEvidence,
 } from "@/lib/db/queries";
 import { computeScore, countStatuses } from "@/lib/score";
-import { computeAlerts } from "@/lib/monitoring";
+import { loadAlerts } from "@/lib/workspace-alerts";
 import { PrintButton } from "@/components/reports/PrintButton";
 import { PageShell } from "@/components/ui/page";
 
@@ -56,7 +56,7 @@ export default async function ReportsPage() {
     return { id: f.id, name: f.name, pct: computeScore(subset) };
   });
 
-  const alerts = computeAlerts(controls, frameworkProgress, vendors);
+  const alerts = await loadAlerts(supabase, company.id, controls, frameworkProgress);
   const finalPolicies = policies.filter((p) => p.status === "final");
   const generatedAt = new Date().toLocaleDateString("en-GB", {
     day: "numeric",

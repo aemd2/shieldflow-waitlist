@@ -4,10 +4,10 @@
  * raises its own "Completed without evidence" alert and the sample company looks
  * like a mess on camera.
  *
- * Each document is uploaded once and linked to every requirement its measure
- * supports. That per-requirement linking is also what a real user has to do
- * today — status fans out from a measure, evidence does not. See the finding in
- * docs/VIDEO_PLAN.md.
+ * Each document is uploaded once and attached to its measure, which makes it
+ * evidence for every requirement the measure covers — the same thing a user does
+ * from the Measures page. Documents for requirements that were marked complete by
+ * hand, outside any measure, are attached to those requirements directly.
  *
  * Every document says, in its own footer, that it's a sample and the company is
  * fictional.
@@ -16,7 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const SAMPLE_NOTE = "Sample evidence for the product recording — Northwind Analytics is not a real company.";
 
-function pdfPage(title: string, version: string, body: string) {
+export function pdfPage(title: string, version: string, body: string) {
   return `<!doctype html><meta charset="utf-8"><style>
     body{font:12.5px/1.55 "Segoe UI",system-ui,sans-serif;color:#1f2937;margin:56px 64px}
     header{border-bottom:2px solid #0b1f3a;padding-bottom:14px;margin-bottom:22px}
@@ -217,6 +217,7 @@ export async function seedEvidence(
   const browser = await chromium.launch({ channel: "msedge", headless: true });
   const page = await browser.newPage();
   let rows = 0;
+  let removed = 0;
   try {
     for (const doc of DOCS) {
       let body: Buffer;
@@ -232,42 +233,58 @@ export async function seedEvidence(
         .from("evidence").upload(storagePath, body, { contentType: mime, upsert: true });
       if (upErr) throw new Error(`upload ${doc.file}: ${upErr.message}`);
 
-      // Every requirement this document supports, in frameworks the company has.
-      const targets: string[] = [];
+      const row = {
+        company_id: companyId,
+        file_name: doc.file,
+        storage_path: storagePath,
+        mime_type: mime,
+        size_bytes: body.length,
+        note: SAMPLE_NOTE,
+        uploaded_by: userId,
+      };
+      const { data: have } = await db
+        .from("evidence").select("id, control_id, measure_id").eq("company_id", companyId).eq("storage_path", storagePath);
+
+      // A measure's document goes on the measure, once: it's then evidence for
+      // every requirement the measure covers (migration 0051).
+      let measureId: string | null = null;
       if (doc.measure) {
         const { data: m } = await db.from("measures").select("id").eq("key", doc.measure).single();
-        const { data: links } = await db.from("measure_controls").select("control_id").eq("measure_id", m!.id);
-        targets.push(...(links ?? []).map((l) => l.control_id as string));
+        measureId = m!.id as string;
+        if (!(have ?? []).some((e) => e.measure_id === measureId)) {
+          const { error } = await db.from("evidence").insert({ ...row, measure_id: measureId });
+          if (error) throw new Error(`evidence for ${doc.file}: ${error.message}`);
+          rows += 1;
+        }
       }
+
+      // Requirements named by code were marked complete by hand, outside any
+      // measure: those get the document attached directly.
+      const byCode: string[] = [];
       if (doc.codes) {
-        const { data: byCode } = await db.from("controls").select("id").in("code", doc.codes);
-        targets.push(...(byCode ?? []).map((c) => c.id as string));
+        const { data: ctl } = await db.from("controls").select("id").in("code", doc.codes);
+        const { data: mine } = await db.from("control_status").select("control_id").eq("company_id", companyId)
+          .in("control_id", (ctl ?? []).map((c) => c.id as string));
+        byCode.push(...(mine ?? []).map((c) => c.control_id as string));
       }
-      const { data: mine } = await db
-        .from("control_status").select("control_id").eq("company_id", companyId).in("control_id", targets);
-      const { data: have } = await db
-        .from("evidence").select("control_id").eq("company_id", companyId).eq("storage_path", storagePath);
-      const already = new Set((have ?? []).map((e) => e.control_id as string));
-      const toAdd = (mine ?? []).map((c) => c.control_id as string).filter((id) => !already.has(id));
+      const direct = new Set((have ?? []).map((e) => e.control_id as string | null).filter(Boolean));
+      const toAdd = byCode.filter((id) => !direct.has(id));
       if (toAdd.length) {
-        const { error } = await db.from("evidence").insert(
-          toAdd.map((controlId) => ({
-            company_id: companyId,
-            control_id: controlId,
-            file_name: doc.file,
-            storage_path: storagePath,
-            mime_type: mime,
-            size_bytes: body.length,
-            note: SAMPLE_NOTE,
-            uploaded_by: userId,
-          })),
-        );
+        const { error } = await db.from("evidence").insert(toAdd.map((controlId) => ({ ...row, control_id: controlId })));
         if (error) throw new Error(`evidence rows for ${doc.file}: ${error.message}`);
         rows += toAdd.length;
+      }
+
+      // Earlier seeds copied a measure's document onto each requirement one by
+      // one — the very chore measure evidence removes. Drop those copies.
+      const stale = (have ?? []).filter((e) => e.control_id && !byCode.includes(e.control_id as string));
+      if (stale.length) {
+        await db.from("evidence").delete().in("id", stale.map((e) => e.id as string));
+        removed += stale.length;
       }
     }
   } finally {
     await browser.close();
   }
-  log(`${DOCS.length} evidence documents → ${rows} requirement links added`);
+  log(`${DOCS.length} evidence documents → ${rows} added${removed ? `, ${removed} per-requirement copies replaced` : ""}`);
 }

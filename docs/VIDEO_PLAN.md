@@ -45,7 +45,7 @@ npx tsx scripts/recording/stitch.ts            # both cuts + voice-over script
 one-time admin token, so no password is involved and no email is sent. Every
 take restores the workspace first, so clips that change it (1 completes a
 measure, 2 adds NIS2, 7 completes a review, 8 approves a policy, 13 starts a
-chat) can be re-shot. AI clips (6, 8, 13) write what the AI said to
+chat, 11 uploads a file) can be re-shot. AI clips (6, 8, 13) write what the AI said to
 `recordings/` — read it before using the clip.
 
 ### What recording turned up in the product
@@ -65,31 +65,31 @@ chat) can be re-shot. AI clips (6, 8, 13) write what the AI said to
   pen-test questions are always sent to review, whatever the model says.
 - **Fixed — access review rows reshuffled after every click.** The query had no
   order, so each decided row jumped to the bottom.
-- **Open — evidence attaches per requirement, not per measure.** Completing a
-  measure credits every framework, but the document proving it has to be
-  attached to each requirement separately, or each one raises "Completed
-  without evidence". The seed does that attaching itself (51 links for 14
-  documents); a real user would do it by hand. This is the biggest gap left in
-  "do the work once".
-- **Open — Complete on the measures page flickers** back to "Not started" for a
-  moment before the save lands. Clip 1 cuts it out; users see it.
+- **Fixed — evidence attached per requirement, not per measure.** A document
+  can now be attached to a measure (Measures page → Attach evidence) and counts
+  for every requirement the measure covers, in every framework, including ones
+  added later (migration 0051, `measure_id` on evidence). The sample workspace
+  went from 52 evidence rows to 20. Clip 11 shows it.
+- **Fixed — Complete on the measures page flickered** back to "Not started"
+  before the save landed. The chosen status now shows at once and is only rolled
+  back if the save fails.
+- **Fixed — the Trust Center's framework figures disagreed with the dashboard**
+  (SOC 2 at 6% public, 20% private). `get_trust_center` returns in-progress
+  counts per framework (migration 0050) and the page scores them like the
+  dashboard does.
+- **Fixed — the report left failing checks out of "Open items"**, and so did the
+  Slack digest: both passed three of computeAlerts' ten inputs. Both now use
+  `lib/workspace-alerts.ts`, the same alerts the dashboard shows.
+- **Fixed — the activity log said "tamper-evident"** with nothing behind it. It
+  now says what is true: append-only, nobody on the team can edit or delete an
+  entry.
+- **Fixed — generated policies carried enterprise defaults** (a CISO, a Security
+  Operations team, 90-day password changes, invented cloud providers). The
+  generator now gets the real headcount and vendor list, and current NIST
+  SP 800-63B password guidance.
 - **Open — every active high-risk vendor is its own alert**, even with its SOC 2
-  report on file and its review done. Four of the 13 alerts in the sample
+  report on file and its review done. Four of the 12 alerts in the sample
   workspace are this.
-- **Open — the Trust Center's framework figures disagree with the dashboard.**
-  Its per-framework bars count only finished requirements (SOC 2: 6%) while its
-  own overall score and the dashboard give in-progress half credit (SOC 2: 20%).
-  A prospect sees a lower number than the customer does. Needs the
-  `get_trust_center` function to return in-progress counts.
-- **Open — the report leaves failing checks out of "Open items".** The
-  dashboard lists the leaver and the untracked account; the one-page report
-  handed to auditors and prospects does not.
-- **Open — the activity log says "tamper-evident".** It is append-only for users
-  (no update or delete policy), but nothing makes tampering evident — there is
-  no hash chain. Say "append-only", or build the chain.
-- **Open — generated policies carry dated defaults**: forced password changes
-  every 90 days (current NIST guidance says don't), and a "Security Operations
-  team" a 13-person company doesn't have.
 
 ---
 

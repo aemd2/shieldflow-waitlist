@@ -68,9 +68,15 @@ export function EvidenceList({
                 {ev.source === "integration" && (
                   <Badge variant="info" className="shrink-0">Auto</Badge>
                 )}
+                {ev.source === "measure" && (
+                  <Badge variant="info" className="shrink-0">Measure</Badge>
+                )}
               </div>
               <div className="text-xs text-muted-foreground">
                 {ev.source === "integration" ? "From an integration sync · " : ""}
+                {ev.source === "measure"
+                  ? `Attached to “${ev.measure_name ?? "a measure"}” — counts for every requirement it covers · `
+                  : ""}
                 {formatSize(ev.size_bytes)} · {new Date(ev.created_at).toLocaleDateString()}
               </div>
             </div>
@@ -85,8 +91,10 @@ export function EvidenceList({
               <Download className="h-4 w-4" />
             </button>
             {/* Integration reports are auto-managed (and FK-referenced by checks),
-                so they can't be deleted by hand here — only manual uploads can. */}
-            {canWrite && ev.source !== "integration" && (
+                so they can't be deleted by hand here — only manual uploads can.
+                A measure's file backs other requirements too, so it's removed
+                from the measure, not from one of them. */}
+            {canWrite && ev.source !== "integration" && ev.source !== "measure" && (
               <button
                 onClick={() => remove(ev.id)}
                 disabled={pending}

@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { TrustAccessForm } from "@/components/trust/TrustAccessForm";
 import { planForTrustSlug } from "@/lib/plan-server";
 import { planAllows } from "@/lib/plan";
+import { computeScoreFromCounts } from "@/lib/score";
 
 // Cached for 60s per slug: the page is public and anonymous, so a plain
 // (cookie-free) anon client lets Next cache it — one DB hit per slug per
@@ -14,7 +15,8 @@ interface TrustData {
   name: string;
   score: number;
   controls: { total: number; complete: number; in_progress: number };
-  frameworks: { name: string; total: number; complete: number }[];
+  /** `in_progress` arrived in migration 0050; absent before it. */
+  frameworks: { name: string; total: number; complete: number; in_progress?: number }[];
   policies: string[];
 }
 
@@ -80,7 +82,15 @@ export default async function TrustCenterPage({
           <h2 className="text-lg font-semibold text-foreground">Frameworks</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             {trust.frameworks.map((f) => {
-              const pct = f.total > 0 ? Math.round((f.complete / f.total) * 100) : 0;
+              // The same score the customer's dashboard shows for this framework.
+              // Counting finished work only made the public figure lower than
+              // the private one (SOC 2 at 6% here, 20% on the dashboard).
+              const inProgress = f.in_progress ?? 0;
+              const pct = computeScoreFromCounts({
+                complete: f.complete,
+                in_progress: inProgress,
+                not_started: Math.max(0, f.total - f.complete - inProgress),
+              });
               return (
                 <div key={f.name} className="card">
                   <div className="flex items-center justify-between text-sm">

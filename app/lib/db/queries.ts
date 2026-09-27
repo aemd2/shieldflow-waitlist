@@ -50,9 +50,14 @@ export interface Evidence {
   note: string | null;
   uploaded_by: string | null;
   created_at: string;
+  /** Set when the file is attached to a measure rather than one requirement. */
+  measure_id?: string | null;
   /** Set by listEvidence: "manual" = user-uploaded (control_id matches), "integration"
-   * = auto-collected report linked to this control via a control_checks row. */
-  source?: "manual" | "integration";
+   * = auto-collected report linked to this control via a control_checks row,
+   * "measure" = attached to a measure that covers this control. */
+  source?: "manual" | "integration" | "measure";
+  /** With source "measure": which measure it's attached to. */
+  measure_name?: string;
 }
 
 export interface Policy {
@@ -254,7 +259,53 @@ async function evidenceCounts(
   for (const [cid, set] of Object.entries(seen)) {
     counts[cid] = (counts[cid] ?? 0) + set.size;
   }
+
+  for (const [cid, set] of await measureEvidenceByControl(supabase, companyId)) {
+    counts[cid] = (counts[cid] ?? 0) + set.size;
+  }
   return counts;
+}
+
+/**
+ * Evidence attached to a measure counts for every requirement that measure
+ * covers (migration 0051) — the file is uploaded once, not once per framework.
+ * Returns control id → the distinct evidence ids backing it that way. With
+ * `controlId`, only that control is resolved.
+ */
+async function measureEvidenceByControl(
+  supabase: SupabaseClient,
+  companyId: string,
+  controlId?: string,
+): Promise<Map<string, Set<string>>> {
+  const out = new Map<string, Set<string>>();
+
+  let onlyMeasures: string[] | null = null;
+  if (controlId) {
+    const { data: covering } = await supabase.from("measure_controls").select("measure_id").eq("control_id", controlId);
+    onlyMeasures = (covering ?? []).map((r: any) => r.measure_id as string);
+    if (onlyMeasures.length === 0) return out;
+  }
+
+  let q = supabase.from("evidence").select("id, measure_id").eq("company_id", companyId).not("measure_id", "is", null);
+  if (onlyMeasures) q = q.in("measure_id", onlyMeasures);
+  const { data: rows } = await q;
+  if (!rows?.length) return out;
+
+  const evidenceByMeasure = new Map<string, string[]>();
+  for (const r of rows as { id: string; measure_id: string }[]) {
+    evidenceByMeasure.set(r.measure_id, [...(evidenceByMeasure.get(r.measure_id) ?? []), r.id]);
+  }
+  const { data: links } = await supabase
+    .from("measure_controls")
+    .select("measure_id, control_id")
+    .in("measure_id", [...evidenceByMeasure.keys()]);
+  for (const l of (links ?? []) as { measure_id: string; control_id: string }[]) {
+    if (controlId && l.control_id !== controlId) continue;
+    const set = out.get(l.control_id) ?? new Set<string>();
+    for (const id of evidenceByMeasure.get(l.measure_id) ?? []) set.add(id);
+    out.set(l.control_id, set);
+  }
+  return out;
 }
 
 export async function getControlsWithStatus(
@@ -314,7 +365,7 @@ export async function getControlWithStatus(
   if (error) throw error;
   if (!data) return null;
 
-  const [{ count }, { data: checkRows }] = await Promise.all([
+  const [{ count }, { data: checkRows }, viaMeasures] = await Promise.all([
     supabase
       .from("evidence")
       .select("id", { count: "exact", head: true })
@@ -326,11 +377,14 @@ export async function getControlWithStatus(
       .eq("company_id", companyId)
       .eq("control_id", controlId)
       .not("evidence_id", "is", null),
+    measureEvidenceByControl(supabase, companyId, controlId),
   ]);
-  // Distinct integration reports backing this control's checks count as evidence too.
+  // Distinct integration reports backing this control's checks count as evidence
+  // too, and so do files attached to a measure that covers it.
   const integrationCount = new Set((checkRows ?? []).map((r: any) => r.evidence_id as string)).size;
+  const measureCount = viaMeasures.get(controlId)?.size ?? 0;
 
-  return mapControlRow(data, (count ?? 0) + integrationCount);
+  return mapControlRow(data, (count ?? 0) + integrationCount + measureCount);
 }
 
 export async function setControlStatus(
@@ -425,9 +479,25 @@ export async function listEvidence(
     integration = (ev ?? []) as Evidence[];
   }
 
+  // Files attached to a measure that covers this control (migration 0051).
+  let measureList: Evidence[] = [];
+  const viaMeasures = [...((await measureEvidenceByControl(supabase, companyId, controlId)).get(controlId) ?? [])];
+  if (viaMeasures.length > 0) {
+    const { data: ev } = await supabase
+      .from("evidence")
+      .select("*, measures(name)")
+      .eq("company_id", companyId)
+      .in("id", viaMeasures);
+    measureList = (ev ?? []).map((e: any) => ({
+      ...(e as Evidence),
+      source: "measure" as const,
+      measure_name: e.measures?.name as string | undefined,
+    }));
+  }
+
   const manualList = ((data ?? []) as Evidence[]).map((e) => ({ ...e, source: "manual" as const }));
   const integrationList = integration.map((e) => ({ ...e, source: "integration" as const }));
-  return [...manualList, ...integrationList].sort((a, b) =>
+  return [...manualList, ...integrationList, ...measureList].sort((a, b) =>
     a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0,
   );
 }
@@ -1208,6 +1278,15 @@ export interface MeasureWithStatus {
   notes: string | null;
   /** Every requirement this one measure satisfies, across all frameworks. */
   controls: MeasureControlLink[];
+  /** Files attached to the measure itself — evidence for all of `controls`. */
+  evidence: MeasureEvidence[];
+}
+
+export interface MeasureEvidence {
+  id: string;
+  file_name: string;
+  size_bytes: number | null;
+  created_at: string;
 }
 
 /**
@@ -1222,7 +1301,7 @@ export async function getMeasuresWithStatus(
   supabase: SupabaseClient,
   companyId: string,
 ): Promise<MeasureWithStatus[]> {
-  const [lib, status] = await Promise.all([
+  const [lib, status, files] = await Promise.all([
     supabase
       .from("measures")
       .select(
@@ -1232,6 +1311,12 @@ export async function getMeasuresWithStatus(
       .from("measure_status")
       .select("measure_id, status, owner_email, notes")
       .eq("company_id", companyId),
+    supabase
+      .from("evidence")
+      .select("id, measure_id, file_name, size_bytes, created_at")
+      .eq("company_id", companyId)
+      .not("measure_id", "is", null)
+      .order("created_at", { ascending: false }),
   ]);
   if (lib.error) throw lib.error;
   if (status.error) throw status.error;
@@ -1239,6 +1324,11 @@ export async function getMeasuresWithStatus(
   const byMeasure = new Map(
     (status.data ?? []).map((s: any) => [s.measure_id as string, s]),
   );
+  const filesByMeasure = new Map<string, MeasureEvidence[]>();
+  for (const f of (files.data ?? []) as (MeasureEvidence & { measure_id: string })[]) {
+    const { measure_id, ...file } = f;
+    filesByMeasure.set(measure_id, [...(filesByMeasure.get(measure_id) ?? []), file]);
+  }
 
   return (lib.data ?? [])
     .map((m: any): MeasureWithStatus => {
@@ -1268,6 +1358,7 @@ export async function getMeasuresWithStatus(
         owner_email: s?.owner_email ?? null,
         notes: s?.notes ?? null,
         controls,
+        evidence: filesByMeasure.get(m.id) ?? [],
       };
     })
     .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));

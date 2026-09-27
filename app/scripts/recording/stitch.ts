@@ -115,12 +115,12 @@ const MORE: Segment[] = [
   {
     clip: "11-evidence",
     hold: 1.5,
-    say: "Every document is dated, and linked to the requirements it proves.",
+    say: "Evidence works the same way. Attach a document to the measure once, and it counts for every requirement it covers — in every framework.",
   },
   {
     clip: "12-report",
     hold: 1.2,
-    say: "The report puts it all on one page for a prospect or an auditor, and saves as a PDF.",
+    say: "The report puts it all on one page for a prospect or an auditor — open problems included — and saves as a PDF.",
   },
   {
     clip: "13-copilot",

@@ -3,11 +3,12 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Paperclip, Search } from "lucide-react";
 import { updateMeasureStatus } from "@/app/actions/measures";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { MeasureEvidence } from "@/components/measures/MeasureEvidence";
 import { cn } from "@/lib/cn";
 import type { MeasureWithStatus } from "@/lib/db/queries";
 import type { ControlStatus } from "@/lib/score";
@@ -23,11 +24,13 @@ const OPTIONS: ControlStatus[] = ["not_started", "in_progress", "complete"];
 type Filter = "all" | "mandatory" | "open";
 
 export function MeasureManager({
-  measures,
+  measures: serverMeasures,
   canWrite,
+  companyId,
 }: {
   measures: MeasureWithStatus[];
   canWrite: boolean;
+  companyId: string;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -36,6 +39,26 @@ export function MeasureManager({
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  // The status the user just chose, shown straight away. Without it the row sat
+  // on its old status until router.refresh() landed — after the save had already
+  // re-enabled the buttons — so "Complete" visibly flicked back to "Not started".
+  // An override is dropped once the server's copy agrees, or rolled back on error.
+  const [chosen, setChosen] = useState<Record<string, ControlStatus>>({});
+  const settled = Object.keys(chosen).filter(
+    (id) => serverMeasures.find((m) => m.id === id)?.status === chosen[id],
+  );
+  if (settled.length) {
+    setChosen((c) => {
+      const next = { ...c };
+      for (const id of settled) delete next[id];
+      return next;
+    });
+  }
+  const measures = useMemo(
+    () => serverMeasures.map((m) => (chosen[m.id] ? { ...m, status: chosen[m.id] } : m)),
+    [serverMeasures, chosen],
+  );
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -74,11 +97,18 @@ export function MeasureManager({
     if (!canWrite || next === m.status) return;
     setPendingId(m.id);
     setError(null);
+    setChosen((c) => ({ ...c, [m.id]: next }));
     startTransition(async () => {
       const res = await updateMeasureStatus({ measureId: m.id, status: next });
       setPendingId(null);
-      if (res?.error) setError(res.error);
-      else router.refresh();
+      if (res?.error) {
+        setChosen((c) => {
+          const rest = { ...c };
+          delete rest[m.id];
+          return rest;
+        });
+        setError(res.error);
+      } else router.refresh();
     });
   }
 
@@ -169,6 +199,15 @@ export function MeasureManager({
                             {m.importance !== "mandatory" && (
                               <Badge variant="info">{m.importance}</Badge>
                             )}
+                            {m.evidence.length > 0 && (
+                              <span
+                                className="inline-flex items-center gap-0.5 text-xs text-muted-foreground"
+                                title="Files attached to this measure"
+                              >
+                                <Paperclip className="h-3 w-3" />
+                                {m.evidence.length}
+                              </span>
+                            )}
                           </span>
                           {m.summary && (
                             <span className="mt-0.5 block text-xs text-muted-foreground">
@@ -225,6 +264,13 @@ export function MeasureManager({
                             </ul>
                           </div>
                         )}
+                        <MeasureEvidence
+                          companyId={companyId}
+                          measureId={m.id}
+                          files={m.evidence}
+                          requirementCount={m.controls.length}
+                          canWrite={canWrite}
+                        />
                         <div>
                           <div className="text-xs font-semibold">Satisfies</div>
                           <ul className="mt-1 space-y-1">

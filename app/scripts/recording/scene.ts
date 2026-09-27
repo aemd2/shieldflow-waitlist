@@ -31,6 +31,7 @@ type Scene = {
   accessReviews?: string[];
   policies?: string[];
   copilotMessages?: string[];
+  evidence?: string[];
 };
 
 async function admin(): Promise<SupabaseClient> {
@@ -52,13 +53,14 @@ export async function recordingCompanyId(db: SupabaseClient): Promise<string> {
 export async function saveScene() {
   const db = await admin();
   const companyId = await recordingCompanyId(db);
-  const [fw, cs, ms, ar, po, cm] = await Promise.all([
+  const [fw, cs, ms, ar, po, cm, ev] = await Promise.all([
     db.from("company_frameworks").select("framework_id").eq("company_id", companyId),
     db.from("control_status").select("control_id, status").eq("company_id", companyId),
     db.from("measure_status").select("measure_id, status, notes").eq("company_id", companyId),
     db.from("access_reviews").select("id").eq("company_id", companyId),
     db.from("policies").select("id").eq("company_id", companyId),
     db.from("copilot_messages").select("id").eq("company_id", companyId),
+    db.from("evidence").select("id").eq("company_id", companyId),
   ]);
   const ids = (r: { data: { id: unknown }[] | null }) => (r.data ?? []).map((x) => x.id as string);
   const scene: Scene = {
@@ -69,6 +71,7 @@ export async function saveScene() {
     accessReviews: ids(ar),
     policies: ids(po),
     copilotMessages: ids(cm),
+    evidence: ids(ev),
   };
   mkdirSync(path.dirname(SNAP), { recursive: true });
   writeFileSync(SNAP, JSON.stringify(scene));
@@ -110,6 +113,16 @@ export async function restoreScene() {
   };
   await dropNew("policies", scene.policies);
   await dropNew("copilot_messages", scene.copilotMessages);
+
+  // Files uploaded on camera (clip 11 attaches one to a measure): row and object.
+  if (scene.evidence) {
+    const { data: evNow } = await db.from("evidence").select("id, storage_path").eq("company_id", companyId);
+    const extra = (evNow ?? []).filter((e) => !scene.evidence!.includes(e.id as string));
+    if (extra.length) {
+      await db.storage.from("evidence").remove(extra.map((e) => e.storage_path as string));
+      await db.from("evidence").delete().in("id", extra.map((e) => e.id as string));
+    }
+  }
 
   // Frameworks added on camera (NIS2), and their requirements.
   const { data: fwNow } = await db.from("company_frameworks").select("framework_id").eq("company_id", companyId);

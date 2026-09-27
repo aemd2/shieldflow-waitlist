@@ -20,7 +20,9 @@ const isUuid = (v: string) => z.string().uuid().safeParse(v).success;
  * orphaned file consuming the storage quota.
  */
 export async function recordEvidence(input: {
-  controlId: string;
+  /** One of these: a single requirement, or a measure (evidence for all it covers). */
+  controlId?: string;
+  measureId?: string;
   storagePath: string;
   fileName: string;
   mimeType: string;
@@ -80,7 +82,8 @@ export async function recordEvidence(input: {
 
   const { error } = await supabase.from("evidence").insert({
     company_id: company.id,
-    control_id: parsed.data.controlId,
+    control_id: parsed.data.controlId ?? null,
+    measure_id: parsed.data.measureId ?? null,
     file_name: parsed.data.fileName,
     storage_path: parsed.data.storagePath,
     mime_type: parsed.data.mimeType,
@@ -97,11 +100,15 @@ export async function recordEvidence(input: {
 
   await logEvent(supabase, company.id, "evidence.uploaded", {
     type: "evidence",
-    id: parsed.data.controlId,
+    id: parsed.data.controlId ?? parsed.data.measureId,
     label: parsed.data.fileName,
+    ...(parsed.data.measureId ? { metadata: { measure_id: parsed.data.measureId } } : {}),
   });
 
-  revalidatePath(`/controls/${input.controlId}`);
+  if (parsed.data.controlId) revalidatePath(`/controls/${parsed.data.controlId}`);
+  else revalidatePath("/controls", "layout"); // a measure's file backs many controls
+  revalidatePath("/measures");
+  revalidatePath("/evidence");
   revalidatePath("/dashboard");
   return { ok: true };
 }
@@ -138,7 +145,9 @@ export async function getEvidenceUrl(evidenceId: string) {
   return { url: signed.signedUrl };
 }
 
-export async function deleteEvidence(evidenceId: string, controlId: string) {
+/** `controlId` is where the delete came from, for revalidation; omit it for a
+ *  file attached to a measure. */
+export async function deleteEvidence(evidenceId: string, controlId?: string) {
   if (!isUuid(evidenceId)) return { error: "File not found." };
 
   const supabase = await createServerSupabase();
@@ -158,7 +167,7 @@ export async function deleteEvidence(evidenceId: string, controlId: string) {
 
   const { data: row } = await supabase
     .from("evidence")
-    .select("storage_path, file_name")
+    .select("storage_path, file_name, measure_id")
     .eq("company_id", company.id)
     .eq("id", evidenceId)
     .maybeSingle();
@@ -177,11 +186,16 @@ export async function deleteEvidence(evidenceId: string, controlId: string) {
 
   await logEvent(supabase, company.id, "evidence.deleted", {
     type: "evidence",
-    id: controlId,
+    id: controlId ?? ((row?.measure_id as string | null | undefined) ?? undefined),
     label: (row?.file_name as string | undefined) ?? undefined,
   });
 
-  revalidatePath(`/controls/${controlId}`);
+  if (controlId) revalidatePath(`/controls/${controlId}`);
+  if (row?.measure_id) {
+    revalidatePath("/controls", "layout");
+    revalidatePath("/measures");
+  }
+  revalidatePath("/evidence");
   revalidatePath("/dashboard");
   return { ok: true };
 }

@@ -84,7 +84,7 @@ export default async function ActivityPage({
     <PageShell
       layout="feed"
       title="Activity log"
-      subtitle="Every change in your workspace — who did it and when. Append-only and tamper-evident."
+      subtitle="Every change in your workspace — who did it and when. Append-only: nobody on your team can edit or delete an entry."
       toolbar={<FilterChips items={filterChips} activeValue={activeType} />}
       footer={pagination}
     >

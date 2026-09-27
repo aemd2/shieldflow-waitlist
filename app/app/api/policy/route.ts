@@ -73,20 +73,45 @@ export async function POST(req: Request) {
     }
   }
 
+  // Who the policy is for. Without this the model writes for an enterprise it
+  // imagines — a CISO, a Security Operations team, Azure and GCP — and a
+  // 13-person company approves a document describing a company it isn't.
+  // Aggregate only: a headcount and the company's own vendor names.
+  const [{ count: headcount }, { data: vendorRows }] = await Promise.all([
+    supabase.from("personnel").select("id", { count: "exact", head: true })
+      .eq("company_id", company.id).eq("status", "active"),
+    supabase.from("vendors").select("name").eq("company_id", company.id).eq("status", "active").limit(30),
+  ]);
+  const size = headcount ? `about ${headcount} people` : "a small team (11–200 people)";
+  const stack = (vendorRows ?? []).map((v) => sanitizeForPrompt(v.name as string, 60)).filter(Boolean);
+
   const messages: ChatMessage[] = [
     {
       role: "system",
       content:
         "You are a senior GRC compliance consultant. You write clear, professional, " +
         "audit-ready policy documents in Markdown. Use headings, numbered sections, and " +
-        "concrete control language. Do not include commentary outside the policy itself.",
+        "concrete control language. Do not include commentary outside the policy itself.\n\n" +
+        "Write for the company as it is, not an enterprise:\n" +
+        "- Name only roles a company of this size has (for example a security lead who is " +
+        "often the CTO or Head of Engineering, managers, system owners). Never invent a CISO, " +
+        "a Security Operations team, a SOC or other departments it doesn't have.\n" +
+        "- Name only the systems and vendors you are given. Never invent a cloud provider or tool.\n" +
+        "- Set numbers and timeframes a small team can actually meet.\n" +
+        "- Passwords follow current NIST SP 800-63B guidance: no periodic forced changes " +
+        "(change only on evidence of compromise), no composition rules (mixed case, symbols), " +
+        "length over complexity — at least 12 characters, 15 where a password is the only " +
+        "factor — screened against known-breached passwords, stored in a password manager, " +
+        "with multi-factor authentication wherever it is supported.",
     },
     {
       role: "user",
       content:
         `Write a complete "${policyType}" for the company "${sanitizeForPrompt(company.name)}", aligned to ${frameworkName}. ` +
         "Include: Purpose, Scope, Policy Statements, Roles & Responsibilities, Enforcement, and Review Cadence. " +
-        "Keep it practical for an 11–200 employee SaaS company. Output only Markdown.",
+        `The company is a SaaS business of ${size}. ` +
+        (stack.length ? `Its main systems and vendors: ${stack.join(", ")}. ` : "") +
+        "Output only Markdown.",
     },
   ];
 

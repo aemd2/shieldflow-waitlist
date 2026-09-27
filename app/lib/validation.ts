@@ -272,14 +272,21 @@ export const ALLOWED_EVIDENCE_MIME = [
 
 // Server-side mirror of the client pre-checks: a tampered client can call the
 // recordEvidence action directly, so size/mime/lengths must be re-validated here.
-export const evidenceRecordSchema = z.object({
-  controlId: z.string().uuid(),
-  storagePath: z.string().min(3).max(500),
-  fileName: z.string().trim().min(1).max(255),
-  mimeType: z.enum(ALLOWED_EVIDENCE_MIME),
-  sizeBytes: z.number().int().positive().max(MAX_EVIDENCE_BYTES),
-  note: z.string().trim().max(500).optional(),
-});
+export const evidenceRecordSchema = z
+  .object({
+    /** Attach to one requirement… */
+    controlId: z.string().uuid().optional(),
+    /** …or to a measure, which makes it evidence for every requirement it covers. */
+    measureId: z.string().uuid().optional(),
+    storagePath: z.string().min(3).max(500),
+    fileName: z.string().trim().min(1).max(255),
+    mimeType: z.enum(ALLOWED_EVIDENCE_MIME),
+    sizeBytes: z.number().int().positive().max(MAX_EVIDENCE_BYTES),
+    note: z.string().trim().max(500).optional(),
+  })
+  .refine((v) => !!v.controlId !== !!v.measureId, {
+    message: "Evidence belongs to one requirement or one measure.",
+  });
 
 /** Strip path separators / control chars so a filename is safe as a storage key segment. */
 export function sanitizeFileName(name: string): string {

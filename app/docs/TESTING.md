@@ -615,7 +615,7 @@ Multiple people share one workspace. Owner manages the team; invites are shareab
 
 ## 11c. Activity log (`/activity`)
 
-Every change in the workspace is recorded to an **append-only, tamper-evident** trail — the maturity signal an auditor or security buyer expects ("who marked this control complete, and when?"). Writes happen only through a `SECURITY DEFINER` function that derives the actor from the session **server-side**, so it can't be spoofed; logging is best-effort and never blocks the action that triggered it. The log is **member-visible** (read-only) and company-scoped like every other table.
+Every change in the workspace is recorded to an **append-only** trail — the maturity signal an auditor or security buyer expects ("who marked this control complete, and when?"). Writes happen only through a `SECURITY DEFINER` function that derives the actor from the session **server-side**, so it can't be spoofed; logging is best-effort and never blocks the action that triggered it. The log is **member-visible** (read-only) and company-scoped like every other table.
 
 ### Happy path
 1. Sign in and do a few things: open a control and mark it **complete**; on `/evidence` upload a file then delete it; on `/vendors` add a vendor; on `/risks` add a risk; on `/settings` invite a teammate; connect (or disconnect) an integration.
@@ -636,7 +636,7 @@ Every change in the workspace is recorded to an **append-only, tamper-evident** 
 ### Empty state
 7. A workspace that hasn't done anything yet → ✅ "No activity yet — Changes will show up here as your team works…" (no blank page, no crash). *Onboarding itself logs `company.created`, so a real account usually shows at least one row.*
 
-### Tamper-evidence (the whole point)
+### Append-only (the whole point)
 | Check | ✅ Expected |
 |---|---|
 | Look for any edit/delete control on an activity row in the UI | None — the feed is **read-only** by design |
@@ -1056,7 +1056,7 @@ These need data volume — skip unless you're load-testing.
 
 ---
 
-## 30. Activity log / audit trail attacks (tamper-evidence)
+## 30. Activity log / audit trail attacks (append-only)
 
 The whole point of an audit log is that it **can't be edited or forged**. Members may *read* their company's log, but every client is denied insert/update/delete — the only writer is the `log_audit_event` `SECURITY DEFINER` function, which stamps the actor from `auth.uid()` server-side. Prove all of that here. (Companion happy-path + SQL in §11c.)
 
@@ -1187,7 +1187,7 @@ Trust Center (§26)         [ ] no private data on public page
 Multi-tab (§27)            [ ] no corrupt state
 UI resilience (§28)        [ ] no white screens
 Scale & caps (§29)         [ ] lists stay usable
-Audit log (§30)            [ ] forge/edit/delete blocked  ← tamper-evident
+Audit log (§30)            [ ] forge/edit/delete blocked  ← append-only
 Session/JWT (§31)          [ ] forged identity rejected
 Team & invites (§32)       [ ] no priv-esc / wrong-email accept
 Request shape (§33)        [ ] bad verbs/CSRF rejected

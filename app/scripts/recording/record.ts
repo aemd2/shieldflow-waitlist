@@ -14,6 +14,7 @@ import path from "node:path";
 import type { Browser } from "playwright-core";
 import { BASE_URL, OUT_DIR, Take, launch, pointAt, scrollTo, signIn, visibleClick } from "./lib";
 import { CLIP_QUESTIONNAIRE, recordingCompanyId, restoreScene } from "./scene";
+import { pdfPage } from "./evidence";
 
 type State = Awaited<ReturnType<typeof signIn>>;
 type Clip = { name: string; run: (b: Browser, s: State) => Promise<Take> };
@@ -465,24 +466,51 @@ const clip10: Clip = {
 };
 
 /* ---------- 11 · evidence ---------- */
+// Attach a document to a measure, once — and it's evidence everywhere.
+const CLIP_UPLOAD = "Tabletop Exercise Report — July 2026.pdf";
+
 const clip11: Clip = {
   name: "11-evidence",
   async run(browser, state) {
+    // The document being attached, made off camera. Its footer says it's a sample.
+    const file = path.join(OUT_DIR, ".tmp", CLIP_UPLOAD);
+    {
+      const maker = await browser.newPage();
+      await maker.setContent(pdfPage("Tabletop Exercise Report", "Exercise held 15 July 2026", `
+        <h2>Scenario</h2><p>A cloud access key is leaked in a public repository.</p>
+        <h2>What went well</h2><p>The key was revoked 18 minutes after detection; customers were unaffected.</p>
+        <h2>What changes</h2><p>Secret scanning on every push; a named deputy for the incident lead.</p>`));
+      writeFileSync(file, await maker.pdf({ format: "A4", printBackground: true }));
+      await maker.close();
+    }
+
     const t = new Take(this.name);
     const page = await t.open(browser, state);
-    await page.goto(`${BASE_URL}/evidence`);
+    await page.goto(`${BASE_URL}/measures`);
     await page.waitForLoadState("networkidle");
+    await page.getByPlaceholder(/Search measures/i).fill("incident response plan");
+    await page.waitForTimeout(500);
+    await page.getByText("Maintain an incident response plan", { exact: true }).click();
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    const attach = page.getByRole("button", { name: "Attach evidence" });
+    await scrollTo(page, page.getByText("Evidence auditors typically expect"), 150);
 
     await t.action();
-    t.cue("Every document, dated.");
-    await pointAt(page, page.getByText(/ago$/).first(), 0.5);
-    await t.hold(1.2);
-    const mfa = page.getByText(/Password and MFA Standard/).first();
-    await scrollTo(page, mfa, 160);
-    t.cue("And linked to what it proves.");
-    await pointAt(page, page.getByText(/linked to CC6\.1/).first(), 0.6);
-    await t.hold(1.2);
-    await pointAt(page, page.getByText(/linked to A\.8\.5/).first(), 0.6);
+    t.cue("Attach the document once.");
+    await pointAt(page, page.getByText("Incident Response Plan v1.3.pdf"), 0.4);
+    await t.hold(1.0);
+    const chooser = page.waitForEvent("filechooser");
+    await visibleClick(page, attach);
+    await (await chooser).setFiles(file);
+    await offCamera(t, () => page.getByText("Evidence uploaded").waitFor({ timeout: 20_000 }));
+    await page.getByText(CLIP_UPLOAD).waitFor();
+    t.cue("It counts for every requirement, in every framework.");
+    const row = page.locator("li").filter({ hasText: CLIP_UPLOAD }).last();
+    await pointAt(page, row.getByText(/counts for all \d+ requirements/), 0.5);
+    await t.hold(1.8);
+    // The requirements it now backs, across SOC 2, ISO 27001, NIS2, HIPAA…
+    await scrollTo(page, page.getByText("Satisfies", { exact: true }), 140);
+    await pointAt(page, page.getByText("Satisfies", { exact: true }), 0.3);
     await t.hold(2.2);
     return t;
   },
@@ -503,6 +531,9 @@ const clip12: Clip = {
     await t.hold(1.2);
     await scrollTo(page, page.getByText(/framework progress/i).first(), 120);
     await pointAt(page, page.getByText(/framework progress/i).first(), 0.3);
+    await t.hold(1.0);
+    // The same open items the dashboard shows — failing checks included.
+    await pointAt(page, page.getByText(/account is still open/).first(), 0.5);
     await t.hold(1.4);
     await scrollTo(page, page.getByText("Audit report", { exact: true }), 40);
     t.cue("Saved as a PDF in one click.");
