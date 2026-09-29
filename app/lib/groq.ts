@@ -56,13 +56,40 @@ export class GroqError extends Error {
   }
 }
 
+/**
+ * The key as Groq expects it. Pasting into a hosting dashboard goes wrong in a
+ * few predictable ways — the whole `GROQ_API_KEY=gsk_…` line copied from
+ * .env.local into the value box, quotes kept, a trailing space or line break —
+ * and each makes Groq reject a key that is otherwise fine. Strip them.
+ */
+function groqKey(): string {
+  return (process.env.GROQ_API_KEY ?? "")
+    .trim()
+    .replace(/^GROQ_API_KEY\s*=\s*/i, "")
+    .replace(/^["']|["']$/g, "")
+    .trim();
+}
+
+/** What's still visibly wrong with the key's shape, without revealing it. */
+function keyShapeProblem(): string | null {
+  const key = groqKey();
+  if (!key.startsWith("gsk_")) return "it doesn't start with gsk_";
+  if (/\s/.test(key)) return "it contains a space or line break";
+  return null;
+}
+
 export function isGroqConfigured(): boolean {
-  return Boolean(process.env.GROQ_API_KEY);
+  return Boolean(groqKey());
 }
 
 function mapStatus(status: number): string {
   if (status === 429) return "The AI is handling a lot of requests right now. Please try again in a moment.";
-  if (status === 401 || status === 403) return "AI is misconfigured. Check the GROQ_API_KEY.";
+  if (status === 401 || status === 403) {
+    const shape = keyShapeProblem();
+    return shape
+      ? `AI is misconfigured: the GROQ_API_KEY is set wrongly (${shape}). Paste only the key itself.`
+      : "AI is misconfigured: Groq rejected the GROQ_API_KEY. It may have been revoked — create a new one at console.groq.com.";
+  }
   if (status >= 500) return "The AI service is temporarily unavailable. Please try again shortly.";
   return "The AI request failed. Please try again.";
 }
@@ -101,7 +128,7 @@ export async function groqComplete(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        Authorization: `Bearer ${groqKey()}`,
       },
       body: JSON.stringify({
         model: GROQ_MODEL,
@@ -155,7 +182,7 @@ export async function groqStream(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        Authorization: `Bearer ${groqKey()}`,
       },
       body: JSON.stringify({
         model: GROQ_MODEL,
