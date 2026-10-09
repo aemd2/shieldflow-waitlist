@@ -9,6 +9,7 @@ import {
   type PersonRecord,
 } from "@/lib/identity-checks";
 import { plural, agree } from "@/lib/plural";
+import type { AwsWorkspaceScan } from "@/lib/aws/scan";
 
 // Continuous control checks: turn the security posture each integration already
 // computes (root MFA, branch protection, 2FA %, TLS…) into pass/fail results
@@ -30,6 +31,12 @@ export interface RawCheck {
    * control_checks — those stay one row per (check x control).
    */
   subjects?: string[];
+  /** The failing resources, account-qualified (AWS). Stored on the finding. */
+  resources?: { id: string; label: string; region: string | null; accountId: string }[];
+  /** How many resources fail, when more than are listed. */
+  failingCount?: number;
+  /** Extra AWS spend the finding is costing per month, estimated. */
+  costPerMonth?: number;
 }
 
 // Control-code sets — the real codes seeded across SOC 2, ISO 27001, HIPAA, GDPR
@@ -60,27 +67,10 @@ function pct(n: number, d: number): number {
  * Slack) are intentionally absent.
  */
 export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
-  aws(p) {
-    const checks: RawCheck[] = [
-      {
-        checkKey: "aws.root_mfa",
-        controlCodes: MFA,
-        result: p.rootMfaEnabled ? "pass" : "fail",
-        detail: p.rootMfaEnabled
-          ? "Root account MFA is enabled."
-          : "Root account MFA is DISABLED — enable it in the AWS IAM console.",
-      },
-    ];
-    const pp = p.passwordPolicy;
-    checks.push({
-      checkKey: "aws.password_policy",
-      controlCodes: PASSWORD,
-      result: pp ? (pp.minimumLength >= 8 ? "pass" : "fail") : "fail",
-      detail: pp
-        ? `IAM password policy is set (minimum length ${pp.minimumLength}).`
-        : "No IAM password policy is set.",
-    });
-    return checks;
+  // AWS is evaluated per account in lib/aws/ (collect → evaluate → merge across
+  // in-scope accounts); the posture handed over here is that finished scan.
+  aws(p: AwsWorkspaceScan) {
+    return p.rawChecks;
   },
 
   github(p) {
@@ -356,7 +346,30 @@ interface FindingRow {
   check_key: string;
   result: CheckResultValue;
   detail: string;
-  raw: { control_codes: string[]; subjects?: string[] };
+  raw: {
+    control_codes: string[];
+    subjects?: string[];
+    resources?: RawCheck["resources"];
+    failing_count?: number;
+    cost_per_month?: number;
+  };
+}
+
+interface HistoryRow {
+  check_key: string;
+  result: CheckResultValue;
+  failing_count: number | null;
+  detail: string;
+}
+
+/** One append-only history row per check per sync — the per-day record a Type II period needs. */
+function buildHistory(raw: RawCheck[]): HistoryRow[] {
+  return raw.map((rc) => ({
+    check_key: rc.checkKey,
+    result: rc.result,
+    failing_count: rc.failingCount ?? rc.subjects?.length ?? null,
+    detail: rc.detail.slice(0, 2000),
+  }));
 }
 
 /**
@@ -556,6 +569,9 @@ function buildFindings(raw: RawCheck[]): FindingRow[] {
     raw: {
       control_codes: rc.controlCodes,
       ...(rc.subjects?.length ? { subjects: rc.subjects } : {}),
+      ...(rc.resources?.length ? { resources: rc.resources } : {}),
+      ...(rc.failingCount ? { failing_count: rc.failingCount } : {}),
+      ...(rc.costPerMonth ? { cost_per_month: rc.costPerMonth } : {}),
     },
   }));
 }
@@ -591,6 +607,11 @@ async function persistViaRpc(
     p_company_id: companyId,
     p_provider: provider,
     p_findings: buildFindings(raw),
+  });
+  await supabase.rpc("record_check_history", {
+    p_company_id: companyId,
+    p_provider: provider,
+    p_rows: buildHistory(raw),
   });
 }
 
@@ -637,6 +658,11 @@ async function persistAsAdmin(
         raw: f.raw,
       })),
     );
+  }
+
+  const history = buildHistory(raw);
+  if (history.length > 0) {
+    await admin.from("check_history").insert(history.map((h) => ({ ...h, company_id: companyId, provider })));
   }
 }
 

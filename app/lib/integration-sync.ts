@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { decryptSecret } from "@/lib/crypto";
 import { ensureGoogleAccessToken, fetchWorkspaceSecurity } from "@/lib/google";
 import { fetchDirectorySecurity as fetchMicrosoftDirectory } from "@/lib/microsoft";
-import { fetchAccountSecurity } from "@/lib/aws";
+import { scanWorkspace } from "@/lib/aws/scan";
 import { fetchRepoSecurity as fetchGithubRepoSecurity } from "@/lib/github";
 import { fetchUserSecurity as fetchOktaSecurity } from "@/lib/okta";
 import { fetchProjectSecurity as fetchGcpSecurity } from "@/lib/gcp";
@@ -55,6 +55,10 @@ export async function fetchPostureFor(
   integ: ConnectedIntegration,
   db: SupabaseClient,
 ): Promise<unknown> {
+  // AWS keeps its connections on aws_accounts (roles hold no token at all), so it
+  // never goes through the stored-token path below.
+  if (integ.provider === "aws") return scanWorkspace(db, integ.company_id);
+
   if (!integ.access_token) throw new Error("not connected");
 
   // Google refreshes rather than replaying, so it must not go through decryptSecret
@@ -72,10 +76,6 @@ export async function fetchPostureFor(
   const secret = decryptSecret(integ.access_token);
 
   switch (integ.provider) {
-    case "aws": {
-      const { keyId, secret: s } = JSON.parse(secret) as { keyId: string; secret: string };
-      return fetchAccountSecurity(keyId, s);
-    }
     case "github":
       return fetchGithubRepoSecurity(secret);
     case "okta": {

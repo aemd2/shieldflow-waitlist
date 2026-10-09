@@ -27,6 +27,7 @@ import { GoogleWorkspaceCard } from "@/components/integrations/GoogleWorkspaceCa
 import { GitHubCard } from "@/components/integrations/GitHubCard";
 import { SlackCard } from "@/components/integrations/SlackCard";
 import { AwsCard } from "@/components/integrations/AwsCard";
+import { loadAwsView } from "@/lib/aws/view";
 import { IntegrationConnectCard } from "@/components/integrations/IntegrationConnectCard";
 import { IntegrationsUrlToast } from "@/components/integrations/IntegrationsUrlToast";
 import { connectOkta, syncOkta, disconnectOkta } from "@/app/actions/okta";
@@ -36,6 +37,9 @@ import { connectJira, syncJira, disconnectJira } from "@/app/actions/jira";
 import { connectLinear, syncLinear, disconnectLinear } from "@/app/actions/linear";
 import { connectCloudflare, syncCloudflare, disconnectCloudflare } from "@/app/actions/cloudflare";
 import { connectGcp, syncGcp, disconnectGcp } from "@/app/actions/gcp";
+
+// AWS scans run inside a server action invoked from this page: give it room.
+export const maxDuration = 60;
 
 export default async function IntegrationsPage() {
   const supabase = await createServerSupabase();
@@ -63,6 +67,7 @@ export default async function IntegrationsPage() {
   const github = byProvider("github");
   const slack = byProvider("slack");
   const aws = byProvider("aws");
+  const awsView = await loadAwsView(supabase, company.id).catch(() => null);
   const okta = byProvider("okta");
   const microsoft = byProvider("microsoft");
   const gitlab = byProvider("gitlab");
@@ -257,14 +262,13 @@ export default async function IntegrationsPage() {
       <PageSection title="Cloud infrastructure" columns={2}>
         <IntegrationCard
           name="AWS"
-          description="Reads your account security posture — root MFA, IAM password policy, user/MFA counts — and files it as evidence."
+          description="Around 30 read-only checks across every account and region you use — identity, logging, exposure, encryption, patching, backups — each naming the resource and the fix."
           icon={<Cloud className="h-5 w-5 text-muted-foreground" />}
           status={cardStatus(aws)}
         >
           <AwsCard
-            status={aws?.status ?? null}
-            lastSyncedAt={aws?.last_synced_at ?? null}
-            accountId={(aws?.metadata as { account_id?: string } | null)?.account_id ?? null}
+            accounts={(awsView?.accounts ?? []).map(({ scan: _scan, regions: _regions, ...a }) => a)}
+            canWrite={access?.canWrite ?? false}
           />
         </IntegrationCard>
 

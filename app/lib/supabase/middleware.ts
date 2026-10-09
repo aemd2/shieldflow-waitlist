@@ -20,6 +20,9 @@ const PUBLIC_PATHS = [
   "/trial",
   // The product demo — shown to people before they have an account, by design.
   "/demo",
+  // The public AWS check catalogue — what we read and what we never read, for a
+  // DevOps buyer to check before connecting anything.
+  "/aws-checks",
   "/privacy",
   "/terms",
   "/thanks",

@@ -272,6 +272,14 @@ function CheckRow({ check }: { check: ControlCheck }) {
         <div className="text-xs text-muted-foreground">
           {CHECK_PROVIDER_LABELS[check.provider] ?? check.provider} &middot;{" "}
           {new Date(check.evaluated_at).toLocaleDateString()}
+          {check.provider === "aws" && check.result !== "pass" && (
+            <>
+              {" "}&middot;{" "}
+              <Link href="/integrations/aws" className="underline">
+                See the resources and the fix
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </li>
