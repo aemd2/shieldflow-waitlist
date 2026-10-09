@@ -3,6 +3,7 @@ import { listVendors } from "@/lib/db/queries";
 import { CHECK_PROVIDER_LABELS } from "@/lib/checks";
 import { sanitizeForPrompt } from "@/lib/validation";
 import { redactedText } from "@/lib/redact";
+import { loadAwsFacts, factsForPrompt } from "@/lib/aws/facts";
 
 /**
  * What the company has actually done, as prompt lines for the AI features
@@ -34,13 +35,16 @@ function describeCheck(c: CheckRow): string {
 }
 
 export async function workspaceFacts(supabase: SupabaseClient, companyId: string): Promise<string[]> {
-  const [vendors, measures, checks, evidence, reviews] = await Promise.all([
+  const [vendors, measures, checks, evidence, reviews, aws] = await Promise.all([
     listVendors(supabase, companyId),
     supabase.from("measure_status").select("status, measures(name)").eq("company_id", companyId).neq("status", "not_started"),
     supabase.from("control_checks").select("check_key, provider, result, detail").eq("company_id", companyId),
     supabase.from("evidence").select("file_name").eq("company_id", companyId).order("created_at", { ascending: false }).limit(200),
     supabase.from("access_reviews").select("completed_at").eq("company_id", companyId).eq("status", "completed")
       .order("completed_at", { ascending: false }).limit(1),
+    // Where data lives, encryption, backups… verified by the last AWS scan. A
+    // failed read must never cost the draft its other context.
+    loadAwsFacts(supabase, companyId).catch(() => null),
   ]);
 
   const measureRows = (measures.data ?? []) as unknown as { status: string; measures: { name: string } | null }[];
@@ -71,5 +75,6 @@ export async function workspaceFacts(supabase: SupabaseClient, companyId: string
     `Evidence documents on file: ${list(documents, "none yet")}`,
     `Third-party vendors tracked: ${vendors.length} (${reviewed} with a recorded security review, ${soc2OnFile} with a SOC 2 report on file)`,
     `Last completed user access review: ${lastReview ? lastReview.slice(0, 10) : "none completed yet"}`,
+    ...factsForPrompt(aws),
   ];
 }

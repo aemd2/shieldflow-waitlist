@@ -255,6 +255,14 @@ export default async function ControlDetailPage({
   );
 }
 
+/** The AWS page tab that explains a check: people checks live on People, restore tests on Backups. */
+function awsLinkFor(key: string): string {
+  if (key === "aws.offboarding_drift" || key === "aws.untracked_accounts") return "/integrations/aws#people";
+  if (key === "aws.restore_tested") return "/integrations/aws#backups";
+  if (key === "aws.data_residency") return "/integrations/aws#facts";
+  return "/integrations/aws";
+}
+
 function CheckRow({ check }: { check: ControlCheck }) {
   const style = {
     pass: "border-success-border bg-success-muted text-success",
@@ -275,7 +283,7 @@ function CheckRow({ check }: { check: ControlCheck }) {
           {check.provider === "aws" && check.result !== "pass" && (
             <>
               {" "}&middot;{" "}
-              <Link href="/integrations/aws" className="underline">
+              <Link href={awsLinkFor(check.check_key)} className="underline">
                 See the resources and the fix
               </Link>
             </>

@@ -1,10 +1,13 @@
 import { runtimeStatus } from "@/lib/aws/runtimes";
 import { majorVersion } from "@/lib/aws/majors";
+import { allowedRegion, dataStores, RESIDENCY_LABEL, STORE_LABEL, type Residency } from "@/lib/aws/stores";
 import type {
   AccountPosture,
   AwsCheckResult,
   AwsResource,
+  ChangeEvent,
   RegionalPosture,
+  RestoreRecord,
   Section,
   Tags,
 } from "@/lib/aws/types";
@@ -34,6 +37,14 @@ export interface EvaluateOptions {
   exceptions: ExceptionRow[];
   /** Minimum days audit logs must be kept (workspace policy). */
   logRetentionDays: number;
+  /** Restores known for this account: carried forward from earlier scans plus this one. */
+  restores?: RestoreRecord[];
+  /** How recent a restore test must be (workspace policy). */
+  restoreTestDays?: number;
+  /** Where the workspace has committed to keep data; unset = no residency check. */
+  residency?: Residency | null;
+  /** Console/root changes in this account in the last 7 days; null = couldn't be read; undefined = not tracked (out of scope). */
+  recentChanges?: ChangeEvent[] | null;
 }
 
 const DAY = 86_400_000;
@@ -515,6 +526,79 @@ export function evaluateAccount(p: AccountPosture, opts: EvaluateOptions): AwsCh
       for (const t of v.read(r.dynamo, region) ?? []) if (!t.pitr) v.flag(at(region, "table", t.name));
     });
     out.push(v.settle(regional("Every DynamoDB table has point-in-time recovery."), (n) => `${n} DynamoDB ${n === 1 ? "table has" : "tables have"} no point-in-time recovery.`));
+  }
+  {
+    // A backup nobody has restored is a hope, not a control — this is the
+    // evidence auditors most often find missing.
+    const v = V("aws.restore_tested");
+    const days = opts.restoreTestDays ?? 365;
+    let stores = 0;
+    let readable = p.nativeRestores?.ok === true;
+    eachRegion(p, v, (region, r) => {
+      const dbs = (v.read(r.rds, region) ?? []).filter((d) => !d.clusterId).length;
+      const tables = (v.read(r.dynamo, region) ?? []).length;
+      stores += dbs + tables;
+      if (dbs + tables && r.backup.ok) readable = true;
+    });
+    const recent = (opts.restores ?? [])
+      .filter((x) => x.accountId === acct && daysAgo(x.at, now) <= days)
+      .sort((a, b) => b.at.localeCompare(a.at));
+    const last = recent[0];
+    if (stores && !last) {
+      if (readable) v.flag(at(null, "restore-test", acct, `no restore in the last ${days} days`));
+      else v.gap("neither AWS Backup's restore jobs nor CloudTrail's restore events could be read");
+    }
+    const lastText = last
+      ? `${last.at.slice(0, 10)} — ${last.via}${last.automated ? " restore testing plan" : ""}, ${last.resourceType}${last.source ? ` from ${last.source}` : ""}`
+      : "";
+    out.push(
+      v.settle(
+        stores ? `Restores are being tested: the last was ${lastText}.` : regional("No databases or tables here to restore-test."),
+        () =>
+          `No database or table has been restored in the last ${days} days, so nothing shows the backups work. We see AWS Backup restore jobs and RDS/DynamoDB restores in CloudTrail's last 90 days; if you tested another way, mark it out of scope with the date and attach the report.`,
+      ),
+    );
+  }
+
+  // ----------------------------------------------------------- residency
+  if (opts.residency) {
+    const v = V("aws.data_residency");
+    const where = RESIDENCY_LABEL[opts.residency];
+    for (const u of p.regions.unscanned) v.gap(`${u.region} not scanned (${u.reason})`);
+    if (!p.buckets.ok) v.gap(`S3: ${p.buckets.message}`);
+    for (const [region, r] of Object.entries(p.regional)) {
+      if (!r.rds.ok) v.gap(`${region}: ${r.rds.message}`);
+      if (!r.dynamo.ok) v.gap(`${region}: ${r.dynamo.message}`);
+    }
+    const stores = dataStores(p);
+    for (const s of stores) {
+      if (allowedRegion(s.region, opts.residency)) continue;
+      v.flag(at(s.region, s.kind, s.id, `${STORE_LABEL[s.kind]} ${s.id} in ${s.region}`));
+    }
+    const regions = [...new Set(stores.map((s) => s.region))].sort();
+    out.push(
+      v.settle(
+        stores.length ? `All ${stores.length} data stores and copies are in ${where} (${regions.join(", ")}).` : `No data stores found; nothing is stored outside ${where}.`,
+        (n) => `${n} data ${n === 1 ? "store or copy is" : "stores or copies are"} outside ${where}, against your residency commitment.`,
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------- changes
+  if (opts.recentChanges !== undefined) {
+    const v = V("aws.manual_changes");
+    if (opts.recentChanges === null) v.gap("CloudTrail event history couldn't be read");
+    for (const c of opts.recentChanges ?? []) {
+      v.flag(
+        at(c.region, "change", c.eventId, `${c.at.slice(0, 16).replace("T", " ")} · ${c.principal ?? "unknown"} · ${c.name}${c.resources ? ` (${c.resources})` : ""}`),
+      );
+    }
+    out.push(
+      v.settle(
+        "No changes were made by hand in the console, or by root, in the last 7 days.",
+        (n) => `${n} ${n === 1 ? "change was" : "changes were"} made by hand in the console (or by root) in the last 7 days. Codify ${n === 1 ? "it" : "them"} in Terraform, or record why.`,
+      ),
+    );
   }
 
   // -------------------------------------------------------- informational

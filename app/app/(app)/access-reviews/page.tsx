@@ -16,6 +16,8 @@ import { PageShell } from "@/components/ui/page";
 const ROSTER_LABELS: Record<string, string> = {
   okta: "Okta",
   google_workspace: "Google Workspace",
+  microsoft: "Microsoft 365",
+  aws: "AWS (production accounts)",
 };
 
 export default async function AccessReviewsPage() {
@@ -42,11 +44,12 @@ export default async function AccessReviewsPage() {
     .filter((p) => p.email)
     .map((p) => ({ name: p.name, email: p.email as string, role: p.role_title }));
 
-  // Only identity-directory integrations can populate a roster (Okta, Google
-  // Workspace) — GitHub/AWS/etc. are infra, not "who has access" sources.
+  // Directories (Okta, Google Workspace, Microsoft 365) and AWS, whose scan
+  // reads who can reach production and with which permission set — the
+  // population auditors sample for CC6.x.
   const rosterProviders: RosterProviderInfo[] = integrations
-    .filter((i) => i.status === "connected" && (i.provider === "okta" || i.provider === "google_workspace"))
-    .map((i) => ({ provider: i.provider as "okta" | "google_workspace", label: ROSTER_LABELS[i.provider] }));
+    .filter((i) => i.status === "connected" && i.provider in ROSTER_LABELS)
+    .map((i) => ({ provider: i.provider as RosterProviderInfo["provider"], label: ROSTER_LABELS[i.provider] }));
 
   return (
     <PageShell

@@ -55,9 +55,19 @@ import { ConfigServiceClient, DescribeConfigurationRecorderStatusCommand } from 
 import { SecurityHubClient, DescribeHubCommand } from "@aws-sdk/client-securityhub";
 import { CloudTrailClient, DescribeTrailsCommand, GetTrailStatusCommand } from "@aws-sdk/client-cloudtrail";
 import { CloudWatchLogsClient, DescribeLogGroupsCommand } from "@aws-sdk/client-cloudwatch-logs";
+import {
+  BackupClient,
+  ListProtectedResourcesCommand,
+  ListRestoreJobsCommand,
+  ListRestoreTestingPlansCommand,
+  ListCopyJobsCommand,
+} from "@aws-sdk/client-backup";
+import { identityCenter, organizationOf } from "@/lib/aws/people";
+import { collectCloudTrail } from "@/lib/aws/cloudtrail";
 import { client, collectPages, errorName, pool, section, sleep, tagsOf, timeLeft, type ScanCtx } from "@/lib/aws/sdk";
 import type {
   AccountPosture,
+  BackupInfo,
   BlockPublicAccess,
   BucketInfo,
   CredentialRow,
@@ -733,6 +743,47 @@ async function collectRegion(region: string, ctx: ScanCtx): Promise<RegionalPost
     }
   });
 
+  // AWS Backup: what's protected, restores that ran, and where copies went.
+  const bk = client(BackupClient, region, ctx);
+  const backup = await section("backup:ListProtectedResources", ctx, async (): Promise<BackupInfo> => {
+    const prot = await collectPages(
+      () => bk.send(new ListProtectedResourcesCommand({ MaxResults: 500 })),
+      (t) => bk.send(new ListProtectedResourcesCommand({ MaxResults: 500, NextToken: t })),
+      (p) => p.Results,
+      (p) => p.NextToken,
+      1000,
+      ctx,
+    );
+    const yearAgo = new Date(Date.now() - 365 * 86_400_000);
+    const [jobs, plans, copies] = await Promise.all([
+      bk.send(new ListRestoreJobsCommand({ ByStatus: "COMPLETED", ByCreatedAfter: yearAgo, MaxResults: 100 })).then((r) => r.RestoreJobs ?? []),
+      bk.send(new ListRestoreTestingPlansCommand({ MaxResults: 50 })).then((r) => r.RestoreTestingPlans?.length ?? 0).catch(() => 0),
+      bk
+        .send(new ListCopyJobsCommand({ ByState: "COMPLETED", ByCreatedAfter: new Date(Date.now() - 30 * 86_400_000), MaxResults: 200 }))
+        .then((r) => r.CopyJobs ?? [])
+        .catch(() => []),
+    ]);
+    return {
+      protected: prot.map((x) => ({ arn: x.ResourceArn ?? "", type: x.ResourceType ?? "", lastBackup: x.LastBackupTime?.toISOString() ?? null })),
+      restores: jobs.map((j) => ({
+        id: j.RestoreJobId ?? "",
+        accountId: ctx.accountId,
+        region,
+        via: "AWS Backup",
+        resourceType: j.ResourceType ?? "resource",
+        source: j.SourceResourceArn?.split(/[:/]/).pop() ?? null,
+        at: (j.CompletionDate ?? j.CreationDate)?.toISOString() ?? new Date().toISOString(),
+        automated: Boolean(j.CreatedBy?.RestoreTestingPlanArn),
+      })),
+      testingPlans: plans,
+      copies: copies.map((c) => {
+        // arn:aws:backup:REGION:ACCOUNT:backup-vault:NAME
+        const [, , , destRegion, destAccount] = (c.DestinationBackupVaultArn ?? "").split(":");
+        return { resourceArn: c.ResourceArn ?? null, region: destRegion || region, accountId: destAccount || null };
+      }),
+    };
+  });
+
   return {
     ebsDefaultEncryption,
     unencryptedVolumes,
@@ -752,6 +803,7 @@ async function collectRegion(region: string, ctx: ScanCtx): Promise<RegionalPost
     vpcsWithoutFlowLogs,
     configRecording,
     securityHub,
+    backup,
     inventory,
   };
 }
@@ -763,6 +815,12 @@ export interface CollectOptions {
   regions: string[] | null;
   /** Total budget for this account, ms. */
   budgetMs: number;
+  /** Every connected account id: Identity Center assignments are read into these. */
+  targetAccounts?: string[];
+  /** Read console changes after this time; null = don't (out-of-scope accounts). */
+  changesSince?: Date | null;
+  /** Look for native RDS/DynamoDB restores in CloudTrail's 90-day history. */
+  lookForRestores?: boolean;
 }
 
 export async function collectAccount(ctx: Omit<ScanCtx, "deadline">, opts: CollectOptions): Promise<AccountPosture> {
@@ -796,17 +854,40 @@ export async function collectAccount(ctx: Omit<ScanCtx, "deadline">, opts: Colle
 
   const regional: Record<string, RegionalPosture> = {};
   const unscanned: { region: string; reason: string }[] = [];
-  await pool(candidates, 3, full, async (region) => {
-    // Leave room: a region started with seconds to spare would come back half-read.
-    if (timeLeft(full) < 6_000) {
-      unscanned.push({ region, reason: "scan time ran out" });
-      return;
-    }
-    regional[region] = await collectRegion(region, full);
-  });
+  // People and console changes don't depend on the regional scan: run them alongside it.
+  const sideRegions = enabled.length ? enabled : candidates.length ? candidates : [HOME];
+  const [ic, org, trail] = await Promise.all([
+    identityCenter(full, sideRegions, [...new Set([ctx.accountId, ...(opts.targetAccounts ?? [])])]),
+    organizationOf(full),
+    opts.changesSince
+      ? collectCloudTrail(full, {
+          changeRegions: [...new Set([HOME, ...candidates])],
+          since: opts.changesSince,
+          restoreRegions: [],
+          maxPagesPerRegion: 12,
+        })
+      : Promise.resolve(null),
+    pool(candidates, 3, full, async (region) => {
+      // Leave room: a region started with seconds to spare would come back half-read.
+      if (timeLeft(full) < 6_000) {
+        unscanned.push({ region, reason: "scan time ran out" });
+        return;
+      }
+      regional[region] = await collectRegion(region, full);
+    }),
+  ]);
   for (const r of candidates) {
     if (!regional[r] && !unscanned.some((u) => u.region === r)) unscanned.push({ region: r, reason: "scan time ran out" });
   }
+
+  // Native restores: only where there are databases or tables to restore.
+  const restoreRegions = Object.entries(regional)
+    .map(([region, r]) => ({ region, rds: r.inventory.databases > 0, dynamodb: r.inventory.tables > 0 }))
+    .filter((r) => r.rds || r.dynamodb);
+  const restores =
+    opts.lookForRestores && restoreRegions.length
+      ? (await collectCloudTrail(full, { changeRegions: [], since: null, restoreRegions, maxPagesPerRegion: 1 })).restores
+      : null;
 
   return {
     accountId: ctx.accountId,
@@ -821,5 +902,9 @@ export async function collectAccount(ctx: Omit<ScanCtx, "deadline">, opts: Colle
     buckets: bkts,
     trails: trls,
     regional,
+    identityCenter: ic,
+    organization: org,
+    changes: trail?.changes ?? null,
+    nativeRestores: restores,
   };
 }

@@ -4,7 +4,12 @@ import { AWS_CHECKS } from "@/lib/aws/catalog";
 import { collectAccount } from "@/lib/aws/collect";
 import { AwsAccessError, callerAccount, credentialsFor, sessionNameFor, type AwsAuth } from "@/lib/aws/credentials";
 import { evaluateAccount, type ExceptionRow } from "@/lib/aws/evaluate";
-import type { AccountScan, AwsCheckResult, AwsResource } from "@/lib/aws/types";
+import { iamIdentities } from "@/lib/aws/people";
+import { mergePeople, type WorkspacePeople } from "@/lib/aws/roster";
+import { settingsFrom, type AwsSettings } from "@/lib/aws/settings";
+import { dataStores } from "@/lib/aws/stores";
+import { awsFacts, publishableFacts } from "@/lib/aws/facts";
+import type { AccountPosture, AccountScan, AwsCheckResult, AwsResource, ChangeEvent, RestoreRecord } from "@/lib/aws/types";
 
 /**
  * Scan every AWS account a workspace has connected, keep each account's full
@@ -27,6 +32,7 @@ export interface AwsAccountRow {
   in_scope: boolean;
   regions: string[] | null;
   status: string;
+  last_scan?: AccountScan | null;
 }
 
 export interface MergedCheck {
@@ -43,10 +49,17 @@ export interface MergedCheck {
 export interface AwsWorkspaceScan {
   accounts: { row: AwsAccountRow; scan: AccountScan | null; error: string | null }[];
   rawChecks: MergedCheck[];
+  /** Everyone who can sign in to AWS, merged across accounts; null if no account's people could be read. */
+  people: WorkspacePeople | null;
 }
 
-export const DEFAULT_LOG_RETENTION_DAYS = 365;
+export { DEFAULT_LOG_RETENTION_DAYS, DEFAULT_RESTORE_TEST_DAYS, settingsFrom, type AwsSettings } from "@/lib/aws/settings";
+
 const ACCOUNT_BUDGET_MS = 40_000;
+const DAY = 86_400_000;
+/** First read of console changes looks back this far; after that, from the last read. */
+const FIRST_CHANGES_LOOKBACK_DAYS = 30;
+const RESTORE_MEMORY_DAYS = 400;
 
 /** The workspace-level AWS settings live on the umbrella integrations row. */
 export async function awsSettings(db: SupabaseClient, companyId: string) {
@@ -56,12 +69,9 @@ export async function awsSettings(db: SupabaseClient, companyId: string) {
     .eq("company_id", companyId)
     .eq("provider", "aws")
     .maybeSingle();
-  const settings = ((data?.metadata as { settings?: { logRetentionDays?: number } } | null)?.settings ?? {}) as {
-    logRetentionDays?: number;
-  };
   return {
     umbrella: data as { id: string; access_token: string | null; metadata: Record<string, unknown> | null } | null,
-    logRetentionDays: settings.logRetentionDays ?? DEFAULT_LOG_RETENTION_DAYS,
+    ...settingsFrom(data?.metadata),
   };
 }
 
@@ -98,13 +108,13 @@ async function liftLegacyKey(
 export async function loadAccounts(db: SupabaseClient, companyId: string): Promise<AwsAccountRow[]> {
   const { data } = await db
     .from("aws_accounts")
-    .select("id, company_id, account_id, alias, auth_kind, role_arn, external_id, encrypted_key, in_scope, regions, status")
+    .select("id, company_id, account_id, alias, auth_kind, role_arn, external_id, encrypted_key, in_scope, regions, status, last_scan")
     .eq("company_id", companyId)
     .order("created_at", { ascending: true });
   return (data ?? []) as AwsAccountRow[];
 }
 
-function authFor(row: AwsAccountRow): AwsAuth {
+export function authFor(row: AwsAccountRow): AwsAuth {
   if (row.auth_kind === "role") {
     return { kind: "role", roleArn: row.role_arn!, externalId: row.external_id!, sessionName: sessionNameFor(row.company_id) };
   }
@@ -112,21 +122,136 @@ function authFor(row: AwsAccountRow): AwsAuth {
   return { kind: "key", accessKeyId: k.keyId, secretAccessKey: k.secret };
 }
 
+/** Restores AWS will eventually forget: keep what we've seen, newest first. */
+export function mergeRestores(previous: RestoreRecord[], fresh: RestoreRecord[], now: Date): RestoreRecord[] {
+  const byId = new Map<string, RestoreRecord>();
+  for (const r of [...previous, ...fresh]) if (r.id) byId.set(r.id, r);
+  return [...byId.values()]
+    .filter((r) => now.getTime() - Date.parse(r.at) <= RESTORE_MEMORY_DAYS * DAY)
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, 50);
+}
+
+/** Where to start reading console changes: just before the last read ended, or 30 days back the first time. */
+export function changesSince(prev: AccountScan | null | undefined, now: Date): Date {
+  const floor = now.getTime() - FIRST_CHANGES_LOOKBACK_DAYS * DAY;
+  const until = prev?.changesCoverage?.until ? Date.parse(prev.changesCoverage.until) - 60 * 60_000 : floor;
+  return new Date(Math.max(until, floor));
+}
+
+/** Extend the gap-free coverage window, or restart it if this read left a hole. */
+export function nextCoverage(
+  prev: AccountScan["changesCoverage"],
+  changes: AccountPosture["changes"],
+  since: Date,
+): AccountScan["changesCoverage"] {
+  if (!changes?.ok) return prev ?? null;
+  const complete = Date.parse(changes.data.readFrom) <= since.getTime();
+  const joins = prev && since.getTime() <= Date.parse(prev.until);
+  return { from: complete && joins ? prev.from : changes.data.readFrom, until: changes.data.until };
+}
+
+async function recordChanges(db: SupabaseClient, row: AwsAccountRow, events: ChangeEvent[]): Promise<void> {
+  if (!events.length) return;
+  await db.from("aws_change_events").upsert(
+    events.map((e) => ({
+      company_id: row.company_id,
+      account_id: e.accountId,
+      region: e.region,
+      event_id: e.eventId,
+      event_time: e.at,
+      event_name: e.name,
+      event_source: e.source,
+      principal: e.principal,
+      via: e.via,
+      resources: e.resources,
+    })),
+    { onConflict: "company_id,event_id", ignoreDuplicates: true },
+  );
+}
+
+async function lastWeekOfChanges(db: SupabaseClient, row: AwsAccountRow, now: Date): Promise<ChangeEvent[]> {
+  const { data } = await db
+    .from("aws_change_events")
+    .select("event_id, account_id, region, event_time, event_name, event_source, principal, via, resources")
+    .eq("company_id", row.company_id)
+    .eq("account_id", row.account_id)
+    .gte("event_time", new Date(now.getTime() - 7 * DAY).toISOString())
+    .order("event_time", { ascending: false })
+    .limit(200);
+  return (data ?? []).map((e) => ({
+    eventId: e.event_id as string,
+    accountId: e.account_id as string,
+    region: e.region as string,
+    at: new Date(e.event_time as string).toISOString(),
+    name: e.event_name as string,
+    source: e.event_source as string,
+    principal: (e.principal as string | null) ?? null,
+    via: e.via as "console" | "root",
+    resources: (e.resources as string | null) ?? null,
+  }));
+}
+
 async function scanOne(
   db: SupabaseClient,
   row: AwsAccountRow,
   exceptions: ExceptionRow[],
-  logRetentionDays: number,
+  settings: AwsSettings,
+  targetAccounts: string[],
   budgetMs: number,
 ): Promise<{ scan: AccountScan | null; error: string | null }> {
   try {
+    const now = new Date();
+    const prev = row.last_scan ?? null;
+    const since = row.in_scope ? changesSince(prev, now) : null;
     const creds = await credentialsFor(authFor(row));
-    const posture = await collectAccount({ creds, accountId: row.account_id }, { regions: row.regions, budgetMs });
-    const results = evaluateAccount(posture, { now: new Date(), exceptions, logRetentionDays });
+    const posture = await collectAccount(
+      { creds, accountId: row.account_id },
+      { regions: row.regions, budgetMs, targetAccounts, changesSince: since, lookForRestores: row.in_scope },
+    );
+
+    // Manual changes: append to the store, then judge the last 7 days from it.
+    let recentChanges: ChangeEvent[] | null | undefined;
+    if (row.in_scope) {
+      if (posture.changes?.ok) {
+        await recordChanges(db, row, posture.changes.data.events);
+        const stored = await lastWeekOfChanges(db, row, now);
+        // If the insert didn't land (permissions), still judge what was just read.
+        const ids = new Set(stored.map((e) => e.eventId));
+        const weekAgo = now.getTime() - 7 * DAY;
+        recentChanges = [...stored, ...posture.changes.data.events.filter((e) => !ids.has(e.eventId) && Date.parse(e.at) >= weekAgo)];
+      } else {
+        recentChanges = null;
+      }
+    }
+
+    const fresh = [
+      ...Object.values(posture.regional).flatMap((r) => (r.backup.ok ? r.backup.data.restores : [])),
+      ...(posture.nativeRestores?.ok ? posture.nativeRestores.data : []),
+    ];
+    const restores = mergeRestores(prev?.restores ?? [], fresh, now);
+
+    const results = evaluateAccount(posture, {
+      now,
+      exceptions,
+      logRetentionDays: settings.logRetentionDays,
+      restores,
+      restoreTestDays: settings.restoreTestDays,
+      residency: settings.residency,
+      recentChanges,
+    });
+
     const inv = { instances: 0, volumes: 0, databases: 0, functions: 0, tables: 0, clusters: 0 };
-    for (const r of Object.values(posture.regional)) {
+    const regionInventory: NonNullable<AccountScan["regionInventory"]> = {};
+    for (const [region, r] of Object.entries(posture.regional)) {
+      regionInventory[region] = r.inventory;
       for (const k of Object.keys(inv) as (keyof typeof inv)[]) inv[k] += r.inventory[k];
     }
+
+    const ic = posture.identityCenter;
+    const gaps: string[] = [];
+    if (!ic.ok) gaps.push(`IAM Identity Center: ${ic.message}`);
+    if (!posture.credentialReport.ok) gaps.push(`IAM users: ${posture.credentialReport.message}`);
     const scan: AccountScan = {
       accountId: row.account_id,
       alias: posture.alias,
@@ -135,6 +260,23 @@ async function scanOne(
       regions: posture.regions,
       results,
       inventory: { ...inv, regions: posture.regions.scanned, buckets: posture.buckets.ok ? posture.buckets.data.length : 0 },
+      regionInventory,
+      people: {
+        identities: [
+          ...(ic.ok && ic.data ? ic.data.users : []),
+          ...(posture.credentialReport.ok
+            ? iamIdentities(row.account_id, posture.credentialReport.data, posture.adminUsers.ok ? posture.adminUsers.data : null)
+            : []),
+        ],
+        identityCenter: ic.ok && ic.data ? { region: ic.data.region, instanceArn: ic.data.instanceArn } : null,
+        organization: posture.organization.ok ? posture.organization.data : null,
+        truncated: Boolean(ic.ok && ic.data?.truncated),
+        gaps,
+      },
+      restores,
+      stores: dataStores(posture).slice(0, 500),
+      restoreTestingPlans: Object.values(posture.regional).reduce((n, r) => n + (r.backup.ok ? r.backup.data.testingPlans : 0), 0),
+      changesCoverage: since ? nextCoverage(prev?.changesCoverage ?? null, posture.changes, since) : (prev?.changesCoverage ?? null),
     };
     await db
       .from("aws_accounts")
@@ -198,7 +340,7 @@ export async function scanWorkspace(
   companyId: string,
   opts: { budgetMs?: number } = {},
 ): Promise<AwsWorkspaceScan> {
-  const { umbrella, logRetentionDays } = await awsSettings(db, companyId);
+  const { umbrella, ...settings } = await awsSettings(db, companyId);
   let rows = await loadAccounts(db, companyId);
   if (!rows.length && umbrella?.access_token) {
     await liftLegacyKey(db, companyId, umbrella);
@@ -219,10 +361,11 @@ export async function scanWorkspace(
 
   // Accounts scan side by side; each has the whole budget because they run in parallel.
   const budget = opts.budgetMs ?? ACCOUNT_BUDGET_MS;
+  const targetAccounts = rows.map((r) => r.account_id);
   const accounts: AwsWorkspaceScan["accounts"] = [];
   for (let i = 0; i < rows.length; i += 3) {
     const batch = rows.slice(i, i + 3);
-    const done = await Promise.all(batch.map((row) => scanOne(db, row, exceptions, logRetentionDays, budget)));
+    const done = await Promise.all(batch.map((row) => scanOne(db, row, exceptions, settings, targetAccounts, budget)));
     batch.forEach((row, j) => accounts.push({ row, ...done[j] }));
   }
 
@@ -249,5 +392,24 @@ export async function scanWorkspace(
       }
     }
   }
-  return { accounts, rawChecks };
+
+  const people = mergePeople(
+    accounts.map((a) => ({ scan: a.scan, inScope: a.row.in_scope, error: a.error, label: a.row.alias ?? a.row.account_id })),
+  );
+
+  // The true facts, refreshed every scan, for the Trust Center (served only if
+  // the company opted in). A fact that stops being true drops off at once.
+  if (umbrella) {
+    try {
+      const published = publishableFacts(awsFacts(scanned, people, settings));
+      const { data: fresh } = await db.from("integrations").select("metadata").eq("id", umbrella.id).maybeSingle();
+      await db
+        .from("integrations")
+        .update({ metadata: { ...((fresh?.metadata as Record<string, unknown> | null) ?? {}), published_facts: published } })
+        .eq("id", umbrella.id);
+    } catch {
+      // Publishing is a convenience; the scan's results stand without it.
+    }
+  }
+  return { accounts, rawChecks, people };
 }

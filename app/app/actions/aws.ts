@@ -10,6 +10,7 @@ import { assertFeature, assertIntegrationSlot } from "@/lib/plan-server";
 import { awsCredentialsSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { csvSafe } from "@/lib/csv";
+import { productionGrants } from "@/lib/aws/roster";
 import { logEvent } from "@/lib/audit";
 import { INTEGRATION_LABELS } from "@/lib/integration-evidence";
 import { recordChecksForSync, clearChecksForProvider } from "@/lib/checks";
@@ -255,10 +256,17 @@ function reportCsv(company: Company, scan: AwsWorkspaceScan): string {
 }
 
 /** File the asset inventory once a day, on the asset-inventory measure (counts for every framework). */
-async function fileInventory(supabase: SupabaseClient, company: Company, userId: string, scan: AwsWorkspaceScan) {
-  const day = new Date().toISOString().slice(0, 10);
-  const fileName = `aws-asset-inventory-${day}.csv`;
-  const { data: measure } = await supabase.from("measures").select("id").eq("key", "asset-inventory").maybeSingle();
+/** Attach a generated CSV to a measure, at most once a day per file name. */
+async function fileMeasureCsv(
+  supabase: SupabaseClient,
+  company: Company,
+  userId: string,
+  measureKey: string,
+  fileName: string,
+  csv: string,
+  note: string,
+) {
+  const { data: measure } = await supabase.from("measures").select("id").eq("key", measureKey).maybeSingle();
   if (!measure) return;
   const { count } = await supabase
     .from("evidence")
@@ -266,17 +274,6 @@ async function fileInventory(supabase: SupabaseClient, company: Company, userId:
     .eq("company_id", company.id)
     .eq("file_name", fileName);
   if (count) return;
-  const rows = [
-    `# AWS asset inventory — ${day}`,
-    `account,alias,in_scope,regions,instances,volumes,databases,functions,dynamodb_tables,eks_clusters,s3_buckets`,
-    ...scan.accounts
-      .filter((a) => a.scan)
-      .map((a) => {
-        const i = a.scan!.inventory;
-        return [a.row.account_id, csvSafe(a.row.alias ?? a.scan!.alias ?? ""), a.row.in_scope, csvSafe(i.regions.join(" ")), i.instances, i.volumes, i.databases, i.functions, i.tables, i.clusters, i.buckets].join(",");
-      }),
-  ];
-  const csv = rows.join("\n");
   const path = `${company.id}/integrations/${newUuid()}-${fileName}`;
   const { error } = await supabase.storage.from("evidence").upload(path, new Blob([csv], { type: "text/csv" }), { contentType: "text/csv" });
   if (error) return;
@@ -287,9 +284,59 @@ async function fileInventory(supabase: SupabaseClient, company: Company, userId:
     storage_path: path,
     mime_type: "text/csv",
     size_bytes: csv.length,
-    note: "Generated from AWS by ShieldFlow: what runs where, per account.",
+    note,
     uploaded_by: userId,
   });
+}
+
+/**
+ * The populations an auditor samples, filed as evidence on the measures they
+ * prove: what runs where (asset inventory), who can reach production and how
+ * (least privilege), and what was changed by hand (change management).
+ */
+async function filePopulations(supabase: SupabaseClient, company: Company, userId: string, scan: AwsWorkspaceScan) {
+  const day = new Date().toISOString().slice(0, 10);
+  const name = (id: string) => scan.accounts.find((a) => a.row.account_id === id)?.row.alias ?? id;
+
+  const inventory = [
+    `# AWS asset inventory — ${day}`,
+    `account,alias,in_scope,regions,instances,volumes,databases,functions,dynamodb_tables,eks_clusters,s3_buckets`,
+    ...scan.accounts
+      .filter((a) => a.scan)
+      .map((a) => {
+        const i = a.scan!.inventory;
+        return [a.row.account_id, csvSafe(a.row.alias ?? a.scan!.alias ?? ""), a.row.in_scope, csvSafe(i.regions.join(" ")), i.instances, i.volumes, i.databases, i.functions, i.tables, i.clusters, i.buckets].join(",");
+      }),
+  ].join("\n");
+  await fileMeasureCsv(supabase, company, userId, "asset-inventory", `aws-asset-inventory-${day}.csv`, inventory, "Generated from AWS by ShieldFlow: what runs where, per account.");
+
+  const people = scan.people;
+  if (people) {
+    const lines = [`# Who can reach production AWS — ${day}`, "login,type,active,account,access,admin,via,mfa,last_used"];
+    for (const i of people.identities) {
+      for (const g of productionGrants(i, people.inScope)) {
+        lines.push(
+          [csvSafe(i.email ?? i.name), i.kind === "sso" ? "Identity Center" : "IAM user", i.active, csvSafe(name(g.accountId)), csvSafe(g.role), g.admin, csvSafe(g.via ?? ""), i.mfa === null ? "" : i.mfa, i.lastUsed ?? ""].join(","),
+        );
+      }
+    }
+    await fileMeasureCsv(supabase, company, userId, "least-privilege", `aws-production-access-${day}.csv`, lines.join("\n"), "Generated from AWS by ShieldFlow: every login that can reach an in-scope account, with its permission set.");
+  }
+
+  const { data: events } = await supabase
+    .from("aws_change_events")
+    .select("event_time, account_id, region, principal, via, event_source, event_name, resources")
+    .eq("company_id", company.id)
+    .gte("event_time", new Date(Date.now() - 30 * 86_400_000).toISOString())
+    .order("event_time", { ascending: false })
+    .limit(1000);
+  if (events?.length) {
+    const lines = [`# Changes made by hand in production AWS, last 30 days — ${day}`, "time,account,region,who,via,action,resources"];
+    for (const e of events) {
+      lines.push([e.event_time, csvSafe(name(e.account_id as string)), e.region, csvSafe((e.principal as string | null) ?? ""), e.via, `${e.event_source}:${e.event_name}`, csvSafe((e.resources as string | null) ?? "")].join(","));
+    }
+    await fileMeasureCsv(supabase, company, userId, "change-management", `aws-manual-changes-${day}.csv`, lines.join("\n"), "Generated from CloudTrail by ShieldFlow: console and root changes to production in the last 30 days.");
+  }
 }
 
 /** Scan every connected account now, record the checks, and file the report. */
@@ -339,7 +386,7 @@ export async function syncAWS() {
       .single();
     evidenceId = (ev?.id as string | undefined) ?? null;
   }
-  await fileInventory(supabase, company, user.id, scan);
+  await filePopulations(supabase, company, user.id, scan);
 
   await supabase.from("integrations").update({ last_synced_at: new Date().toISOString(), status: "connected" }).eq("id", umbrella.id);
   await recordChecksForSync(supabase, company.id, "aws", scan, evidenceId);
@@ -385,17 +432,43 @@ export async function updateAwsAccount(input: unknown) {
   return { ok: true };
 }
 
+const settingsSchema = z
+  .object({
+    logRetentionDays: z.number().int().min(30).max(3650),
+    restoreTestDays: z.number().int().min(30).max(730),
+    residency: z.enum(["eu", "europe"]).nullable(),
+    showOnTrustCenter: z.boolean(),
+  })
+  .partial();
+
+/** Change one or more workspace AWS settings; the rest stay as they were. */
 export async function updateAwsSettings(input: unknown) {
-  const parsed = z.object({ logRetentionDays: z.number().int().min(30).max(3650) }).safeParse(input);
-  if (!parsed.success) return { error: "Log retention must be between 30 and 3650 days." };
+  const parsed = settingsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: "Log retention must be 30–3650 days and the restore-test period 30–730 days." };
+  }
   const w = await writer();
   if (!w.ok) return { error: w.error };
   const { supabase, company } = w;
   const { umbrella } = await awsSettings(supabase, company.id);
   if (!umbrella) return { error: "AWS isn't connected yet." };
-  const metadata = { ...(umbrella.metadata ?? {}), settings: { logRetentionDays: parsed.data.logRetentionDays } };
+  const current = ((umbrella.metadata as { settings?: Record<string, unknown> } | null)?.settings ?? {}) as Record<string, unknown>;
+  const metadata = { ...(umbrella.metadata ?? {}), settings: { ...current, ...parsed.data } };
   const { error } = await supabase.from("integrations").update({ metadata }).eq("id", umbrella.id);
   if (error) return { error: DB_ERROR };
+  // A residency promise and publishing facts are commitments made to customers: keep the record.
+  if ("residency" in parsed.data || "showOnTrustCenter" in parsed.data) {
+    await logEvent(supabase, company.id, "aws.settings_changed", {
+      type: "integration",
+      id: "aws",
+      label: [
+        "residency" in parsed.data ? `data residency: ${parsed.data.residency ?? "none"}` : null,
+        "showOnTrustCenter" in parsed.data ? `facts on Trust Center: ${parsed.data.showOnTrustCenter ? "on" : "off"}` : null,
+      ]
+        .filter(Boolean)
+        .join(", "),
+    });
+  }
   revalidatePath("/integrations/aws");
   return { ok: true };
 }

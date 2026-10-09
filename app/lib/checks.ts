@@ -10,6 +10,7 @@ import {
 } from "@/lib/identity-checks";
 import { plural, agree } from "@/lib/plural";
 import type { AwsWorkspaceScan } from "@/lib/aws/scan";
+import { awsRosters, peopleBlindSpot, type WorkspacePeople } from "@/lib/aws/roster";
 
 // Continuous control checks: turn the security posture each integration already
 // computes (root MFA, branch protection, 2FA %, TLS…) into pass/fail results
@@ -390,7 +391,66 @@ export const ASYNC_EVALUATORS: Record<
     identityChecks(db, companyId, "google", googleAccounts(posture), Boolean(posture?.truncated)),
   microsoft: (posture, db, companyId) =>
     identityChecks(db, companyId, "microsoft", microsoftAccounts(posture), Boolean(posture?.truncated)),
+  aws: (posture: AwsWorkspaceScan, db, companyId) => awsIdentityChecks(db, companyId, posture?.people ?? null),
 };
+
+/**
+ * Leavers and unknown logins in AWS: the same engine as the identity
+ * providers, fed with Identity Center users and IAM users. Two AWS-specific
+ * honesty rules on top: a pass is downgraded when part of the people list
+ * couldn't be seen (Identity Center in an unconnected management account, a
+ * failed read), and an account with no personal logins at all says that access
+ * comes through federation instead of claiming leavers were removed.
+ */
+async function awsIdentityChecks(db: SupabaseClient, companyId: string, people: WorkspacePeople | null): Promise<RawCheck[]> {
+  const [{ data: rows }, { data: exceptions }, offCodes, onCodes] = await Promise.all([
+    db.from("personnel").select("name, email, status, ended_at").eq("company_id", companyId),
+    db.from("identity_exceptions").select("email").eq("company_id", companyId),
+    controlCodesForMeasure(db, "offboarding-checklist"),
+    controlCodesForMeasure(db, "onboarding-checklist"),
+  ]);
+  const records = (rows ?? []) as PersonRecord[];
+  const dismissed = ((exceptions ?? []) as { email: string }[]).map((e) => e.email);
+
+  if (!people) {
+    const detail = "Couldn't read who can sign in to AWS, so this couldn't be checked.";
+    return [
+      { checkKey: "aws.offboarding_drift", controlCodes: offCodes, result: "inconclusive", detail },
+      { checkKey: "aws.untracked_accounts", controlCodes: onCodes, result: "inconclusive", detail },
+    ];
+  }
+
+  const rosters = awsRosters(people, records);
+  const blind = peopleBlindSpot(people);
+  const federated =
+    "Nobody signs in to AWS with a personal login (no Identity Center users, no IAM users with a console password), so access must come through federation — people are checked at your identity provider.";
+  const finish = (v: { result: CheckResultValue; detail: string; subjects?: string[] }, noLogins: boolean) => {
+    if (v.result !== "pass") return v;
+    if (blind) return { result: "inconclusive" as const, detail: `${v.detail.replace(/\.$/, "")} — but ${blind}.` };
+    if (noLogins) return { result: "inconclusive" as const, detail: federated };
+    return v;
+  };
+  const standalone = people.identityCenter === "none";
+
+  const drift = finish(
+    evaluateOffboardingDrift({ roster: rosters.all, truncated: false, people: records, graceDays: OFFBOARDING_GRACE_DAYS }),
+    standalone && !rosters.all.some((a) => a.active),
+  );
+  const untracked = finish(
+    evaluateUntrackedAccounts({ roster: rosters.humans, truncated: false, people: records, dismissed }),
+    standalone && !rosters.humans.some((a) => a.active),
+  );
+  return [
+    { checkKey: "aws.offboarding_drift", controlCodes: offCodes, result: drift.result, detail: drift.detail },
+    {
+      checkKey: "aws.untracked_accounts",
+      controlCodes: onCodes,
+      result: untracked.result,
+      detail: untracked.detail,
+      subjects: untracked.subjects,
+    },
+  ];
+}
 
 /**
  * Okta: "still has access" is NOT (DEPROVISIONED || SUSPENDED), deliberately not

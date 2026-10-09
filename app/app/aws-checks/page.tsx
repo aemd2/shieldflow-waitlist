@@ -19,6 +19,8 @@ const AREA_TITLE: Record<CheckArea, string> = {
   patching: "Patching & support",
   vulnerabilities: "Vulnerabilities",
   backups: "Backups",
+  residency: "Data residency (only if you've committed to a region)",
+  changes: "Manual changes (never gates anything)",
   hygiene: "Good to know (never gates anything)",
 };
 

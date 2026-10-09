@@ -20,9 +20,11 @@ import {
   type MicrosoftCredentials,
 } from "@/lib/microsoft";
 import { ensureGoogleAccessToken, fetchWorkspaceUsers, GoogleError, type GoogleTokenRow } from "@/lib/google";
+import { mergePeople, productionGrants } from "@/lib/aws/roster";
+import type { AccountScan } from "@/lib/aws/types";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";
-const ROSTER_PROVIDERS = ["okta", "google_workspace", "microsoft"] as const;
+const ROSTER_PROVIDERS = ["okta", "google_workspace", "microsoft", "aws"] as const;
 export type RosterProvider = (typeof ROSTER_PROVIDERS)[number];
 export interface RosterProviderInfo {
   provider: RosterProvider;
@@ -75,6 +77,37 @@ export async function pullRosterFrom(provider: RosterProvider) {
     .maybeSingle();
   if (!integ || integ.status === "disconnected") {
     return { error: "That integration isn't connected yet." };
+  }
+
+  // AWS: who can reach production (in-scope accounts) and with which permission
+  // set — from the last scan, which reads Identity Center and IAM across every
+  // connected account. No live call: a scan takes longer than a form should.
+  if (provider === "aws") {
+    const { data: rows } = await supabase
+      .from("aws_accounts")
+      .select("account_id, alias, in_scope, last_scan")
+      .eq("company_id", company.id);
+    const people = mergePeople(
+      (rows ?? []).map((r) => ({ scan: (r.last_scan as AccountScan | null) ?? null, inScope: r.in_scope as boolean })),
+    );
+    if (!people) return { error: "AWS hasn't been scanned yet — run a scan on the AWS page first." };
+    const names = new Map((rows ?? []).map((r) => [r.account_id as string, (r.alias as string | null) ?? (r.account_id as string)]));
+    const out = people.identities
+      .filter((i) => i.active)
+      .map((i) => {
+        const grants = productionGrants(i, people.inScope);
+        if (!grants.length) return null;
+        const how =
+          i.kind === "iam"
+            ? `IAM user${i.console ? ", console" : ""}${i.keys ? `, ${i.keys} access key${i.keys === 1 ? "" : "s"}` : ""}${i.mfa === false && i.console ? ", no MFA" : ""}`
+            : null;
+        const access = grants
+          .map((g) => `${how ?? g.role}${g.admin ? " (admin)" : ""} on ${names.get(g.accountId) ?? g.accountId}${g.via && i.kind === "sso" ? ` via ${g.via}` : ""}`)
+          .join("; ");
+        return { subject: i.email ?? i.name, access };
+      })
+      .filter((r): r is { subject: string; access: string } => Boolean(r));
+    return { ok: true as const, rows: out };
   }
 
   try {

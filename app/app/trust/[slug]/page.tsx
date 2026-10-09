@@ -41,9 +41,11 @@ export default async function TrustCenterPage({
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
-  const [{ data, error }, { data: subData }] = await Promise.all([
+  const [{ data, error }, { data: subData }, { data: infraData }] = await Promise.all([
     supabase.rpc("get_trust_center", { p_slug: slug }),
     supabase.rpc("get_trust_subprocessors", { p_slug: slug }),
+    // Opt-in: verified AWS facts. Missing function or no opt-in → nothing shown.
+    supabase.rpc("get_trust_infrastructure", { p_slug: slug }),
   ]);
   if (error || !data) notFound();
 
@@ -54,6 +56,7 @@ export default async function TrustCenterPage({
     location: string | null;
     url: string | null;
   }[];
+  const infra = (infraData ?? null) as { verifiedAt: string | null; facts: { title: string; statement: string }[] } | null;
 
   return (
     <main className="mx-auto max-w-3xl space-y-8 px-6 py-12">
@@ -109,6 +112,32 @@ export default async function TrustCenterPage({
           </div>
         </section>
       )}
+
+      {infra?.facts?.length ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-foreground">Infrastructure</h2>
+          <div className="card p-0">
+            <ul className="divide-y divide-border">
+              {infra.facts.map((f) => (
+                <li key={f.title} className="flex gap-3 px-6 py-3 text-sm">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand-emerald)]" />
+                  <div>
+                    <div className="font-medium text-foreground">{f.title}</div>
+                    <div className="text-muted-foreground">{f.statement}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+          {infra.verifiedAt && (
+            <p className="text-xs text-muted-foreground">
+              Verified automatically from {trust.name}&apos;s AWS configuration on{" "}
+              {new Date(infra.verifiedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}{" "}
+              by a read-only scan. Statements that stop being true are removed automatically.
+            </p>
+          )}
+        </section>
+      ) : null}
 
       {trust.policies.length > 0 && (
         <section className="space-y-3">

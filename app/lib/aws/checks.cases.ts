@@ -7,7 +7,23 @@
  */
 
 import { evaluateAccount, resourceId, type EvaluateOptions } from "@/lib/aws/evaluate";
-import type { AccountPosture, AwsCheckResult, RegionalPosture, Section, SecurityGroupInfo } from "@/lib/aws/types";
+import { toChange, toRestore } from "@/lib/aws/cloudtrail";
+import { inlineIsAdmin } from "@/lib/aws/people";
+import { addressesFor, awsRosters, mergePeople, peopleBlindSpot } from "@/lib/aws/roster";
+import { dataStores } from "@/lib/aws/stores";
+import { awsFacts, publishableFacts } from "@/lib/aws/facts";
+import { mergeRestores, nextCoverage } from "@/lib/aws/scan";
+import type {
+  AccountPosture,
+  AccountScan,
+  AwsCheckResult,
+  AwsIdentity,
+  ChangeEvent,
+  RegionalPosture,
+  RestoreRecord,
+  Section,
+  SecurityGroupInfo,
+} from "@/lib/aws/types";
 
 const NOW = new Date("2026-10-09T12:00:00Z");
 const ACCT = "123456789012";
@@ -34,6 +50,7 @@ function region(over: Partial<RegionalPosture> = {}): RegionalPosture {
     vpcsWithoutFlowLogs: ok([]),
     configRecording: ok(false),
     securityHub: ok(false),
+    backup: ok({ protected: [], restores: [], testingPlans: 0, copies: [] }),
     inventory: { instances: 2, volumes: 2, databases: 1, functions: 0, tables: 0, clusters: 0 },
     ...over,
   };
@@ -56,6 +73,10 @@ function account(over: Partial<AccountPosture> = {}, regions: Record<string, Reg
     buckets: ok([{ name: "assets", region: "eu-central-1", policyPublic: false, aclPublic: false, bucketBpa: null, tags: {} }]),
     trails: ok([{ arn: "t", name: "main", homeRegion: "eu-central-1", multiRegion: true, organization: false, logging: true, logValidation: true, s3Bucket: "logs", retentionDays: null, retentionSource: "S3 bucket logs" }]),
     regional: regions,
+    identityCenter: ok(null),
+    organization: ok(null),
+    changes: null,
+    nativeRestores: null,
     ...over,
   };
 }
@@ -205,6 +226,146 @@ const aurora = region({
 const au = evaluateAccount(account({}, { "eu-central-1": aurora }), opts());
 expect("Aurora: counted once, on the cluster (encryption)", get(au, "aws.rds_encrypted").failingCount, 1);
 expect("Aurora: counted once, on the cluster (backups)", get(au, "aws.rds_backups").failingCount, 1);
+
+// -------------------------------------------------------- restore tests
+const withDb = region({
+  rds: ok([{ id: "main-db", kind: "instance", engine: "postgres", engineVersion: "16.3", instanceClass: "db.t4g.medium", encrypted: true, publiclyAccessible: false, backupRetentionDays: 14, deletionProtection: true, lifecycleSupport: null, clusterId: null, tags: {} }]),
+});
+const restore = (at: string, account = ACCT): RestoreRecord => ({ id: `r-${at}-${account}`, accountId: account, region: "eu-central-1", via: "RDS", resourceType: "RDS database", source: "main-db", at, automated: false });
+expect("no data stores -> restore test passes on nothing", get(clean, "aws.restore_tested").result, "pass");
+const untested = evaluateAccount(account({}, { "eu-central-1": withDb }), opts());
+expect("a database never restored fails", get(untested, "aws.restore_tested").result, "fail");
+console.log(`      detail: ${get(untested, "aws.restore_tested").detail}`);
+expect("restored 30 days ago passes", get(evaluateAccount(account({}, { "eu-central-1": withDb }), opts({ restores: [restore("2026-09-09T10:00:00Z")] })), "aws.restore_tested").result, "pass");
+expect("restored 400 days ago fails a yearly policy", get(evaluateAccount(account({}, { "eu-central-1": withDb }), opts({ restores: [restore("2025-09-05T10:00:00Z")] })), "aws.restore_tested").result, "fail");
+expect("a restore in another account doesn't count", get(evaluateAccount(account({}, { "eu-central-1": withDb }), opts({ restores: [restore("2026-09-09T10:00:00Z", "999999999999")] })), "aws.restore_tested").result, "fail");
+const blindRestores = evaluateAccount(account({}, { "eu-central-1": region({ ...withDb, backup: denied("backup:ListProtectedResources") }) }), opts());
+expect("restore sources unreadable -> must NOT fail or pass", get(blindRestores, "aws.restore_tested").result, "inconclusive");
+const viaTrail = evaluateAccount(
+  account({ nativeRestores: ok([]) }, { "eu-central-1": region({ ...withDb, backup: denied("backup:ListProtectedResources") }) }),
+  opts(),
+);
+expect("CloudTrail readable, AWS Backup not -> a real fail", get(viaTrail, "aws.restore_tested").result, "fail");
+
+// ------------------------------------------------------------ residency
+expect("no residency commitment -> no residency check", clean.some((r) => r.key === "aws.data_residency") ? "present" : "absent", "absent");
+expect("all in Frankfurt passes EU residency", get(evaluateAccount(account(), opts({ residency: "eu" })), "aws.data_residency").result, "pass");
+const virginia = account({ buckets: ok([{ name: "exports", region: "us-east-1", policyPublic: false, aclPublic: false, bucketBpa: null, tags: {} }]) });
+const res = get(evaluateAccount(virginia, opts({ residency: "eu" })), "aws.data_residency");
+expect("a bucket in us-east-1 breaks EU residency", res.result, "fail");
+expect("the bucket and its region are named", res.resources[0]?.label, "S3 bucket exports in us-east-1");
+const london = account({ buckets: ok([{ name: "uk", region: "eu-west-2", policyPublic: false, aclPublic: false, bucketBpa: null, tags: {} }]) });
+expect("London is not in the EU", get(evaluateAccount(london, opts({ residency: "eu" })), "aws.data_residency").result, "fail");
+expect("London is in Europe", get(evaluateAccount(london, opts({ residency: "europe" })), "aws.data_residency").result, "pass");
+const copyOut = account({}, { "eu-central-1": region({ backup: ok({ protected: [], restores: [], testingPlans: 0, copies: [{ resourceArn: "arn:aws:rds:eu-central-1:1:db:main-db", region: "us-east-1", accountId: null }] }) }) });
+expect("a backup copied to Virginia breaks EU residency", get(evaluateAccount(copyOut, opts({ residency: "eu" })), "aws.data_residency").result, "fail");
+const rdsBlind = account({}, { "eu-central-1": region({ rds: denied("rds:DescribeDBInstances") }) });
+expect("databases unreadable -> residency must NOT pass", get(evaluateAccount(rdsBlind, opts({ residency: "eu" })), "aws.data_residency").result, "inconclusive");
+
+// -------------------------------------------------------------- changes
+const change: ChangeEvent = { eventId: "e-1", accountId: ACCT, region: "eu-central-1", at: "2026-10-08T09:30:00Z", name: "AuthorizeSecurityGroupIngress", source: "ec2", principal: "jane@acme.com (AdministratorAccess)", via: "console", resources: "sg-1" };
+expect("out of scope -> no manual-change check", clean.some((r) => r.key === "aws.manual_changes") ? "present" : "absent", "absent");
+expect("no console changes passes", get(evaluateAccount(account(), opts({ recentChanges: [] })), "aws.manual_changes").result, "pass");
+const changed = get(evaluateAccount(account(), opts({ recentChanges: [change] })), "aws.manual_changes");
+expect("a console change is listed", changed.result, "fail");
+console.log(`      resource: ${changed.resources[0]?.label}`);
+expect("change history unreadable -> must NOT pass", get(evaluateAccount(account(), opts({ recentChanges: null })), "aws.manual_changes").result, "inconclusive");
+const recorded = evaluateAccount(account(), opts({ recentChanges: [change], exceptions: [{ checkKey: "aws.manual_changes", resourceId: resourceId(ACCT, "eu-central-1", "change", "e-1"), reason: "incident #12 break-glass", expiresAt: null }] }));
+expect("a change with a recorded reason is accepted", get(recorded, "aws.manual_changes").result, "pass");
+
+// ----------------------------------------------------- CloudTrail parsing
+const ev = (rec: Record<string, unknown>) => ({ CloudTrailEvent: JSON.stringify({ eventID: "x", eventTime: "2026-10-08T09:30:00Z", eventName: "PutBucketPolicy", eventSource: "s3.amazonaws.com", ...rec }), Resources: [{ ResourceName: "exports" }] });
+const sso = { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/AWSReservedSSO_AdministratorAccess_0123456789abcdef/jane@acme.com" };
+expect("console change is kept", toChange(ev({ sessionCredentialFromConsole: "true", userIdentity: sso }), ACCT, "eu-central-1")?.via ?? "none", "console");
+expect("SSO principal reads as person + permission set", toChange(ev({ sessionCredentialFromConsole: "true", userIdentity: sso }), ACCT, "eu-central-1")?.principal ?? "none", "jane@acme.com (AdministratorAccess)");
+expect("pipeline change (no console session) is dropped", toChange(ev({ userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::1:assumed-role/github-deploy/run-42" } }), ACCT, "eu-central-1") ? "kept" : "dropped", "dropped");
+expect("failed call is dropped", toChange(ev({ sessionCredentialFromConsole: "true", errorCode: "AccessDenied", userIdentity: sso }), ACCT, "eu-central-1") ? "kept" : "dropped", "dropped");
+expect("console sign-in is not a change", toChange(ev({ eventName: "ConsoleLogin", eventSource: "signin.amazonaws.com", sessionCredentialFromConsole: "true", userIdentity: sso }), ACCT, "us-east-1") ? "kept" : "dropped", "dropped");
+expect("root activity is kept", toChange(ev({ userIdentity: { type: "Root", arn: "arn:aws:iam::1:root" } }), ACCT, "us-east-1")?.via ?? "none", "root");
+expect("restore source is the snapshot name", toRestore({ CloudTrailEvent: JSON.stringify({ eventID: "r", eventTime: "2026-09-01T00:00:00Z", eventSource: "rds.amazonaws.com", requestParameters: { dBSnapshotIdentifier: "nightly-2026-08-31", dBInstanceIdentifier: "restore-test" } }) }, ACCT, "eu-central-1", "RDS database")?.source ?? "none", "nightly-2026-08-31");
+
+// ---------------------------------------------------------------- people
+const staff = [
+  { name: "Jane Doe", email: "jane@acme.com" },
+  { name: "Sam Lee", email: "sam@acme.com" },
+  { name: "Sam Park", email: "spark@acme.com" },
+];
+const iamUser = (name: string): AwsIdentity => ({ id: `iam:${ACCT}:${name}`, kind: "iam", name, email: null, active: true, console: true, keys: 0, mfa: true, lastUsed: null, access: [] });
+expect("IAM user 'jane' is Jane", addressesFor(iamUser("jane"), staff).join(), "jane@acme.com");
+expect("IAM user 'jane.doe' is Jane by name", addressesFor(iamUser("jane.doe"), staff).join(), "jane@acme.com");
+expect("IAM user 'sam' is the one sam@ address", addressesFor(iamUser("sam"), staff).join() || "none", "sam@acme.com");
+const twoAlexes = [{ name: "Alex", email: "alex.k@acme.com" }, { name: "Alex Brown", email: "alex@acme.com" }];
+expect("IAM user 'alex' fits two people -> no guess", addressesFor(iamUser("alex"), twoAlexes).join() || "none", "none");
+expect("IAM user 'samlee' matches Sam Lee only", addressesFor(iamUser("samlee"), staff).join(), "sam@acme.com");
+expect("an email username matches itself", addressesFor(iamUser("Ops@Acme.com"), staff).join(), "ops@acme.com");
+expect("inline *:* is admin", inlineIsAdmin(JSON.stringify({ Statement: [{ Effect: "Allow", Action: "*", Resource: "*" }] })) ? "admin" : "not", "admin");
+expect("inline read-only is not admin", inlineIsAdmin(JSON.stringify({ Statement: [{ Effect: "Allow", Action: ["s3:Get*"], Resource: "*" }] })) ? "admin" : "not", "not");
+
+const scanWith = (accountId: string, identities: AwsIdentity[], extra: Partial<NonNullable<AccountScan["people"]>> = {}): AccountScan => ({
+  accountId, alias: null, scannedAt: NOW.toISOString(), durationMs: 1, regions: { enabled: [], active: [], scanned: [], unscanned: [] }, results: [],
+  inventory: { regions: [], buckets: 0, instances: 0, volumes: 0, databases: 0, functions: 0, tables: 0, clusters: 0 },
+  people: { identities, identityCenter: null, organization: null, truncated: false, gaps: [], ...extra },
+});
+const ssoUser: AwsIdentity = { id: "sso:u1", kind: "sso", name: "Jane Doe", email: "jane@acme.com", active: true, console: true, keys: 0, mfa: null, lastUsed: null, access: [{ accountId: "111111111111", role: "AdministratorAccess", admin: true, via: null }] };
+const merged = mergePeople([
+  { scan: scanWith("111111111111", [iamUser("deploy-bot")]), inScope: true },
+  { scan: scanWith("222222222222", [ssoUser, iamUser("dev-only")], { identityCenter: { region: "eu-central-1", instanceArn: "i" } }), inScope: false },
+]);
+expect("Identity Center users count even from an out-of-scope account", merged?.identities.some((i) => i.id === "sso:u1") ? "yes" : "no", "yes");
+expect("IAM users of out-of-scope accounts don't", merged?.identities.some((i) => i.name === "dev-only") ? "yes" : "no", "no");
+expect("Identity Center seen", merged?.identityCenter ?? "null", "seen");
+const orgBlind = mergePeople([{ scan: scanWith("111111111111", [], { organization: { managementAccountId: "999999999999" } }), inScope: true }]);
+expect("org management account not connected -> Identity Center elsewhere", orgBlind?.identityCenter ?? "null", "elsewhere");
+expect("...and the blind spot is spelled out", peopleBlindSpot(orgBlind!) ? "said" : "silent", "said");
+const failedAcct = mergePeople([{ scan: scanWith("111111111111", []), inScope: true }, { scan: null, inScope: true, error: "role rejected", label: "prod" }]);
+expect("an unscanned account is a gap", failedAcct?.gaps.length ?? 0, 1);
+const machine: AwsIdentity = { ...iamUser("ci"), console: false, keys: 1 };
+const ro = awsRosters({ identities: [ssoUser, iamUser("jane"), machine], identityCenter: "seen", truncated: false, gaps: [], inScope: [] }, staff);
+expect("machine users are not in the humans roster", ro.humans.length, 2);
+expect("but leavers are looked for in everything", ro.all.length, 3);
+
+// ----------------------------------------------------- stores & memory
+const st = dataStores(account({ trails: ok([{ arn: "t", name: "main", homeRegion: "eu-central-1", multiRegion: true, organization: false, logging: true, logValidation: true, s3Bucket: "assets", retentionDays: null, retentionSource: "S3" }]) }, { "eu-central-1": aurora }));
+expect("Aurora is one store", st.filter((s) => s.kind === "aurora" || s.kind === "rds").length, 1);
+expect("the trail's bucket is audit logs", st.find((s) => s.id === "assets")?.kind ?? "none", "audit-logs");
+const mem = mergeRestores([restore("2025-01-01T00:00:00Z"), restore("2026-09-01T00:00:00Z")], [restore("2026-09-01T00:00:00Z"), restore("2026-10-01T00:00:00Z")], NOW);
+expect("restores: deduplicated, ancient ones forgotten", mem.length, 2);
+const since = new Date("2026-10-08T11:00:00Z");
+expect(
+  "coverage extends when the read joins up",
+  nextCoverage({ from: "2026-09-09T00:00:00Z", until: "2026-10-08T12:00:00Z" }, { ok: true, data: { events: [], readFrom: since.toISOString(), until: NOW.toISOString() } }, since)?.from ?? "null",
+  "2026-09-09T00:00:00Z",
+);
+expect(
+  "coverage restarts after a truncated read",
+  nextCoverage({ from: "2026-09-09T00:00:00Z", until: "2026-10-08T12:00:00Z" }, { ok: true, data: { events: [], readFrom: "2026-10-09T06:00:00.000Z", until: NOW.toISOString() } }, since)?.from ?? "null",
+  "2026-10-09T06:00:00.000Z",
+);
+
+// ----------------------------------------------------------------- facts
+const toScan = (p: AccountPosture, o: Partial<EvaluateOptions> = {}): AccountScan => ({
+  accountId: p.accountId, alias: p.alias, scannedAt: NOW.toISOString(), durationMs: 1, regions: p.regions,
+  results: evaluateAccount(p, opts(o)),
+  inventory: { regions: p.regions.scanned, buckets: 0, instances: 0, volumes: 0, databases: 0, functions: 0, tables: 0, clusters: 0 },
+  stores: dataStores(p),
+  restores: o.restores ?? [],
+});
+const settings = { residency: null, logRetentionDays: 365, restoreTestDays: 365 } as const;
+const emptyAcct = account({ buckets: ok([]), trails: ok([]) }, {});
+const emptyFacts = awsFacts([toScan(emptyAcct)], null, settings);
+const fact = (f: ReturnType<typeof awsFacts>, key: string) => f.facts.find((x) => x.key === key)!;
+expect("empty account: no encryption claim", String(fact(emptyFacts, "encryption").ok), "null");
+expect("empty account: no backup claim", String(fact(emptyFacts, "backups").ok), "null");
+expect("empty account: no threat-detection claim", String(fact(emptyFacts, "detection").ok), "null");
+expect("empty account: nothing vacuous is published", publishableFacts(emptyFacts).facts.filter((f) => /Encryption|Backups|Threat/.test(f.title)).length, 0);
+const dbAcct = account({}, { "eu-central-1": region({ ...withDb, inventory: { instances: 0, volumes: 0, databases: 1, functions: 0, tables: 0, clusters: 0 } }) });
+const dbFacts = awsFacts([toScan(dbAcct, { restores: [restore("2026-09-09T10:00:00Z")] })], null, settings);
+expect("encryption sentence reads right", fact(dbFacts, "encryption").statement, "All data at rest is encrypted: the database is encrypted with AWS KMS, and S3 encrypts everything by default.");
+expect("location names the city", fact(dbFacts, "location").statement.includes("Frankfurt, Germany (eu-central-1)") ? "yes" : "no", "yes");
+expect("backups fact mentions the restore test", fact(dbFacts, "backups").statement.includes("2026-09-09") ? "yes" : "no", "yes");
+const usFacts = awsFacts([toScan(virginia, { residency: "eu" })], null, { ...settings, residency: "eu" });
+expect("a Virginia bucket makes the EU location fact false", String(fact(usFacts, "location").ok), "false");
+expect("...and it is never published", publishableFacts(usFacts).facts.some((f) => f.title === "Where data is stored") ? "published" : "hidden", "hidden");
 
 console.log(`\n${failures === 0 ? "ALL PASSED" : `${failures} FAILED`}`);
 process.exit(failures === 0 ? 0 : 1);

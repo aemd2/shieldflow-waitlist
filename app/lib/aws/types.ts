@@ -138,6 +138,32 @@ export interface InspectorInfo {
   high: number;
 }
 
+/** A restore that actually ran — the evidence that backups work, not just exist. */
+export interface RestoreRecord {
+  /** Restore job id, or the CloudTrail event id for a native RDS/DynamoDB restore. */
+  id: string;
+  accountId: string;
+  region: string;
+  /** "AWS Backup", "RDS" or "DynamoDB". */
+  via: string;
+  resourceType: string;
+  /** What was restored from, when AWS says (snapshot, table, recovery point). */
+  source: string | null;
+  at: string;
+  /** Run by an AWS Backup restore testing plan rather than by hand. */
+  automated: boolean;
+}
+
+export interface BackupInfo {
+  /** Resources with an AWS Backup recovery point. */
+  protected: { arn: string; type: string; lastBackup: string | null }[];
+  /** Completed AWS Backup restore jobs AWS still lists. */
+  restores: RestoreRecord[];
+  testingPlans: number;
+  /** Where completed copy jobs (last 30 days) put backup copies. */
+  copies: { resourceArn: string | null; region: string; accountId: string | null }[];
+}
+
 export interface RegionalPosture {
   ebsDefaultEncryption: Section<boolean>;
   unencryptedVolumes: Section<{ id: string; attached: boolean; tags: Tags }[]>;
@@ -157,6 +183,7 @@ export interface RegionalPosture {
   vpcsWithoutFlowLogs: Section<string[]>;
   configRecording: Section<boolean>;
   securityHub: Section<boolean>;
+  backup: Section<BackupInfo>;
   /** Counts for the asset inventory. */
   inventory: { instances: number; volumes: number; databases: number; functions: number; tables: number; clusters: number };
 }
@@ -180,6 +207,86 @@ export interface AccountPosture {
   buckets: Section<BucketInfo[]>;
   trails: Section<TrailInfo[]>;
   regional: Record<string, RegionalPosture>;
+  /** IAM Identity Center as seen from this account; null data = no instance visible here. */
+  identityCenter: Section<IdentityCenterInfo | null>;
+  /** Whether this account belongs to an AWS Organization (and which is its management account). */
+  organization: Section<{ managementAccountId: string } | null>;
+  /**
+   * Console and root changes since the last scan (in-scope accounts only; null =
+   * not read). `readFrom` is how far back every region was read without a gap.
+   */
+  changes: Section<{ events: ChangeEvent[]; readFrom: string; until: string }> | null;
+  /** Native RDS / DynamoDB restores from CloudTrail's 90-day history (null = not read). */
+  nativeRestores: Section<RestoreRecord[]> | null;
+}
+
+// ------------------------------------------------------------------ people
+
+/** One permission set (or IAM user) granting access to one account. */
+export interface AwsAccessGrant {
+  accountId: string;
+  /** Permission set name, or "IAM user". */
+  role: string;
+  admin: boolean;
+  /** "group Engineers" when it comes through a group; null when assigned directly. */
+  via: string | null;
+}
+
+/** Someone who can sign in to AWS: an Identity Center user or an IAM user. */
+export interface AwsIdentity {
+  /** "sso:<userId>" or "iam:<account>:<userName>". */
+  id: string;
+  kind: "sso" | "iam";
+  name: string;
+  email: string | null;
+  /** Can still sign in: Identity Center user enabled; IAM user with a password or an active key. */
+  active: boolean;
+  /** Signs in to the console (IAM: has a password; Identity Center: always). */
+  console: boolean;
+  /** Active access keys (IAM users only). */
+  keys: number;
+  /** IAM users only; Identity Center MFA is a setting AWS doesn't expose per user. */
+  mfa: boolean | null;
+  lastUsed: string | null;
+  access: AwsAccessGrant[];
+}
+
+export interface IdentityCenterInfo {
+  instanceArn: string;
+  region: string;
+  ownerAccountId: string | null;
+  users: AwsIdentity[];
+  /** More users or assignments than one scan reads. */
+  truncated: boolean;
+}
+
+// ----------------------------------------------------------------- changes
+
+/** A change made by hand in the console, or by root — never the request's contents. */
+export interface ChangeEvent {
+  eventId: string;
+  accountId: string;
+  region: string;
+  at: string;
+  name: string;
+  source: string;
+  principal: string | null;
+  via: "console" | "root";
+  resources: string | null;
+}
+
+// ------------------------------------------------------------------- facts
+
+/** Where a copy of data lives, for the data-location facts. */
+export interface DataStore {
+  kind: "rds" | "aurora" | "dynamodb" | "s3" | "ebs" | "backup-copy" | "audit-logs";
+  /** Resource name, or a count label for EBS ("12 volumes"). */
+  id: string;
+  accountId: string;
+  region: string;
+  encrypted: boolean | null;
+  /** RDS retention days, DynamoDB PITR, or AWS Backup's last recovery point. */
+  backup: string | null;
 }
 
 /** A resource named in a check result. `id` is stable and account-qualified. */
@@ -199,6 +306,8 @@ export type CheckArea =
   | "patching"
   | "vulnerabilities"
   | "backups"
+  | "changes"
+  | "residency"
   | "hygiene";
 
 export type Severity = "high" | "medium" | "low";
@@ -224,4 +333,23 @@ export interface AccountScan {
   regions: AccountPosture["regions"];
   results: AwsCheckResult[];
   inventory: { regions: string[]; buckets: number } & RegionalPosture["inventory"];
+  /** Per region, for the data-location facts. */
+  regionInventory?: Record<string, RegionalPosture["inventory"]>;
+  /** IAM users of this account, plus Identity Center users if its instance lives here. */
+  people?: {
+    identities: AwsIdentity[];
+    identityCenter: { region: string; instanceArn: string } | null;
+    organization: { managementAccountId: string } | null;
+    truncated: boolean;
+    /** Why people couldn't be fully read, if they couldn't. */
+    gaps: string[];
+  };
+  /** Restores seen so far, carried forward scan to scan (AWS forgets them after a while). */
+  restores?: RestoreRecord[];
+  /** Every data store and copy we found, with its region. */
+  stores?: DataStore[];
+  /** AWS Backup restore testing plans across the scanned regions. */
+  restoreTestingPlans?: number;
+  /** Console changes have been read without a gap from `from` up to `until`. */
+  changesCoverage?: { from: string; until: string } | null;
 }

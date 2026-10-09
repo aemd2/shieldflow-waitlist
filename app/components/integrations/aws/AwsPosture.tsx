@@ -25,6 +25,7 @@ const AREAS: { area: CheckArea; title: string }[] = [
   { area: "patching", title: "Patching & support" },
   { area: "vulnerabilities", title: "Vulnerabilities" },
   { area: "backups", title: "Backups" },
+  { area: "residency", title: "Data residency" },
 ];
 
 const SEVERITY_RANK = { high: 0, medium: 1, low: 2 } as const;
@@ -295,6 +296,7 @@ export function AwsPosture({ view, canWrite }: { view: AwsView; canWrite: boolea
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(!view.accounts.length);
   const [retention, setRetention] = useState(String(view.logRetentionDays));
+  const [restoreDays, setRestoreDays] = useState(String(view.settings.restoreTestDays));
 
   const account = view.accounts.find((a) => a.id === accountId) ?? null;
   const byKey = useMemo(() => new Map((account?.scan?.results ?? []).map((r) => [r.key, r])), [account]);
@@ -502,6 +504,23 @@ export function AwsPosture({ view, canWrite }: { view: AwsView; canWrite: boolea
               Save
             </Button>
             <span className="text-xs text-muted-foreground">NIS2 sets no fixed number; 365 days is common.</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span>Test a restore at least every</span>
+            <input type="number" min={30} max={730} value={restoreDays} onChange={(e) => setRestoreDays(e.target.value)} className="input w-24" />
+            <span>days</span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                const r = await updateAwsSettings({ restoreTestDays: Number(restoreDays) }).catch(() => ({ error: NETWORK }));
+                if ("error" in r && r.error) toast("error", r.error);
+                else toast("success", "Saved — applies from the next scan");
+              }}
+            >
+              Save
+            </Button>
+            <span className="text-xs text-muted-foreground">Yearly is what most SOC 2 policies say; quarterly is stricter.</span>
           </div>
           {account && <AccountSettings key={account.id} account={account} canWrite={canWrite} />}
         </section>

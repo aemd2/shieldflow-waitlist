@@ -475,6 +475,97 @@ export const AWS_CHECKS: AwsCheckDef[] = [
       cost: "Charged per GB stored; small for most tables.",
     },
   },
+  {
+    key: "aws.restore_tested",
+    title: "Backups have been restore-tested",
+    area: "backups",
+    severity: "medium",
+    why: "A backup nobody has restored is a hope, not a control — and a restore test is the evidence auditors most often find missing.",
+    controlCodes: BACKUP,
+    apiCalls: ["backup:ListRestoreJobs", "backup:ListRestoreTestingPlans", "cloudtrail:LookupEvents"],
+    fix: {
+      terraform:
+        '# a monthly automated restore test of everything AWS Backup protects\nresource "aws_backup_restore_testing_plan" "monthly" {\n  name                = "monthly_restore_test"\n  schedule_expression = "cron(0 5 1 * ? *)"\n  recovery_point_selection {\n    algorithm             = "LATEST_WITHIN_WINDOW"\n    include_vaults        = ["*"]\n    recovery_point_types  = ["SNAPSHOT"]\n    selection_window_days = 7\n  }\n}\n\nresource "aws_backup_restore_testing_selection" "rds" {\n  name                      = "rds"\n  restore_testing_plan_name = aws_backup_restore_testing_plan.monthly.name\n  protected_resource_type   = "RDS"\n  iam_role_arn              = aws_iam_role.backup_restore.arn\n  protected_resource_arns   = ["*"]\n}',
+      cli: "aws rds restore-db-instance-to-point-in-time --source-db-instance-identifier <DB> --target-db-instance-identifier <DB>-restore-test --use-latest-restorable-time --region {region}\n# check it, note the time it took, then delete it:\naws rds delete-db-instance --db-instance-identifier <DB>-restore-test --skip-final-snapshot --region {region}",
+      console:
+        "AWS Backup → Restore testing → Create restore testing plan (monthly), or restore a snapshot by hand once a quarter: RDS → Snapshots → Restore. Write down the date, how long it took and that the data looked right — that note is the evidence.",
+      cost: "The restored copy runs for the duration of the test (usually under an hour of instance time).",
+    },
+  },
+
+  // ----------------------------------------------------------- residency
+  {
+    key: "aws.data_residency",
+    title: "Data stays where you promised",
+    area: "residency",
+    severity: "high",
+    why: "If your contracts or DPA promise EU hosting, a forgotten bucket or backup copy in Virginia is a breach of that promise — and the first thing a German customer asks about.",
+    controlCodes: ["A.5.34", "Art. 30"],
+    apiCalls: [
+      "rds:DescribeDBInstances",
+      "rds:DescribeDBClusters",
+      "dynamodb:ListTables",
+      "s3:ListAllMyBuckets",
+      "ec2:DescribeVolumes",
+      "backup:ListCopyJobs",
+    ],
+    fix: {
+      console:
+        "Move or delete the store outside your region (for a backup copy, change the AWS Backup plan's copy rule). If it holds no personal data — say, public website assets — mark it out of scope with that reason.",
+    },
+  },
+
+  // ------------------------------------------------------------- people
+  {
+    key: "aws.offboarding_drift",
+    title: "Leavers have no AWS access",
+    area: "identity",
+    severity: "high",
+    why: "A leaver's working AWS login is the access an auditor samples first, and the one an angry ex-employee would use.",
+    controlCodes: ["CC6.2", "CC6.3", "A.5.18", "A.5.16"],
+    apiCalls: [
+      "identitystore:ListUsers",
+      "identitystore:ListGroupMemberships",
+      "sso:ListInstances",
+      "sso:ListPermissionSetsProvisionedToAccount",
+      "sso:ListAccountAssignments",
+      "iam:GetCredentialReport",
+    ],
+    fix: {
+      console:
+        "IAM Identity Center → Users → the person → Disable user access (or delete). For an IAM user: IAM → Users → the user → delete the console password and deactivate the access keys.",
+      cli: "aws identitystore delete-user --identity-store-id <STORE_ID> --user-id <USER_ID>\n# IAM user:\naws iam delete-login-profile --user-name <USER>\naws iam update-access-key --user-name <USER> --access-key-id <KEY> --status Inactive",
+    },
+  },
+  {
+    key: "aws.untracked_accounts",
+    title: "Every AWS login belongs to someone you know",
+    area: "identity",
+    severity: "medium",
+    why: "A login that matches nobody in Personnel is either a leaver nobody recorded, a contractor nobody tracked, or a shared account — all three are auditor questions.",
+    controlCodes: ["CC6.2", "A.5.16", "A.5.18"],
+    apiCalls: ["identitystore:ListUsers", "iam:GetCredentialReport"],
+    fix: {
+      console:
+        "Add the person in Personnel (with the email they use in AWS), or — for a machine or break-glass user — dismiss it as not a person with a reason.",
+    },
+  },
+
+  // ------------------------------------------------------------ changes
+  {
+    key: "aws.manual_changes",
+    title: "Production changes go through code",
+    area: "changes",
+    severity: "low",
+    informational: true,
+    why: "A change clicked in the console skips review and isn't in Terraform — the next apply may undo it. Recording why (break-glass, incident) is what an auditor needs.",
+    controlCodes: [],
+    apiCalls: ["cloudtrail:LookupEvents"],
+    fix: {
+      console:
+        "Put the change in Terraform and apply it through your pipeline. If it was an emergency, mark it out of scope with the incident or ticket — that record is your change-management evidence.",
+    },
+  },
 
   // ---------------------------------------------------------- informational
   {

@@ -4,7 +4,7 @@ import { createServerSupabase, getRequestUser } from "@/lib/supabase/server";
 import { getCompanyForUser, getCallerAccess } from "@/lib/db/queries";
 import { loadAwsView } from "@/lib/aws/view";
 import { PageShell } from "@/components/ui/page";
-import { AwsPosture } from "@/components/integrations/aws/AwsPosture";
+import { AwsWorkspace } from "@/components/integrations/aws/AwsWorkspace";
 
 // A scan runs inside a server action invoked from this page: give it room.
 export const maxDuration = 60;
@@ -24,14 +24,14 @@ export default async function AwsPage() {
   return (
     <PageShell
       title="AWS"
-      subtitle="Read-only checks across every account and region you use. Each failure names the resource and the fix; anything we couldn't read says so instead of passing."
+      subtitle="Read-only checks across every account and region you use, who can reach production, changes made by hand, restore tests, and the facts you can tell customers. Anything we couldn't read says so instead of passing."
       actions={
         <Link href="/aws-checks" className="text-xs text-muted-foreground underline">
           What we check, and what we never read
         </Link>
       }
     >
-      <AwsPosture view={view} canWrite={access?.canWrite ?? false} />
+      <AwsWorkspace view={view} canWrite={access?.canWrite ?? false} />
     </PageShell>
   );
 }

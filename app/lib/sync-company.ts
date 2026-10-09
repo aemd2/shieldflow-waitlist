@@ -12,6 +12,7 @@ import {
   type ConnectedIntegration,
 } from "@/lib/integration-sync";
 import { notifyCompanyViaAdmin } from "@/lib/notify";
+import { awsWeeklyDigest } from "@/lib/aws/weekly";
 import { plural, agree } from "@/lib/plural";
 
 export interface CompanySyncSummary {
@@ -125,6 +126,12 @@ export async function syncCompany(admin: SupabaseClient, companyId: string): Pro
           : `${plural(companyDrift, "automated check")} ${agree(companyDrift, "has", "have")} recovered.`,
       link: "/dashboard",
     });
+  }
+
+  // Mondays: the weekly AWS summary (it skips itself if sent in the last 6 days).
+  if (new Date().getUTCDay() === 1) {
+    const weekly = await awsWeeklyDigest(admin, companyId).catch(() => null);
+    if (weekly) await notifyCompanyViaAdmin(admin, companyId, weekly);
   }
 
   return summary;
