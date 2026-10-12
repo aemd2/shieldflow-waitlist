@@ -234,6 +234,9 @@ async function accountBpa(ctx: ScanCtx) {
 
 const PUBLIC_GRANTEES = /AllUsers|AuthenticatedUsers/;
 
+/** The account never signed up for the service (GuardDuty, Security Hub): it's off. */
+const NOT_SUBSCRIBED = /SubscriptionRequired|needs a subscription|OptInRequired/i;
+
 async function buckets(ctx: ScanCtx) {
   const home = client(S3Client, HOME, ctx, { followRegionRedirects: true });
   return section("s3:ListAllMyBuckets", ctx, async () => {
@@ -641,7 +644,14 @@ async function collectRegion(region: string, ctx: ScanCtx): Promise<RegionalPost
 
   const gd = client(GuardDutyClient, region, ctx);
   const guardduty = await section("guardduty:GetDetector", ctx, async () => {
-    const ids = (await gd.send(new ListDetectorsCommand({}))).DetectorIds ?? [];
+    let ids: string[];
+    try {
+      ids = (await gd.send(new ListDetectorsCommand({}))).DetectorIds ?? [];
+    } catch (err) {
+      // An account that has never signed up for GuardDuty: that's "off", not "can't tell".
+      if (NOT_SUBSCRIBED.test(errorName(err)) || NOT_SUBSCRIBED.test((err as Error)?.message ?? "")) return { enabled: false, oldHighFindings: [] };
+      throw err;
+    }
     if (!ids.length) return { enabled: false, oldHighFindings: [] };
     const det = await gd.send(new GetDetectorCommand({ DetectorId: ids[0] }));
     if (det.Status !== "ENABLED") return { enabled: false, oldHighFindings: [] };
@@ -738,7 +748,7 @@ async function collectRegion(region: string, ctx: ScanCtx): Promise<RegionalPost
       await client(SecurityHubClient, region, ctx).send(new DescribeHubCommand({}));
       return true;
     } catch (err) {
-      if (/InvalidAccessException|ResourceNotFound/i.test(errorName(err))) return false;
+      if (/InvalidAccessException|ResourceNotFound/i.test(errorName(err)) || NOT_SUBSCRIBED.test(errorName(err)) || NOT_SUBSCRIBED.test((err as Error)?.message ?? "")) return false;
       throw err;
     }
   });
