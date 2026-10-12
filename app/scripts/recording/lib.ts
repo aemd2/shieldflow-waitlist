@@ -79,24 +79,27 @@ const CURSOR_CSS = `
 /**
  * Runs in every page before the app does: swaps the test account's address for
  * the persona's wherever it's rendered (the header shows the signed-in email),
- * and keeps doing so as React re-renders. Also carries the cursor's styles.
+ * and ShieldFlow's real AWS account number for AWS's documentation example, and
+ * keeps doing so as React re-renders. Also carries the cursor's styles.
  *
  * Built as a string on purpose. tsx compiles helper functions with a `__name`
  * wrapper for stack traces; Playwright ships a function to the browser via
  * toString(), where `__name` doesn't exist, so a function-based init script
  * throws silently and nothing — no email swap, no visible cursor — happens.
  */
-function initScript(hideEmail: string, shownAs: string, css: string): string {
+function initScript(swaps: [string, string][], css: string): string {
   return `(() => {
-    const HIDE = ${JSON.stringify(hideEmail)};
-    const SHOW = ${JSON.stringify(shownAs)};
+    const SWAPS = ${JSON.stringify(swaps.filter(([from]) => from))};
     const CSS = ${JSON.stringify(css)};
     function scrub(node) {
       if (!node) return;
       const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
       let t;
       while ((t = walker.nextNode())) {
-        if (t.nodeValue && t.nodeValue.indexOf(HIDE) !== -1) t.nodeValue = t.nodeValue.split(HIDE).join(SHOW);
+        if (!t.nodeValue) continue;
+        let v = t.nodeValue;
+        for (const [from, to] of SWAPS) if (v.indexOf(from) !== -1) v = v.split(from).join(to);
+        if (v !== t.nodeValue) t.nodeValue = v;
       }
     }
     function start() {
@@ -192,7 +195,16 @@ export class Take {
       viewport: SIZE,
       recordVideo: { dir: this.dir, size: SIZE },
     });
-    await this.ctx.addInitScript({ content: initScript(process.env.RECORDING_EMAIL!, SHOWN_AS, CURSOR_CSS) });
+    await this.ctx.addInitScript({
+      content: initScript(
+        [
+          [process.env.RECORDING_EMAIL!, SHOWN_AS],
+          // ShieldFlow's own AWS account appears on the Connect screen: film AWS's example instead.
+          [(process.env.SHIELDFLOW_AWS_ACCOUNT_ID ?? "").trim(), "444455556666"],
+        ],
+        CURSOR_CSS,
+      ),
+    });
     this.page = await this.ctx.newPage();
     this.page.on("dialog", (d) => d.accept());
     this.videoStart = Date.now();

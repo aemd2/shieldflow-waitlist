@@ -639,7 +639,175 @@ const clip15: Clip = {
   },
 };
 
-const ALL = [clip01, clip02, clip03, clip04, clip05, clip06, clip07, clip08, clip09, clip10, clip11, clip12, clip13, clip14, clip15];
+/*
+ * 16–20 · AWS. Filmed against the sample estate staged by aws-demo.ts
+ * (northwind-prod / northwind-staging, AWS documentation account numbers):
+ *   npx tsx scripts/recording/aws-demo.ts stage
+ *   npx tsx scripts/recording/record.ts 16 17 18 19 20
+ *   npx tsx scripts/recording/aws-demo.ts restore
+ */
+
+/* ---------- 16 · connect with a read-only role ---------- */
+const clip16: Clip = {
+  name: "16-aws-connect",
+  async run(browser, state) {
+    const t = new Take(this.name);
+    const page = await t.open(browser, state);
+    await page.goto(`${BASE_URL}/integrations/aws`);
+    await page.waitForLoadState("networkidle");
+
+    await t.action();
+    t.cue("Connect AWS with a read-only role. No keys.");
+    await visibleClick(page, page.getByRole("button", { name: "Add account" }).first());
+    await offCamera(t, () => page.getByText(/Your External ID/).waitFor());
+    await pointAt(page, page.getByText(/Your External ID/).first(), 0.4);
+    await t.hold(1.2);
+    await visibleClick(page, page.getByRole("tab", { name: "Terraform", exact: true }));
+    await t.hold(0.6);
+    await pointAt(page, page.locator("pre").first(), 0.4);
+    await t.hold(1.6);
+    await visibleClick(page, page.getByRole("link", { name: /What we check, and what we never read/ }));
+    await offCamera(t, () => page.waitForURL(/\/aws-checks/));
+    const denied = page.getByText("Explicitly denied — we never read your data");
+    await scrollTo(page, denied, 120);
+    t.cue("Blocked from reading your data — and the list is public.");
+    await pointAt(page, denied, 0.4);
+    await t.hold(3.0);
+    return t;
+  },
+};
+
+/* ---------- 17 · fix this week ---------- */
+const clip17: Clip = {
+  name: "17-aws-fix-this-week",
+  async run(browser, state) {
+    const t = new Take(this.name);
+    const page = await t.open(browser, state);
+    await page.goto(`${BASE_URL}/integrations/aws`);
+    await page.waitForLoadState("networkidle");
+
+    await t.action();
+    t.cue("Every morning: what to fix this week.");
+    await pointAt(page, page.getByText("Fix this week", { exact: true }), 0.3);
+    await t.hold(1.2);
+    t.cue("Even what outdated databases are costing you.");
+    await pointAt(page, page.getByText(/≈ \$\d+\/mo/).first(), 0.5);
+    await t.hold(1.8);
+    const item = page.locator("li", { hasText: "SSH and RDP not open to the internet" })
+      .filter({ has: page.getByRole("button", { name: "Show the fix" }) }).first();
+    await visibleClick(page, item.getByRole("button", { name: "Show the fix" }));
+    await t.hold(1.2);
+    t.cue("The exact resource, and the Terraform to fix it.");
+    await pointAt(page, page.getByText(/bastion-ssh \(sg-/).first(), 0.3);
+    await t.hold(1.4);
+    await pointAt(page, page.locator("pre").first(), 0.4);
+    await t.hold(2.6);
+    return t;
+  },
+};
+
+/* ---------- 18 · who can reach production ---------- */
+const clip18: Clip = {
+  name: "18-aws-people",
+  async run(browser, state) {
+    const t = new Take(this.name);
+    const page = await t.open(browser, state);
+    await page.goto(`${BASE_URL}/integrations/aws`);
+    await page.waitForLoadState("networkidle");
+
+    await t.action();
+    t.cue("Who can reach production — and how.");
+    await visibleClick(page, page.getByRole("tab", { name: "People", exact: true }));
+    await t.hold(0.6);
+    await pointAt(page, page.getByText(/logins? reach(es)? production/).first(), 0.3);
+    await t.hold(1.4);
+    const priya = page.locator("tr", { hasText: "priya@northwind.test" });
+    await scrollTo(page, priya, 260);
+    t.cue("Priya left in August. She's still an AWS admin.");
+    await pointAt(page, priya.getByText(/^Left /), 0.4);
+    await t.hold(1.6);
+    await pointAt(page, priya.getByText("AdministratorAccess").first(), 0.4);
+    await t.hold(2.4);
+    return t;
+  },
+};
+
+/* ---------- 19 · changes made by hand ---------- */
+const clip19: Clip = {
+  name: "19-aws-changes",
+  async run(browser, state) {
+    // A previous take recorded the reason on camera: take it back off.
+    const { createAdminSupabase } = await import("@/lib/supabase/admin");
+    const db = createAdminSupabase();
+    await db.from("check_exceptions").delete().eq("company_id", await recordingCompanyId(db))
+      .eq("check_key", "aws.manual_changes").like("resource_id", "%change/demo-sg-open");
+
+    const t = new Take(this.name);
+    const page = await t.open(browser, state);
+    await page.goto(`${BASE_URL}/integrations/aws`);
+    await page.waitForLoadState("networkidle");
+
+    await t.action();
+    t.cue("Changes made by hand in the console.");
+    await visibleClick(page, page.getByRole("tab", { name: "Changes", exact: true }));
+    await t.hold(0.6);
+    const row = page.locator("li", { hasText: "AuthorizeSecurityGroupIngress" }).first();
+    await pointAt(page, row.getByText(/sam@northwind\.test/), 0.3);
+    await t.hold(1.4);
+    await visibleClick(page, row.getByRole("button", { name: "Record why…" }));
+    await t.hold(0.3);
+    const input = page.getByPlaceholder(/Why by hand/);
+    await input.click();
+    await page.keyboard.type("Bastion opened for the incident #214 call — closing it today.", { delay: 22 });
+    await t.hold(0.3);
+    await visibleClick(page, page.getByRole("button", { name: "Record", exact: true }));
+    await offCamera(t, () => page.getByText(/^Recorded: Bastion opened/).waitFor());
+    t.cue("Record why. That's your change-management evidence.");
+    await pointAt(page, page.getByText(/^Recorded: Bastion opened/), 0.3);
+    await t.hold(2.6);
+    return t;
+  },
+};
+
+/* ---------- 20 · facts for customers ---------- */
+const clip20: Clip = {
+  name: "20-aws-facts",
+  async run(browser, state) {
+    const { createAdminSupabase } = await import("@/lib/supabase/admin");
+    const db = createAdminSupabase();
+    const { data: co } = await db.from("companies").select("trust_slug").eq("id", await recordingCompanyId(db)).single();
+
+    const t = new Take(this.name);
+    const page = await t.open(browser, state);
+    await page.goto(`${BASE_URL}/integrations/aws`);
+    await page.waitForLoadState("networkidle");
+
+    await t.action();
+    t.cue("Facts you can tell customers — checked every day.");
+    await visibleClick(page, page.getByRole("tab", { name: "Facts", exact: true }));
+    await t.hold(0.6);
+    await pointAt(page, page.getByText("Where data is stored", { exact: true }), 0.3);
+    await t.hold(1.0);
+    t.cue("Promised EU hosting? A backup copy sits in Virginia.");
+    await pointAt(page, page.getByText(/outside the EU/).first(), 0.6);
+    await t.hold(2.2);
+    await pointAt(page, page.getByText("Supplier data sheet (CSV)"), 0.4);
+    await t.hold(1.2);
+    await page.goto(`${BASE_URL}/trust/${co!.trust_slug}`);
+    await offCamera(t, () => page.getByText("Infrastructure", { exact: true }).waitFor());
+    const infra = page.getByText("Infrastructure", { exact: true });
+    await scrollTo(page, infra, 100);
+    t.cue("What's true goes on your Trust Center.");
+    await pointAt(page, infra, 0.3);
+    await t.hold(2.8);
+    return t;
+  },
+};
+
+const ALL = [
+  clip01, clip02, clip03, clip04, clip05, clip06, clip07, clip08, clip09, clip10,
+  clip11, clip12, clip13, clip14, clip15, clip16, clip17, clip18, clip19, clip20,
+];
 
 async function main() {
   const wanted = process.argv.slice(2);

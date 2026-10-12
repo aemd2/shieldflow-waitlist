@@ -1,161 +1,175 @@
 /**
- * Join the recorded clips into finished videos, and write the voice-over script
- * with the exact second each line starts at.
+ * Join the recorded clips into finished videos, in two versions of each cut:
+ *
+ *   <cut>-voice.mp4      an AI narrator (Groq Orpheus) reads the script
+ *   <cut>-subtitles.mp4  the same script as subtitles, no sound — for autoplay
  *
  *   npx tsx scripts/recording/stitch.ts
  *
- * Two cuts:
- *   walkthrough  the pitch — tier 1 (clips 1–6), about a minute
- *   full-tour    every clip, 1–15
+ * Both are timed from the narrator's real speech: each clip's last frame is held
+ * until its line has been said, so picture and words never drift apart. If the
+ * voice isn't available (no Groq key, terms not accepted), the subtitles version
+ * is still built from an estimated reading pace and the voice version is skipped.
  *
- * Each clip gets a short freeze on its last frame, so a narrator has room to
- * finish the line before the picture moves on. Clips that haven't been recorded
- * yet are skipped. The narration lives here, next to the clip list, so the
- * script and the video can't drift apart.
+ * Cuts:
+ *   walkthrough  the pitch — clips 1–6
+ *   aws          ShieldFlow for AWS — clips 16–20
+ *   full-tour    every clip, 1–20
  *
- * Writes recordings/<cut>-clean.mp4, <cut>-captioned.mp4 and VOICEOVER.md.
+ * Also writes <cut>.srt (closed captions for YouTube/LinkedIn uploads) and
+ * VOICEOVER.md (the script with the second each line starts).
  */
+import { config } from "dotenv";
+config({ path: ".env.local" });
+
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { audioSeconds, speak, TtsUnavailable, VOICE } from "./tts";
 
 const OUT_DIR = path.resolve(process.cwd(), "..", "recordings");
 const TMP = path.join(OUT_DIR, ".tmp", "stitch");
 const FADE = 0.4;
 const NAVY = "0x0B1F3A";
+/** Speech starts this long into a segment (after the cross-fade), and ends this long before it. */
+const LEAD = 0.55;
+const TAIL = 0.6;
+/** Pause between sentences. */
+const GAP = 0.28;
+/** Reading pace used when there's no voice to time against. */
+const WORDS_PER_SECOND = 2.6;
 
+type Card = { lines: { text: string; size: number; color: string }[]; seconds: number };
 type Segment = {
   /** A recorded clip's name, or a card drawn here. */
   clip?: string;
-  card?: { lines: { text: string; size: number; color: string }[]; seconds: number };
-  /** Seconds of freeze-frame after the clip, so the line can finish. */
-  hold?: number;
+  card?: Card;
+  /** What's said — and shown as subtitles. */
   say: string;
+  /** How the narrator should say it, when the spelling would trip it up (e.g. "ISO 27001"). */
+  voice?: string;
 };
+
+const SAMPLE_NOTE = "Recorded in the real product · Northwind Analytics is a sample company";
 
 const TITLE: Segment = {
   card: {
-    seconds: 5.5,
+    seconds: 4.5,
     lines: [
       { text: "ShieldFlow", size: 84, color: "white" },
       { text: "Do the work once.", size: 40, color: "0x34D399" },
-      { text: "Recorded in the real product · Northwind Analytics is a sample company", size: 22, color: "0x94A3B8" },
+      { text: SAMPLE_NOTE, size: 22, color: "0x94A3B8" },
     ],
   },
   say: "This is ShieldFlow — the real product, with a made-up company called Northwind.",
 };
 
+const TITLE_AWS: Segment = {
+  card: {
+    seconds: 4.5,
+    lines: [
+      { text: "ShieldFlow for AWS", size: 72, color: "white" },
+      { text: "Read-only. Every account. Every morning.", size: 38, color: "0x34D399" },
+      { text: `${SAMPLE_NOTE} · AWS example accounts`, size: 22, color: "0x94A3B8" },
+    ],
+  },
+  say: "This is ShieldFlow for AWS, shown on Northwind — a made-up company, using AWS's own example accounts.",
+};
+
 const END: Segment = {
   card: {
-    seconds: 4.8,
+    seconds: 4.0,
     lines: [
       { text: "Do the work once.", size: 64, color: "white" },
       { text: "shieldflow.cloud", size: 40, color: "0x34D399" },
     ],
   },
-  say: "ShieldFlow. Do the work once. Find us at shieldflow dot cloud.",
+  say: "ShieldFlow. Do the work once. Find us at shieldflow.cloud.",
+  voice: "ShieldFlow. Do the work once. Find us at shieldflow dot cloud.",
 };
 
-/** Tier 1 — the pitch. */
+/** Clips 1–6 — the pitch. */
 const PITCH: Segment[] = [
-  {
-    clip: "01-work-once",
-    hold: 3.0,
-    say: "Do the work once — like encrypting data at rest — and every framework that needs it gets the credit.",
-  },
+  { clip: "01-work-once", say: "Do the work once — like encrypting data at rest — and every framework that needs it gets the credit." },
   {
     clip: "02-add-framework",
-    hold: 1.2,
     say: "Northwind already works toward SOC 2 and ISO 27001. When they add NIS2, it doesn't start at zero — the work they've done counts straight away.",
+    voice: "Northwind already works toward SOC two and ISO twenty-seven-oh-oh-one. When they add NIS two, it doesn't start at zero — the work they've done counts straight away.",
   },
-  {
-    clip: "03-checks",
-    hold: 1.2,
-    say: "Every day, ShieldFlow checks the tools you've connected. It shows what passes, what fails, and what it can't tell. When something fails, it says exactly what.",
-  },
-  {
-    clip: "04-leaver",
-    hold: 1.5,
-    say: "Like this: Priya left Northwind in August, and the account is still open. ShieldFlow catches it.",
-  },
-  {
-    clip: "05-alert",
-    hold: 1.5,
-    say: "And you don't have to go looking. When a check changes, you get an email.",
-  },
-  {
-    clip: "06-questionnaire",
-    hold: 1.5,
-    say: "A customer sends a security questionnaire? Paste it in. ShieldFlow drafts the answers from your workspace, and flags the ones it can't back up.",
-  },
+  { clip: "03-checks", say: "Every day, ShieldFlow checks the tools you've connected. It shows what passes, what fails, and what it can't tell. When something fails, it says exactly what." },
+  { clip: "04-leaver", say: "Like this: Priya left Northwind in August, and her account is still open. ShieldFlow catches it." },
+  { clip: "05-alert", say: "And you don't have to go looking. When a check changes, you get an email." },
+  { clip: "06-questionnaire", say: "A customer sends a security questionnaire? Paste it in. ShieldFlow drafts the answers from your workspace, and flags the ones it can't back up." },
 ];
 
-/** Tiers 2 and 3 — the rest of the product. */
+/** Clips 7–15 — the rest of the product. */
 const MORE: Segment[] = [
-  {
-    clip: "07-access-review",
-    hold: 1.2,
-    say: "Access reviews: go down the list, keep or revoke. When you're done, ShieldFlow files the signed record as evidence.",
-  },
-  {
-    clip: "08-policy",
-    hold: 1.2,
-    say: "Need a policy? Pick one, and you get a first draft in seconds. You read it, edit it, and approve it.",
-  },
-  {
-    clip: "09-trust-center",
-    hold: 1.2,
-    say: "Your Trust Center is a live page you send to prospects. It updates itself as you work.",
-  },
+  { clip: "07-access-review", say: "Access reviews: go down the list, keep or revoke. When you're done, ShieldFlow files the signed record as evidence." },
+  { clip: "08-policy", say: "Need a policy? Pick one, and you get a first draft in seconds. You read it, edit it, and approve it." },
+  { clip: "09-trust-center", say: "Your Trust Center is a live page you send to prospects. It updates itself as you work." },
   {
     clip: "10-sprint",
-    hold: 1.2,
     say: "New to all this? The 14-day sprint breaks it into four phases, and each one opens up as you make real progress.",
+    voice: "New to all this? The fourteen-day sprint breaks it into four phases, and each one opens up as you make real progress.",
+  },
+  { clip: "11-evidence", say: "Evidence works the same way. Attach a document to the measure once, and it counts for every requirement it covers — in every framework." },
+  { clip: "12-report", say: "The report puts it all on one page for a prospect or an auditor — open problems included — and saves as a PDF." },
+  { clip: "13-copilot", say: "Not sure what to do next? Ask the Co-Pilot. It answers from your own workspace — starting with what's actually broken." },
+  { clip: "14-vendors-risks", say: "Vendors and risks live here too: each vendor with its risk and last review, each risk with what you're doing about it." },
+  { clip: "15-activity", say: "And every change is logged — who did what, and when. Nobody on the team can edit it." },
+];
+
+/** Clips 16–20 — AWS. */
+const AWS: Segment[] = [
+  {
+    clip: "16-aws-connect",
+    say: "Connecting AWS takes one read-only role. No keys change hands, and the role is blocked from reading your data — the full list is public.",
+    voice: "Connecting A W S takes one read-only role. No keys change hands, and the role is blocked from reading your data — the full list is public.",
   },
   {
-    clip: "11-evidence",
-    hold: 1.5,
-    say: "Evidence works the same way. Attach a document to the measure once, and it counts for every requirement it covers — in every framework.",
+    clip: "17-aws-fix-this-week",
+    say: "Every morning, ShieldFlow tells you what to fix this week: the exact resource, and the Terraform to fix it. It even shows what outdated databases are costing you.",
   },
   {
-    clip: "12-report",
-    hold: 1.2,
-    say: "The report puts it all on one page for a prospect or an auditor — open problems included — and saves as a PDF.",
+    clip: "18-aws-people",
+    say: "It shows who can reach production, and how. Priya left in August — but she's still an AWS admin.",
+    voice: "It shows who can reach production, and how. Priya left in August — but she's still an A W S admin.",
   },
+  { clip: "19-aws-changes", say: "Changes made by hand in the console show up too. Record why, and that's your change-management evidence." },
   {
-    clip: "13-copilot",
-    hold: 1.5,
-    say: "Not sure what to do next? Ask the Co-Pilot. It answers from your own workspace — starting with what's actually broken.",
-  },
-  {
-    clip: "14-vendors-risks",
-    hold: 1.2,
-    say: "Vendors and risks live here too: each vendor with its risk and last review, each risk with what you're doing about it.",
-  },
-  {
-    clip: "15-activity",
-    hold: 1.5,
-    say: "And every change is logged — who did what, and when. Nobody on the team can edit it.",
+    clip: "20-aws-facts",
+    say: "And it turns all of this into facts you can tell customers. Promised EU hosting? It found a backup copy in Virginia. What's true goes on your Trust Center.",
+    voice: "And it turns all of this into facts you can tell customers. Promised E U hosting? It found a backup copy in Virginia. What's true goes on your Trust Center.",
   },
 ];
 
 const CUTS: { name: string; title: string; segments: Segment[] }[] = [
   { name: "walkthrough", title: "Walkthrough — the pitch (clips 1–6)", segments: [TITLE, ...PITCH, END] },
-  { name: "full-tour", title: "Full tour — every feature (clips 1–15)", segments: [TITLE, ...PITCH, ...MORE, END] },
+  { name: "aws", title: "ShieldFlow for AWS (clips 16–20)", segments: [TITLE_AWS, ...AWS, END] },
+  { name: "full-tour", title: "Full tour — every feature (clips 1–20)", segments: [TITLE, ...PITCH, ...MORE, ...AWS, END] },
 ];
 
+// ------------------------------------------------------------------ helpers
+
 function run(args: string[]) {
-  execFileSync("ffmpeg", ["-y", "-loglevel", "error", ...args], { cwd: TMP });
+  execFileSync("ffmpeg", ["-y", "-loglevel", "error", ...args], { cwd: TMP, maxBuffer: 64 * 1024 * 1024 });
 }
 
-function duration(file: string): number {
-  return Number(
-    execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file]).toString().trim(),
-  );
+const sentences = (t: string) => t.split(/(?<=[.?!])\s+/).map((s) => s.trim()).filter(Boolean);
+const words = (t: string) => t.split(/\s+/).filter(Boolean).length;
+
+/** A subtitle should fit two lines: split a long sentence at a comma or dash near its middle. */
+function chunks(sentence: string, max = 84): string[] {
+  if (sentence.length <= max) return [sentence];
+  const mid = sentence.length / 2;
+  const cuts = [...sentence.matchAll(/(, | — |: )/g)].map((m) => m.index! + m[0].length);
+  if (!cuts.length) return [sentence];
+  const at = cuts.reduce((b, c) => (Math.abs(c - mid) < Math.abs(b - mid) ? c : b));
+  return [...chunks(sentence.slice(0, at).trim(), max), ...chunks(sentence.slice(at).trim(), max)];
 }
 
 /** A plain title card: lines stacked around the middle, fading in. */
-function drawCard(card: NonNullable<Segment["card"]>, name: string): string {
+function drawCard(card: Card, name: string): string {
   const gap = 26;
   const total = card.lines.reduce((s, l) => s + l.size, 0) + gap * (card.lines.length - 1);
   let y = -total / 2;
@@ -176,19 +190,17 @@ function drawCard(card: NonNullable<Segment["card"]>, name: string): string {
   return path.join(TMP, out);
 }
 
-function stitch(file: string, parts: { file: string; hold: number }[]) {
-  const lengths = parts.map((p) => duration(p.file) + p.hold);
+function stitchVideo(file: string, parts: { file: string; hold: number }[]) {
   const inputs = parts.flatMap((p) => ["-i", p.file]);
   const prep = parts.map(
-    (p, i) => `[${i}:v]tpad=stop_mode=clone:stop_duration=${p.hold},fps=30,settb=AVTB,format=yuv420p[v${i}]`,
+    (p, i) => `[${i}:v]tpad=stop_mode=clone:stop_duration=${p.hold.toFixed(3)},fps=30,settb=AVTB,format=yuv420p[v${i}]`,
   );
   const chain: string[] = [];
   let prev = "v0";
   let offset = 0;
-  const starts = [0];
+  const lengths = parts.map((p) => audioSeconds(p.file) + p.hold);
   for (let i = 1; i < parts.length; i++) {
     offset += lengths[i - 1] - FADE;
-    starts.push(offset);
     const out = i === parts.length - 1 ? "out" : `x${i}`;
     chain.push(`[${prev}][v${i}]xfade=transition=fade:duration=${FADE}:offset=${offset.toFixed(3)}[${out}]`);
     prev = out;
@@ -196,91 +208,188 @@ function stitch(file: string, parts: { file: string; hold: number }[]) {
   run([
     ...inputs,
     "-filter_complex", [...prep, ...chain].join(";"),
-    "-map", "[out]",
+    "-map", parts.length > 1 ? "[out]" : "[v0]",
     "-c:v", "libx264", "-preset", "slow", "-crf", "22", "-movflags", "+faststart", file,
   ]);
-  return { starts, total: offset + lengths[lengths.length - 1] };
 }
 
-const mmss = (s: number) => `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}.${Math.floor((s % 1) * 10)}`;
-const words = (t: string) => t.split(/\s+/).filter(Boolean).length;
+const stamp = (s: number, sep: "." | ",") => {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  const cs = sep === "." ? sec.toFixed(2).padStart(5, "0") : sec.toFixed(3).padStart(6, "0").replace(".", ",");
+  return sep === "." ? `${h}:${String(m).padStart(2, "0")}:${cs}` : `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${cs}`;
+};
+const mmss = (s: number) => `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
 
-/** Build one cut in both variants; return its section of the voice-over script. */
-function buildCut(cut: (typeof CUTS)[number]): string[] {
-  const used: Segment[] = [];
-  const skipped: string[] = [];
-  const clean: { file: string; hold: number }[] = [];
-  const captioned: { file: string; hold: number }[] = [];
-  cut.segments.forEach((s, i) => {
-    if (s.card) {
-      const f = drawCard(s.card, `${cut.name}-card${i}`);
-      clean.push({ file: f, hold: 0 });
-      captioned.push({ file: f, hold: 0 });
-      used.push(s);
-      return;
+// -------------------------------------------------------------------- build
+
+type Line = { text: string; start: number; end: number };
+type Spoken = { wav: string; at: number };
+
+let voiceProblem: string | null = null;
+
+/** Speech for a segment: per sentence, the wav (or none) and its length. */
+async function speech(s: Segment): Promise<{ sentence: string; wav: string | null; seconds: number }[]> {
+  const shown = sentences(s.say);
+  const spoken = sentences(s.voice ?? s.say);
+  const same = shown.length === spoken.length;
+  const out: { sentence: string; wav: string | null; seconds: number }[] = [];
+  // One at a time: gentler on the voice API's rate limit, and cached after the first run.
+  for (const [i, sentence] of shown.entries()) {
+    const say = same ? spoken[i] : sentence;
+    if (!voiceProblem) {
+      try {
+        const wav = await speak(say);
+        out.push({ sentence, wav, seconds: audioSeconds(wav) });
+        continue;
+      } catch (e) {
+        if (!(e instanceof TtsUnavailable)) throw e;
+        voiceProblem = e.message;
+      }
     }
-    const c = path.join(OUT_DIR, "clean", `${s.clip}.mp4`);
-    const k = path.join(OUT_DIR, "captioned", `${s.clip}.mp4`);
-    if (!existsSync(c) || !existsSync(k)) { skipped.push(s.clip!); return; }
-    clean.push({ file: c, hold: s.hold ?? 0 });
-    captioned.push({ file: k, hold: s.hold ?? 0 });
-    used.push(s);
-  });
+    out.push({ sentence, wav: null, seconds: words(sentence) / WORDS_PER_SECOND });
+  }
+  return out;
+}
 
-  const a = stitch(path.join(OUT_DIR, `${cut.name}-clean.mp4`), clean);
-  stitch(path.join(OUT_DIR, `${cut.name}-captioned.mp4`), captioned);
+async function buildCut(cut: (typeof CUTS)[number]): Promise<string[]> {
+  const parts: { file: string; hold: number }[] = [];
+  const lines: Line[] = [];
+  const spoken: Spoken[] = [];
+  const rows: string[] = [];
+  const skipped: string[] = [];
+  let start = 0;
 
-  const rows = used.map((s, i) => {
-    const end = i + 1 < a.starts.length ? a.starts[i + 1] : a.total;
-    const secs = end - a.starts[i];
-    const flag = words(s.say) / secs > 2.8 ? " ⚠ fast — trim a few words or speak quickly" : "";
-    return `| ${mmss(a.starts[i])} | ${s.clip ?? "card"} | ${s.say} | ${secs.toFixed(1)}s, ${words(s.say)} words${flag} |`;
-  });
+  for (const [i, s] of cut.segments.entries()) {
+    const file = s.card ? drawCard(s.card, `${cut.name}-card${i}`) : path.join(OUT_DIR, "clean", `${s.clip}.mp4`);
+    if (!existsSync(file)) {
+      skipped.push(s.clip!);
+      continue;
+    }
+    const video = audioSeconds(file);
+    const said = await speech(s);
+    let t = LEAD;
+    for (const x of said) {
+      if (x.wav) spoken.push({ wav: x.wav, at: start + t });
+      // Split long sentences across subtitles, timed by their share of the sentence.
+      const pieces = chunks(x.sentence);
+      const totalChars = pieces.reduce((n, p) => n + p.length, 0);
+      let p0 = t;
+      for (const p of pieces) {
+        const d = (x.seconds * p.length) / totalChars;
+        lines.push({ text: p, start: start + p0, end: start + p0 + d });
+        p0 += d;
+      }
+      t += x.seconds + GAP;
+    }
+    const length = Math.max(video + 0.5, t - GAP + TAIL);
+    parts.push({ file, hold: length - video });
+    rows.push(`| ${mmss(start)} | ${s.clip ?? "card"} | ${s.say} |`);
+    start += length - FADE;
+  }
+  const total = start + FADE;
 
-  console.log(`${cut.name} ${mmss(a.total)} · ${used.length} segments${skipped.length ? ` · skipped ${skipped.join(", ")}` : ""}`);
-  for (const r of rows.filter((r) => r.includes("⚠"))) console.log(r);
+  // Subtitles stay up through short pauses, so they don't flicker between sentences.
+  for (let i = 0; i < lines.length; i++) {
+    const next = lines[i + 1];
+    lines[i].end = next && next.start - lines[i].end < 0.6 ? next.start - 0.04 : lines[i].end + 0.35;
+  }
 
+  const clean = path.join(TMP, `${cut.name}-clean.mp4`);
+  stitchVideo(clean, parts);
+
+  // Subtitles: libass, Segoe UI on a dark box, two lines at most.
+  copyFileSync("C:/Windows/Fonts/segoeuib.ttf", path.join(TMP, "segoeuib.ttf"));
+  const ass = [
+    "[Script Info]",
+    "ScriptType: v4.00+",
+    "PlayResX: 1280",
+    "PlayResY: 720",
+    "WrapStyle: 0",
+    "",
+    "[V4+ Styles]",
+    "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+    "Style: Default,Segoe UI,33,&H00FFFFFF,&H000000FF,&H24201110,&H00000000,-1,0,0,0,100,100,0,0,3,13,0,2,150,150,44,1",
+    "",
+    "[Events]",
+    "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    ...lines.map((l) => `Dialogue: 0,${stamp(l.start, ".")},${stamp(l.end, ".")},Default,,0,0,0,,${l.text.replace(/\n/g, " ")}`),
+  ].join("\n");
+  writeFileSync(path.join(TMP, `${cut.name}.ass`), ass, "utf8");
+  const subtitled = path.join(OUT_DIR, `${cut.name}-subtitles.mp4`);
+  run([
+    "-i", clean,
+    "-vf", `subtitles=${cut.name}.ass:fontsdir=.`,
+    "-c:v", "libx264", "-preset", "slow", "-crf", "22", "-movflags", "+faststart", "-an", subtitled,
+  ]);
+
+  writeFileSync(
+    path.join(OUT_DIR, `${cut.name}.srt`),
+    lines.map((l, i) => `${i + 1}\n${stamp(l.start, ",")} --> ${stamp(l.end, ",")}\n${l.text}\n`).join("\n"),
+    "utf8",
+  );
+
+  // Voice: every sentence placed at its moment, mixed, levelled for speech.
+  const voiced = path.join(OUT_DIR, `${cut.name}-voice.mp4`);
+  if (!voiceProblem && spoken.length) {
+    const inputs = spoken.flatMap((s) => ["-i", s.wav]);
+    const delays = spoken.map((s, k) => `[${k + 1}:a]adelay=${Math.round(s.at * 1000)}:all=1[a${k}]`);
+    const mix =
+      `${spoken.map((_, k) => `[a${k}]`).join("")}amix=inputs=${spoken.length}:normalize=0:dropout_transition=0,` +
+      `apad,atrim=0:${total.toFixed(3)},loudnorm=I=-16:TP=-1.5:LRA=11[aout]`;
+    run([
+      "-i", clean, ...inputs,
+      "-filter_complex", [...delays, mix].join(";"),
+      "-map", "0:v", "-map", "[aout]",
+      "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-movflags", "+faststart", voiced,
+    ]);
+  } else if (existsSync(voiced)) {
+    rmSync(voiced); // never leave a voice version that no longer matches the cut
+  }
+
+  console.log(`${cut.name} ${mmss(total)} · ${parts.length} segments${skipped.length ? ` · skipped ${skipped.join(", ")}` : ""}`);
   return [
     `## ${cut.title}`,
     "",
-    `Record over \`${cut.name}-clean.mp4\` (no captions). Length ${mmss(a.total)}.`,
-    `\`${cut.name}-captioned.mp4\` is the same cut with captions, for silent autoplay.`,
+    `Length ${mmss(total)}. \`${cut.name}-voice.mp4\` has the AI narrator; \`${cut.name}-subtitles.mp4\` shows the same words as subtitles with no sound; \`${cut.name}.srt\` is the caption file for uploads.`,
     "",
-    "| Starts | Clip | Say | Room |",
-    "|---|---|---|---|",
+    "| Starts | Clip | Narration |",
+    "|---|---|---|",
     ...rows,
     "",
     ...(skipped.length ? [`Not in this cut (not recorded yet): ${skipped.join(", ")}.`, ""] : []),
   ];
 }
 
-function main() {
+async function main() {
   rmSync(TMP, { recursive: true, force: true });
   mkdirSync(TMP, { recursive: true });
   copyFileSync("C:/Windows/Fonts/segoeuib.ttf", path.join(TMP, "font.ttf"));
 
-  const sections = CUTS.flatMap(buildCut);
+  // The older versions (made for a human narrator) are replaced by these two.
+  for (const f of readdirSync(OUT_DIR)) if (/-(clean|captioned)\.mp4$/.test(f)) rmSync(path.join(OUT_DIR, f));
+
+  const sections: string[] = [];
+  for (const cut of CUTS) sections.push(...(await buildCut(cut)));
+
   const md = [
-    "# Voice-over script — ShieldFlow",
+    "# Narration script — ShieldFlow videos",
     "",
-    "Read each line starting at its time. A relaxed pace is about 2.5 words a second;",
-    "every line fits its slot at that pace. The last frame of each clip is held so you",
-    "can finish the sentence — you don't need to rush the ends.",
+    `Every cut comes in two versions: **voice** (an AI narrator, Groq Orpheus, voice "${VOICE}") and **subtitles** (the same words on screen, no sound — for feeds that autoplay muted). Both are timed from the narrator's real speech.`,
     "",
-    "The full tour starts with the same six lines as the walkthrough, so one recording",
-    "session covers both.",
+    voiceProblem ? `> **The voice versions weren't made this time:** ${voiceProblem}. Then run \`npx tsx scripts/recording/stitch.ts\` again.` : "",
     "",
     ...sections,
-    "## Recording tips",
+    "## Notes",
     "",
-    "- Record in a quiet, soft room (a wardrobe full of clothes works). Phone voice memo held 20 cm away is fine.",
-    "- Record the whole script in one go, then line it up in any editor (CapCut, Clipchamp, iMovie, DaVinci Resolve).",
-    "- If a line runs long, drag the next clip later — the freeze frames make that invisible.",
-    "- Northwind Analytics and its people are invented. Say so if you're asked; the title card says it too.",
+    "- To change a line, edit it in `app/scripts/recording/stitch.ts` and re-run it; unchanged lines are reused from the voice cache.",
+    "- Northwind Analytics, its people and its AWS accounts are invented (the AWS account numbers are AWS's own documentation examples). The title cards say so.",
     "",
   ].join("\n");
   writeFileSync(path.join(OUT_DIR, "VOICEOVER.md"), md, "utf8");
   rmSync(TMP, { recursive: true, force: true });
+  if (voiceProblem) console.log(`\nVoice versions skipped — ${voiceProblem}`);
 }
 
-main();
+main().catch((e) => { console.error(e.message ?? e); process.exit(1); });

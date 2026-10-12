@@ -286,10 +286,37 @@ register. **15 · Activity log.** Scroll, then open one entry.
 
 ---
 
+## AWS — clips 16–20 (added 2026-10-12)
+
+Filmed against a sample AWS estate for Northwind (`scripts/recording/aws-demo.ts`):
+`northwind-prod` and `northwind-staging`, using AWS's documentation account
+numbers. The sample posture goes through the real evaluators, so every verdict
+on screen is what the product says about a company in that state. The real AWS
+connection is set aside while filming and put back (and re-scanned) after.
+
+| # | Clip | Shows |
+|---|---|---|
+| 16 | aws-connect | Read-only role, External ID, Terraform tab → the public "what we never read" page |
+| 17 | aws-fix-this-week | Fix this week, the Extended Support $/month, the exact resource + Terraform fix |
+| 18 | aws-people | Who reaches production; Priya left in August and is still an AWS admin |
+| 19 | aws-changes | Console changes in production; "Record why" on one |
+| 20 | aws-facts | Facts for customers; a backup copy outside the EU; verified facts on the Trust Center |
+
+Run: `aws-demo.ts stage` → `record.ts 16 17 18 19 20` → `aws-demo.ts restore` → `stitch.ts`.
+
+## Two versions of every cut
+
+`stitch.ts` builds each cut (walkthrough 1–6, aws 16–20, full-tour 1–20) twice:
+`-voice.mp4` with an AI narrator (Groq Orpheus, `scripts/recording/tts.ts`) and
+`-subtitles.mp4` with the same words on screen and no sound, plus a `.srt` for
+uploads. Both are timed from the narrator's speech — each clip's last frame is
+held until its line is finished. The narration lives in `stitch.ts`.
+
 ## Order of work
 
 1. ~~Fix the framework-add gap~~ — done
 2. ~~Seed the recording workspace~~ — done
 3. ~~Record tiers 1–3~~ — all 15 done, plus the walkthrough and full-tour cuts
-4. Record the voice-over (`recordings/VOICEOVER.md`)
+4. ~~Record the voice-over~~ — replaced by an AI narrator: every cut now comes as `-voice.mp4` and `-subtitles.mp4` (see below)
+4a. ~~AWS clips 16–20~~ — done, plus the `aws` cut
 5. Put clip 1 on the homepage and clips 1, 3, 4, 5 on `/demo`
