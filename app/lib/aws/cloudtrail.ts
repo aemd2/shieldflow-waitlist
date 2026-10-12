@@ -43,6 +43,15 @@ const PAUSE_MS = 550;
 
 type Identity = { type?: string; arn?: string; userName?: string };
 
+/**
+ * Access key IDs (AKIA…/ASIA…) appear as resource names on key events. They're
+ * not secrets, but they are the handle an attacker searches leaked secrets by,
+ * so we keep only enough to recognise one: "AKIA…I2O".
+ */
+export function maskKeyIds(s: string): string {
+  return s.replace(/\b(AKIA|ASIA)[A-Z0-9]{12}([A-Z0-9]{4})\b/g, "$1…$2");
+}
+
 /** "jane@acme.com (AdministratorAccess)" from an Identity Center session; the user or role otherwise. */
 export function principalOf(u: Identity | undefined): string | null {
   if (!u) return null;
@@ -81,7 +90,7 @@ export function toChange(ev: Pick<Event, "CloudTrailEvent" | "Resources">, accou
   const console = rec.sessionCredentialFromConsole === "true" || rec.sessionCredentialFromConsole === true;
   if (!root && !console) return null;
   if (SKIP_SOURCES.has(rec.eventSource) || SKIP_NAMES.test(rec.eventName)) return null;
-  const names = [...new Set((ev.Resources ?? []).map((r) => r.ResourceName).filter(Boolean) as string[])];
+  const names = [...new Set((ev.Resources ?? []).map((r) => r.ResourceName).filter(Boolean).map((n) => maskKeyIds(n!)))];
   return {
     eventId: rec.eventID,
     accountId,

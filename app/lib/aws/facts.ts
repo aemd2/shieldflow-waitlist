@@ -34,7 +34,8 @@ export interface AwsFacts {
   residency: Residency | null;
 }
 
-type Verdict = AwsCheckResult["result"] | null;
+/** "accepted": passed only because something was marked out of scope. */
+type Verdict = AwsCheckResult["result"] | "accepted" | null;
 
 const EXPOSURE_GAP: Record<string, string> = {
   "aws.s3_public_buckets": "a storage bucket is public",
@@ -51,6 +52,9 @@ function verdict(scans: AccountScan[], key: string): Verdict {
   if (!rs.length) return null;
   if (rs.some((r) => r.result === "fail")) return "fail";
   if (rs.some((r) => r.result === "inconclusive")) return "inconclusive";
+  // An exception is a risk the company accepted, not a fact about its AWS:
+  // never claim it to a customer as verified.
+  if (rs.some((r) => r.accepted?.length)) return "accepted";
   return "pass";
 }
 
@@ -64,6 +68,13 @@ function allPass(...vs: Verdict[]): boolean | null {
   if (vs.some((v) => v === "fail")) return false;
   if (vs.some((v) => v !== "pass")) return null;
   return true;
+}
+
+/** Why a fact isn't stated: exceptions recorded, or something couldn't be read. */
+function unverified(what: string, ...vs: Verdict[]): string {
+  return vs.includes("accepted")
+    ? `${what} isn't stated as verified: some resources were accepted as exceptions.`
+    : `${what} couldn't be fully verified in the last scan.`;
 }
 
 export function awsFacts(scans: AccountScan[], people: WorkspacePeople | null, settings: Pick<AwsSettings, "residency" | "logRetentionDays" | "restoreTestDays">): AwsFacts {
@@ -145,7 +156,7 @@ export function awsFacts(scans: AccountScan[], people: WorkspacePeople | null, s
           ? `All data at rest is encrypted: ${[kms, byDefault].filter(Boolean).join(", and ")}.`
           : ok === false
             ? `${bad} ${bad === 1 ? "database or volume is" : "databases or volumes are"} not encrypted at rest.`
-            : "Encryption at rest couldn't be fully verified in the last scan.",
+            : unverified("Encryption at rest", rds, ebs),
       proof: ["RDS: StorageEncrypted on every instance and cluster", "EC2: every EBS volume Encrypted", "S3: default encryption on every bucket since January 2023", "DynamoDB: encryption at rest always on"],
     });
   }
@@ -178,7 +189,7 @@ export function awsFacts(scans: AccountScan[], people: WorkspacePeople | null, s
           ? `${parts.join("; ").replace(/^./, (c) => c.toUpperCase())}.`
           : ok === false
             ? `Backups are not fully in place: ${[rds === "fail" ? "some databases keep under 7 days of backups" : null, pitr === "fail" ? "some DynamoDB tables lack point-in-time recovery" : null, tested === "fail" ? `no restore has been tested in the last ${settings.restoreTestDays} days` : null].filter(Boolean).join("; ")}.`
-            : "Backups couldn't be fully verified in the last scan.",
+            : unverified("Backup coverage", rds, pitr, tested),
       proof: ["RDS: BackupRetentionPeriod", "DynamoDB: point-in-time recovery status", "AWS Backup restore jobs and RDS/DynamoDB restores in CloudTrail"],
     });
   }
@@ -198,7 +209,7 @@ export function awsFacts(scans: AccountScan[], people: WorkspacePeople | null, s
           ? `Every AWS API call in every region is recorded by CloudTrail, with tamper-evident log files kept at least ${settings.logRetentionDays} days.`
           : ok === false
             ? `Audit logging has gaps: ${[on === "fail" ? "CloudTrail doesn't record every region" : null, valid === "fail" ? "log file validation is off" : null, kept === "fail" ? `logs are kept less than ${settings.logRetentionDays} days` : null].filter(Boolean).join("; ")}.`
-            : "Audit logging couldn't be fully verified in the last scan.",
+            : unverified("Audit logging", on, valid, kept),
       proof: ["CloudTrail: multi-region trail logging", "CloudTrail: log file validation", "CloudWatch Logs retention / S3 lifecycle"],
     });
   }
@@ -225,7 +236,7 @@ export function awsFacts(scans: AccountScan[], people: WorkspacePeople | null, s
           ? `The root account and every IAM user who can sign in to the console use multi-factor authentication${admins === "pass" ? "; no IAM user holds standing administrator rights" : ""}.${who}`
           : ok === false
             ? `MFA is missing: ${[root === "fail" ? "the root account has no MFA" : null, users === "fail" ? `${failing(scans, "aws.iam_user_mfa")} console users have no MFA` : null].filter(Boolean).join("; ")}.${who}`
-            : `MFA couldn't be fully verified in the last scan.${who}`,
+            : `${unverified("MFA", root, users)}${who}`,
       proof: ["IAM credential report", "IAM Identity Center assignments"],
     });
   }
@@ -247,7 +258,7 @@ export function awsFacts(scans: AccountScan[], people: WorkspacePeople | null, s
                 .filter((_, i) => vs[i] === "fail")
                 .map((k) => EXPOSURE_GAP[k])
                 .join("; ")}.`
-            : "Internet exposure couldn't be fully verified in the last scan.",
+            : unverified("Internet exposure", ...vs),
       proof: keys.map((k) => k.replace("aws.", "").replace(/_/g, " ")),
     });
   }
@@ -269,7 +280,7 @@ export function awsFacts(scans: AccountScan[], people: WorkspacePeople | null, s
           ? "Amazon GuardDuty threat detection runs in every region in use, and no high-severity finding has been left open for more than a week."
           : ok === false
             ? `Threat detection has gaps: ${[on === "fail" ? "GuardDuty is off in a region in use" : null, open === "fail" ? "high-severity findings have been open over a week" : null].filter(Boolean).join("; ")}.`
-            : "Threat detection couldn't be fully verified in the last scan.",
+            : unverified("Threat detection", on, open),
       proof: ["GuardDuty detectors per region", "GuardDuty findings with severity ≥ 7"],
     });
   }

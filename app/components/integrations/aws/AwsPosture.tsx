@@ -428,7 +428,7 @@ export function AwsPosture({ view, canWrite }: { view: AwsView; canWrite: boolea
                 <h2 className="flex items-center gap-2 text-sm font-semibold">
                   {title}
                   <span className="text-xs font-normal text-muted-foreground">
-                    {failing ? `${failing} of ${defs.length} failing` : `${defs.length} checks`}
+                    {failing ? `${failing} of ${defs.length} failing` : `${defs.length} ${defs.length === 1 ? "check" : "checks"}`}
                   </span>
                 </h2>
                 <ul className="divide-y divide-border">

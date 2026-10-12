@@ -281,6 +281,11 @@ expect("SSO principal reads as person + permission set", toChange(ev({ sessionCr
 expect("pipeline change (no console session) is dropped", toChange(ev({ userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::1:assumed-role/github-deploy/run-42" } }), ACCT, "eu-central-1") ? "kept" : "dropped", "dropped");
 expect("failed call is dropped", toChange(ev({ sessionCredentialFromConsole: "true", errorCode: "AccessDenied", userIdentity: sso }), ACCT, "eu-central-1") ? "kept" : "dropped", "dropped");
 expect("console sign-in is not a change", toChange(ev({ eventName: "ConsoleLogin", eventSource: "signin.amazonaws.com", sessionCredentialFromConsole: "true", userIdentity: sso }), ACCT, "us-east-1") ? "kept" : "dropped", "dropped");
+expect(
+  "access key IDs are masked in resource names",
+  toChange({ CloudTrailEvent: JSON.stringify({ eventID: "k", eventTime: "2026-10-12T07:08:00Z", eventName: "CreateAccessKey", eventSource: "iam.amazonaws.com", userIdentity: { type: "Root", arn: "arn:aws:iam::1:root" } }), Resources: [{ ResourceName: "AKIAABCDEFGHIJKLMNOP" }, { ResourceName: "shieldflow-scanner" }] }, ACCT, "us-east-1")?.resources ?? "none",
+  "AKIA…MNOP, shieldflow-scanner",
+);
 expect("root activity is kept", toChange(ev({ userIdentity: { type: "Root", arn: "arn:aws:iam::1:root" } }), ACCT, "us-east-1")?.via ?? "none", "root");
 expect("restore source is the snapshot name", toRestore({ CloudTrailEvent: JSON.stringify({ eventID: "r", eventTime: "2026-09-01T00:00:00Z", eventSource: "rds.amazonaws.com", requestParameters: { dBSnapshotIdentifier: "nightly-2026-08-31", dBInstanceIdentifier: "restore-test" } }) }, ACCT, "eu-central-1", "RDS database")?.source ?? "none", "nightly-2026-08-31");
 
@@ -363,6 +368,15 @@ const dbFacts = awsFacts([toScan(dbAcct, { restores: [restore("2026-09-09T10:00:
 expect("encryption sentence reads right", fact(dbFacts, "encryption").statement, "All data at rest is encrypted: the database is encrypted with AWS KMS, and S3 encrypts everything by default.");
 expect("location names the city", fact(dbFacts, "location").statement.includes("Frankfurt, Germany (eu-central-1)") ? "yes" : "no", "yes");
 expect("backups fact mentions the restore test", fact(dbFacts, "backups").statement.includes("2026-09-09") ? "yes" : "no", "yes");
+const bpaOff = account({ accountBpa: ok(null) });
+const bpaExcepted = awsFacts(
+  [toScan(bpaOff, { exceptions: [{ checkKey: "aws.s3_account_public_access_block", resourceId: resourceId(ACCT, null, "account", ACCT), reason: "handled per bucket", expiresAt: null }] })],
+  null,
+  settings,
+);
+expect("BPA passing only by exception -> exposure not claimed", String(fact(bpaExcepted, "exposure").ok), "null");
+expect("...and says why", fact(bpaExcepted, "exposure").statement.includes("accepted as exceptions") ? "yes" : "no", "yes");
+expect("...and never published", publishableFacts(bpaExcepted).facts.some((f) => f.title === "Internet exposure") ? "published" : "hidden", "hidden");
 const usFacts = awsFacts([toScan(virginia, { residency: "eu" })], null, { ...settings, residency: "eu" });
 expect("a Virginia bucket makes the EU location fact false", String(fact(usFacts, "location").ok), "false");
 expect("...and it is never published", publishableFacts(usFacts).facts.some((f) => f.title === "Where data is stored") ? "published" : "hidden", "hidden");

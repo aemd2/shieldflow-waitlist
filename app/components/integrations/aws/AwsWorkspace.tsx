@@ -257,8 +257,11 @@ function Changes({ view, canWrite }: { view: AwsView; canWrite: boolean }) {
               <li key={c.id} className="py-2 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="w-28 shrink-0 text-xs tabular-nums text-muted-foreground">{when(c.at)}</span>
-                  {c.via === "root" && <Badge variant="critical">root</Badge>}
-                  <span className="font-medium">{c.principal ?? "unknown"}</span>
+                  {c.via === "root" ? (
+                    <Badge variant="critical">root account</Badge>
+                  ) : (
+                    <span className="font-medium">{c.principal ?? "unknown"}</span>
+                  )}
                   <span className="font-mono text-xs">
                     {c.source}:{c.name}
                   </span>
@@ -379,9 +382,15 @@ function Facts({ view, canWrite }: { view: AwsView; canWrite: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const f = view.facts;
-  const save = async (patch: Record<string, unknown>) => {
+  // Show the choice at once; put it back if the save fails.
+  const [residency, setResidency] = useState(view.settings.residency ?? "");
+  const [onTrust, setOnTrust] = useState(view.settings.showOnTrustCenter);
+  const save = async (patch: Record<string, unknown>, undo: () => void) => {
     const r = await updateAwsSettings(patch).catch(() => ({ error: NETWORK }));
-    if ("error" in r && r.error) return toast("error", r.error);
+    if ("error" in r && r.error) {
+      undo();
+      return toast("error", r.error);
+    }
     toast("success", "Saved — applies from the next scan");
     router.refresh();
   };
@@ -434,8 +443,12 @@ function Facts({ view, canWrite }: { view: AwsView; canWrite: boolean }) {
           <div className="flex flex-wrap items-center gap-2">
             <span>We promise customers their data stays in</span>
             <select
-              value={view.settings.residency ?? ""}
-              onChange={(e) => save({ residency: e.target.value || null })}
+              value={residency}
+              onChange={(e) => {
+                const before = residency;
+                setResidency(e.target.value);
+                save({ residency: e.target.value || null }, () => setResidency(before));
+              }}
               className="input w-auto py-1"
             >
               <option value="">— no residency promise —</option>
@@ -450,8 +463,12 @@ function Facts({ view, canWrite }: { view: AwsView; canWrite: boolean }) {
             <input
               type="checkbox"
               className="mt-1"
-              checked={view.settings.showOnTrustCenter}
-              onChange={(e) => save({ showOnTrustCenter: e.target.checked })}
+              checked={onTrust}
+              onChange={(e) => {
+                const next = e.target.checked;
+                setOnTrust(next);
+                save({ showOnTrustCenter: next }, () => setOnTrust(!next));
+              }}
             />
             <span>
               Show the verified facts on our <Link href="/settings" className="underline">Trust Center</Link>
