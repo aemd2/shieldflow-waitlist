@@ -91,27 +91,33 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
         detail: "Branch protection couldn't be read (token lacks permission or was rate-limited).",
       });
     } else {
-      const unprotected = (p.repos ?? []).filter(
-        (r: any) => !r.archived && r.branchProtection === "unprotected",
-      ).length;
+      const active = (p.repos ?? []).filter((r: any) => !r.archived);
+      const unprotected = active.filter((r: any) => r.branchProtection === "unprotected").length;
+      const unread = active.filter((r: any) => r.branchProtection === "unknown").length;
+      // A pass has to cover every active repository — 30 of 300 isn't "all".
+      const partial = unread > 0 || p.truncated;
       checks.push({
         checkKey: "github.branch_protection",
         controlCodes: CHANGE_MGMT,
-        result: unprotected === 0 ? "pass" : "fail",
+        result: unprotected > 0 ? "fail" : partial ? "inconclusive" : "pass",
         detail:
-          unprotected === 0
-            ? `All ${p.checked} checked repositories enforce branch protection.`
-            : `${plural(unprotected, "active repository", "active repositories")} ${agree(unprotected, "has", "have")} no branch protection on the default branch.`,
+          unprotected > 0
+            ? `${plural(unprotected, "active repository", "active repositories")} ${agree(unprotected, "has", "have")} no branch protection on the default branch.`
+            : partial
+              ? `${p.checked} repositories checked have branch protection, but ${unread || "some"} couldn't be read (permission or the per-sync limit), so this isn't verified for every repository.`
+              : `All ${p.checked} active repositories enforce branch protection.`,
       });
     }
     checks.push({
       checkKey: "github.repo_visibility",
       controlCodes: VISIBILITY,
-      result: p.publicCount === 0 ? "pass" : "fail",
+      result: p.publicCount > 0 ? "fail" : p.truncated ? "inconclusive" : "pass",
       detail:
-        p.publicCount === 0
-          ? "No public repositories."
-          : `${plural(p.publicCount, "public repository", "public repositories")} — confirm this exposure is intended.`,
+        p.publicCount > 0
+          ? `${plural(p.publicCount, "public repository", "public repositories")} — confirm this exposure is intended.`
+          : p.truncated
+            ? "No public repositories among those read, but there are more repositories than one sync lists."
+            : "No public repositories.",
     });
     return checks;
   },
@@ -127,11 +133,19 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
       });
     } else {
       const ratio = pct(p.mfaEnrolled, p.mfaChecked);
+      // Every active user, or it isn't a pass: the old check read the first 50.
+      const unread = Math.max(0, (p.active ?? p.mfaChecked) - p.mfaChecked);
+      const weak = p.mfaWeakOnly
+        ? ` ${plural(p.mfaWeakOnly, "of them only has", "of them only have")} SMS, voice or email as a second factor.`
+        : "";
       checks.push({
         checkKey: "okta.mfa",
         controlCodes: MFA,
-        result: ratio >= 90 ? "pass" : "fail",
-        detail: `${p.mfaEnrolled}/${p.mfaChecked} active users have MFA enrolled (${ratio}%).`,
+        result: ratio < 90 ? "fail" : unread > 0 || p.truncated ? "inconclusive" : "pass",
+        detail:
+          ratio < 90 || !(unread > 0 || p.truncated)
+            ? `${p.mfaEnrolled}/${p.mfaChecked} active users have MFA enrolled (${ratio}%).${weak}`
+            : `${p.mfaEnrolled}/${p.mfaChecked} active users checked have MFA enrolled, but ${unread || "some"} couldn't be checked this sync, so it isn't verified for everyone.${weak}`,
       });
     }
     const minLen = p.passwordMinLength;
@@ -184,21 +198,28 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
         { checkKey: "cloudflare.tls", controlCodes: TLS, result: "inconclusive", detail: "No zones found." },
       ];
     }
+    // A setting we couldn't read is unknown — never "off", never "fine".
+    const unread = p.zones.filter((z: any) => [z.ssl, z.minTls, z.alwaysHttps].includes("unknown"));
     const weak = p.zones.filter((z: any) => {
-      const sslOk = z.ssl === "full" || z.ssl === "strict";
+      if ([z.ssl, z.minTls, z.alwaysHttps].includes("unknown")) return false;
+      // "full" encrypts to the origin but accepts any certificate there; only "strict" checks it.
+      const sslOk = z.ssl === "strict";
       const tlsOk = parseFloat(z.minTls) >= 1.2;
       const httpsOk = z.alwaysHttps === "on";
       return !(sslOk && tlsOk && httpsOk);
     });
+    const unchecked = Math.max(0, p.totalZones - p.zones.length);
+    const names = (zs: any[]) => zs.slice(0, 5).map((z) => z.name).join(", ") + (zs.length > 5 ? ` and ${zs.length - 5} more` : "");
     return [
       {
         checkKey: "cloudflare.tls",
         controlCodes: TLS,
-        result: weak.length === 0 ? "pass" : "fail",
-        detail:
-          weak.length === 0
-            ? `All ${p.totalZones} zones enforce strong TLS (full/strict SSL, min TLS ≥ 1.2, always-HTTPS).`
-            : `${plural(weak.length, "zone")} ${agree(weak.length, "has", "have")} weak TLS settings (SSL mode, minimum TLS, or always-HTTPS).`,
+        result: weak.length ? "fail" : unread.length || unchecked ? "inconclusive" : "pass",
+        detail: weak.length
+          ? `${plural(weak.length, "zone")} ${agree(weak.length, "has", "have")} weak TLS (SSL must be Full (strict), minimum TLS 1.2, Always Use HTTPS on): ${names(weak)}.`
+          : unread.length || unchecked
+            ? `The zones read enforce strong TLS, but ${unread.length ? `settings of ${plural(unread.length, "zone")} couldn't be read (the token needs Zone Settings Read)` : ""}${unread.length && unchecked ? " and " : ""}${unchecked ? `${plural(unchecked, "zone")} ${agree(unchecked, "wasn't", "weren't")} checked this sync` : ""}.`
+            : `All ${p.totalZones} zones enforce strong TLS (Full (strict) SSL, min TLS ≥ 1.2, Always Use HTTPS).`,
       },
     ];
   },
@@ -213,27 +234,35 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
         detail: "No projects found to check.",
       });
     } else {
-      const unprotected = (p.repos ?? []).filter(
-        (r: any) => r.branchProtection === "unprotected",
-      ).length;
+      const active = (p.repos ?? []).filter((r: any) => !r.archived && r.defaultBranch !== null);
+      const unprotected = active.filter((r: any) => r.branchProtection === "unprotected").length;
+      const unread = active.filter((r: any) => r.branchProtection === "unknown").length;
+      // Every lookup failing used to read as "all protected".
+      const partial = p.checked === undefined || unread > 0 || p.truncated;
       checks.push({
         checkKey: "gitlab.branch_protection",
         controlCodes: CHANGE_MGMT,
-        result: unprotected === 0 ? "pass" : "fail",
+        result: unprotected > 0 ? "fail" : partial ? "inconclusive" : "pass",
         detail:
-          unprotected === 0
-            ? `All ${p.total} projects have protected branches.`
-            : `${plural(unprotected, "project")} ${agree(unprotected, "has", "have")} no protected branches.`,
+          unprotected > 0
+            ? `${plural(unprotected, "project")} ${agree(unprotected, "has", "have")} an unprotected default branch.`
+            : partial
+              ? `The projects read protect their default branch, but ${unread || "some"} couldn't be read this sync, so it isn't verified for every project.`
+              : `All ${p.checked} active projects protect their default branch.`,
       });
     }
+    // Postures from before visibility was actually read can't vouch for anything.
+    const visibilityRead = (p.repos ?? []).every((r: any) => typeof r.visibility === "string");
     checks.push({
       checkKey: "gitlab.visibility",
       controlCodes: VISIBILITY,
-      result: p.publicCount === 0 ? "pass" : "fail",
+      result: p.publicCount > 0 ? "fail" : !visibilityRead || p.truncated ? "inconclusive" : "pass",
       detail:
-        p.publicCount === 0
-          ? "No public projects."
-          : `${plural(p.publicCount, "public project")} — confirm this exposure is intended.`,
+        p.publicCount > 0
+          ? `${plural(p.publicCount, "public project")} — confirm this exposure is intended.`
+          : !visibilityRead || p.truncated
+            ? "Project visibility couldn't be read for every project, so this isn't verified."
+            : "No public projects.",
     });
     return checks;
   },

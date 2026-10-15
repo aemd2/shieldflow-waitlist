@@ -47,25 +47,31 @@ export interface GitLabRepo {
   fullPath: string;
   visibility: string; // public | internal | private
   archived: boolean;
+  defaultBranch: string | null;
+  /** Of the DEFAULT branch — the one production code merges into. */
   branchProtection: "protected" | "unprotected" | "unknown";
 }
 
 export interface GitLabReport {
   repos: GitLabRepo[];
   total: number;
+  /** Active projects whose default branch was actually read. */
+  checked: number;
   protectedCount: number;
   publicCount: number;
   truncated: boolean;
 }
 
 export async function fetchRepoSecurity(token: string): Promise<GitLabReport> {
-  type Raw = { id: number; path_with_namespace: string; visibility: string; archived: boolean };
+  type Raw = { id: number; path_with_namespace: string; visibility: string; archived: boolean; default_branch: string | null };
   const raw: Raw[] = [];
   let truncated = false;
 
   for (let page = 1; page <= MAX_PROJECT_PAGES; page++) {
+    // Not `simple=true`: that view leaves out `visibility` and `archived`, which
+    // made every project look private and active — a public project could never fail.
     const res = await glGet(
-      `/projects?membership=true&per_page=100&page=${page}&order_by=last_activity_at&simple=true`,
+      `/projects?membership=true&per_page=100&page=${page}&order_by=last_activity_at`,
       token,
     );
     check(res);
@@ -78,18 +84,21 @@ export async function fetchRepoSecurity(token: string): Promise<GitLabReport> {
   const repos: GitLabRepo[] = raw.map((r) => ({
     fullPath: r.path_with_namespace,
     visibility: r.visibility,
-    archived: r.archived,
+    archived: Boolean(r.archived),
+    defaultBranch: r.default_branch ?? null,
     branchProtection: "unknown",
   }));
 
-  // Detail-check protected branches on active repos, capped.
-  const active = raw.filter((r) => !r.archived);
+  // Is the default branch protected? (Any protected branch used to count — a
+  // protected `release` branch said nothing about where code actually lands.)
+  const active = raw.filter((r) => !r.archived && r.default_branch);
   if (active.length > MAX_DETAIL_CHECKS) truncated = true;
+  let checked = 0;
   for (let i = 0; i < Math.min(active.length, MAX_DETAIL_CHECKS); i++) {
     const r = active[i];
     let res: Response;
     try {
-      res = await fetch(`${API}/projects/${r.id}/protected_branches`, {
+      res = await fetch(`${API}/projects/${r.id}/protected_branches/${encodeURIComponent(r.default_branch!)}`, {
         headers: headers(token),
         signal: AbortSignal.timeout(15_000),
       });
@@ -103,14 +112,19 @@ export async function fetchRepoSecurity(token: string): Promise<GitLabReport> {
     }
     const target = repos.find((x) => x.fullPath === r.path_with_namespace)!;
     if (res.ok) {
-      const branches = (await res.json()) as unknown[];
-      target.branchProtection = branches.length > 0 ? "protected" : "unprotected";
+      target.branchProtection = "protected";
+      checked++;
+    } else if (res.status === 404) {
+      target.branchProtection = "unprotected";
+      checked++;
     }
+    // 403 and the rest stay "unknown" — never counted as protected.
   }
 
   return {
     repos,
     total: repos.length,
+    checked,
     protectedCount: repos.filter((r) => r.branchProtection === "protected").length,
     publicCount: repos.filter((r) => r.visibility === "public" && !r.archived).length,
     truncated,

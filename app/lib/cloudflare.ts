@@ -3,7 +3,7 @@
 // security posture (SSL/TLS mode, min TLS version, always-use-HTTPS).
 
 const API = "https://api.cloudflare.com/client/v4";
-const MAX_ZONES = 25;
+const MAX_ZONES = 100;
 
 export class CloudflareError extends Error {
   constructor(
@@ -43,22 +43,13 @@ export async function validateToken(token: string): Promise<string> {
   return "Cloudflare";
 }
 
-async function zoneSetting(token: string, zoneId: string, setting: string): Promise<string> {
-  try {
-    const res = await cfGet(`/zones/${zoneId}/settings/${setting}`, token);
-    if (!res.ok) return "unknown";
-    const json = (await res.json()) as { result?: { value?: unknown } };
-    return String(json.result?.value ?? "unknown");
-  } catch {
-    return "unknown";
-  }
-}
-
 export interface CloudflareZone {
   name: string;
-  ssl: string; // off | flexible | full | strict
-  minTls: string; // 1.0 | 1.1 | 1.2 | 1.3
-  alwaysHttps: string; // on | off
+  ssl: string; // off | flexible | full | strict | unknown
+  minTls: string; // 1.0 | 1.1 | 1.2 | 1.3 | unknown
+  alwaysHttps: string; // on | off | unknown
+  /** HSTS on the edge: "on" | "off" | "unknown". Shown, not yet a check. */
+  hsts: string;
 }
 
 export interface CloudflareReport {
@@ -67,22 +58,41 @@ export interface CloudflareReport {
   truncated: boolean;
 }
 
+/** Every setting of a zone in one call; any we can't read stay "unknown" (never "off"). */
+async function zoneSettings(token: string, zoneId: string): Promise<Omit<CloudflareZone, "name">> {
+  const unknown = { ssl: "unknown", minTls: "unknown", alwaysHttps: "unknown", hsts: "unknown" };
+  try {
+    const res = await cfGet(`/zones/${zoneId}/settings`, token);
+    if (!res.ok) return unknown;
+    const json = (await res.json()) as { result?: Array<{ id: string; value?: unknown }> };
+    const get = (id: string) => json.result?.find((s) => s.id === id)?.value;
+    const header = get("security_header") as { strict_transport_security?: { enabled?: boolean } } | undefined;
+    const str = (v: unknown) => (v === undefined || v === null ? "unknown" : String(v));
+    return {
+      ssl: str(get("ssl")),
+      minTls: str(get("min_tls_version")),
+      alwaysHttps: str(get("always_use_https")),
+      hsts: header?.strict_transport_security ? (header.strict_transport_security.enabled ? "on" : "off") : "unknown",
+    };
+  } catch {
+    return unknown;
+  }
+}
+
 export async function fetchZoneSecurity(token: string): Promise<CloudflareReport> {
-  const res = await cfGet("/zones?per_page=50", token);
-  check(res);
-  const json = (await res.json()) as { result?: Array<{ id: string; name: string }> };
-  const all = json.result ?? [];
+  // Every zone, not just the first page: a zone we never looked at can't pass.
+  const all: Array<{ id: string; name: string }> = [];
+  for (let page = 1; page <= 4; page++) {
+    const res = await cfGet(`/zones?per_page=50&page=${page}`, token);
+    check(res);
+    const json = (await res.json()) as { result?: Array<{ id: string; name: string }>; result_info?: { total_pages?: number } };
+    all.push(...(json.result ?? []));
+    if (page >= (json.result_info?.total_pages ?? 1)) break;
+  }
   const slice = all.slice(0, MAX_ZONES);
 
   const zones: CloudflareZone[] = [];
-  for (const z of slice) {
-    zones.push({
-      name: z.name,
-      ssl: await zoneSetting(token, z.id, "ssl"),
-      minTls: await zoneSetting(token, z.id, "min_tls_version"),
-      alwaysHttps: await zoneSetting(token, z.id, "always_use_https"),
-    });
-  }
+  for (const z of slice) zones.push({ name: z.name, ...(await zoneSettings(token, z.id)) });
 
   return { totalZones: all.length, zones, truncated: all.length > slice.length };
 }

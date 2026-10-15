@@ -8,7 +8,8 @@ const MAX_USERS_PER_PAGE = 200; // Okta's own per-page maximum
 // roster checks, which would confidently pass while an offboarded person sat on
 // an unread page.
 const MAX_USER_PAGES = 5;
-const MAX_MFA_CHECKS = 50; // factor lookups are 1 request each — cap them
+const MAX_MFA_CHECKS = 300; // factor lookups are 1 request each — cap them
+const WEAK_FACTORS = new Set(["sms", "call", "email", "question"]);
 const MAX_APP_PAGES = 2; // 2 x 200 apps is far more than the target market runs
 
 /**
@@ -94,6 +95,8 @@ export interface OktaSecurityReport {
   deprovisioned: number;
   mfaChecked: number;
   mfaEnrolled: number;
+  /** Enrolled, but only in SMS / call / email / security question. */
+  mfaWeakOnly?: number;
   passwordMinLength: number | null;
   passwordRequiresComplexity: boolean;
   /** Every user we read — the roster the identity checks reconcile against. */
@@ -240,18 +243,33 @@ export async function fetchUserSecurity(host: string, token: string): Promise<Ok
     else if (u.status === "DEPROVISIONED") counts.deprovisioned++;
   }
 
-  // MFA enrollment on a capped subset of active users.
+  // MFA enrollment, five lookups at a time. If not every active user could be
+  // read, the evaluator says so instead of passing on the part it saw.
   let mfaChecked = 0;
   let mfaEnrolled = 0;
+  let mfaWeakOnly = 0;
   const toCheck = users.filter((u) => u.status === "ACTIVE").slice(0, MAX_MFA_CHECKS);
-  for (const u of toCheck) {
-    const fRes = await oktaGet(host, `/api/v1/users/${u.id}/factors`, token);
-    if (fRes.status === 429) break; // keep what we have
-    if (!fRes.ok) continue;
-    const factors = (await fRes.json()) as Array<{ status: string }>;
-    mfaChecked++;
-    if (factors.some((f) => f.status === "ACTIVE")) mfaEnrolled++;
-  }
+  let next = 0;
+  let throttled = false;
+  await Promise.all(
+    Array.from({ length: 5 }, async () => {
+      while (next < toCheck.length && !throttled) {
+        const u = toCheck[next++];
+        const fRes = await oktaGet(host, `/api/v1/users/${u.id}/factors`, token);
+        if (fRes.status === 429) {
+          throttled = true; // keep what we have
+          return;
+        }
+        if (!fRes.ok) continue;
+        const factors = ((await fRes.json()) as Array<{ status: string; factorType?: string }>).filter((f) => f.status === "ACTIVE");
+        mfaChecked++;
+        if (!factors.length) continue;
+        mfaEnrolled++;
+        // SMS, voice call, email and security questions are phishable or recoverable by anyone with the inbox.
+        if (factors.every((f) => WEAK_FACTORS.has(f.factorType ?? ""))) mfaWeakOnly++;
+      }
+    }),
+  );
 
   // Password policy (best-effort — older orgs may not expose it).
   let passwordMinLength: number | null = null;
@@ -277,6 +295,7 @@ export async function fetchUserSecurity(host: string, token: string): Promise<Ok
     deprovisioned: counts.deprovisioned,
     mfaChecked,
     mfaEnrolled,
+    mfaWeakOnly,
     passwordMinLength,
     passwordRequiresComplexity,
     roster: users.filter((u) => u.profile?.email).map(toOktaUser),
