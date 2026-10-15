@@ -15,6 +15,9 @@
  *   walkthrough  the pitch — clips 1–6
  *   aws          ShieldFlow for AWS — clips 16–20
  *   full-tour    every clip, 1–20
+ *   one-minute/  eight videos under a minute, one per selling point
+ *
+ *   npx tsx scripts/recording/stitch.ts one-minute   just those (or any cut name)
  *
  * Also writes <cut>.srt (closed captions for YouTube/LinkedIn uploads) and
  * VOICEOVER.md (the script with the second each line starts).
@@ -25,7 +28,7 @@ config({ path: ".env.local" });
 import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { audioSeconds, speak, TtsUnavailable, VOICE } from "./tts";
+import { audioSeconds, isCached, speak, TtsUnavailable, VOICE } from "./tts";
 
 const OUT_DIR = path.resolve(process.cwd(), "..", "recordings");
 const TMP = path.join(OUT_DIR, ".tmp", "stitch");
@@ -143,10 +146,132 @@ const AWS: Segment[] = [
   },
 ];
 
-const CUTS: { name: string; title: string; segments: Segment[] }[] = [
-  { name: "walkthrough", title: "Walkthrough — the pitch (clips 1–6)", segments: [TITLE, ...PITCH, END] },
-  { name: "aws", title: "ShieldFlow for AWS (clips 16–20)", segments: [TITLE_AWS, ...AWS, END] },
-  { name: "full-tour", title: "Full tour — every feature (clips 1–20)", segments: [TITLE, ...PITCH, ...MORE, ...AWS, END] },
+/* ---------- one-minute videos, one per selling point ---------- */
+
+/** A selling point's opening card: what it is, the promise, and the sample-company note. */
+function opener(headline: string, promise: string, say: string, voice?: string): Segment {
+  return {
+    card: {
+      seconds: 3.2,
+      lines: [
+        { text: headline, size: 64, color: "white" },
+        { text: promise, size: 34, color: "0x34D399" },
+        { text: SAMPLE_NOTE, size: 20, color: "0x94A3B8" },
+      ],
+    },
+    say,
+    voice,
+  };
+}
+
+const SHORT_END: Segment = {
+  card: {
+    seconds: 3.0,
+    lines: [
+      { text: "ShieldFlow", size: 64, color: "white" },
+      { text: "shieldflow.cloud", size: 40, color: "0x34D399" },
+    ],
+  },
+  say: "ShieldFlow — at shieldflow.cloud.",
+  voice: "ShieldFlow — at shieldflow dot cloud.",
+};
+
+const SHORTS: { name: string; title: string; segments: Segment[] }[] = [
+  {
+    name: "1-do-the-work-once",
+    title: "Do the work once — cross-framework credit",
+    segments: [
+      opener("Do the work once", "One piece of work, credit in every framework.", "Running SOC 2 and ISO 27001 side by side? You shouldn't do the work twice.", "Running SOC two and ISO twenty-seven-oh-oh-one side by side? You shouldn't do the work twice."),
+      { clip: "01-work-once", say: "Complete a measure once — like encrypting data at rest — and every framework that needs it gets the credit." },
+      { clip: "02-add-framework", say: "Add NIS2 later, and it doesn't start at zero: the work you've already done counts straight away.", voice: "Add NIS two later, and it doesn't start at zero: the work you've already done counts straight away." },
+      { clip: "11-evidence", say: "Evidence works the same way. Attach a document once, and it covers every requirement it proves, in every framework." },
+      SHORT_END,
+    ],
+  },
+  {
+    name: "2-checks-that-run-themselves",
+    title: "Checks that run themselves",
+    segments: [
+      opener("Checks that run themselves", "Every day, in the tools you already use.", "Compliance should stay true after the audit — not just on audit day."),
+      { clip: "03-checks", say: "Every day, ShieldFlow checks the tools you've connected: what passes, what fails, and what it honestly can't tell." },
+      { clip: "04-leaver", say: "When something fails, it names it. Priya left Northwind in August — and her account is still open." },
+      { clip: "05-alert", say: "And you don't have to go looking: when a check changes, you get an email." },
+      SHORT_END,
+    ],
+  },
+  {
+    name: "3-win-the-security-review",
+    title: "Win the security review",
+    segments: [
+      opener("Win the security review", "Questionnaires, Trust Center, report.", "A customer sends a security questionnaire, and the deal waits on you."),
+      { clip: "06-questionnaire", say: "Paste it in. ShieldFlow drafts every answer from the work you've actually done — and flags the ones it can't back up." },
+      { clip: "09-trust-center", say: "Send prospects your Trust Center: a live page that updates itself as you work." },
+      { clip: "12-report", say: "And when an auditor asks, the report puts everything on one page — open problems included." },
+      SHORT_END,
+    ],
+  },
+  {
+    name: "4-aws-fix-this-week",
+    title: "AWS — what to fix this week",
+    segments: [
+      opener("Your AWS, every morning", "Read-only. Every account. No keys.", "Your AWS, checked every morning — without handing over a single key.", "Your A W S, checked every morning — without handing over a single key."),
+      { clip: "16-aws-connect", say: "Connect with one read-only role. It's blocked from reading your data, and the full list of what it reads is public." },
+      { clip: "17-aws-fix-this-week", say: "Then every morning you get a short list: the exact resource, the Terraform to fix it — and what outdated databases are costing you." },
+      SHORT_END,
+    ],
+  },
+  {
+    name: "5-aws-access-and-changes",
+    title: "AWS — who has access, and what changed",
+    segments: [
+      opener("Who can get in. What changed.", "The two lists every auditor samples.", "Auditors always ask two things about production: who can get in, and what changed."),
+      { clip: "18-aws-people", say: "ShieldFlow shows who can reach production, and how. Priya left in August — she's still an AWS admin.", voice: "ShieldFlow shows who can reach production, and how. Priya left in August — she's still an A W S admin." },
+      { clip: "19-aws-changes", say: "Changes made by hand in the console are listed too. Record why, and that's your change-management evidence." },
+      SHORT_END,
+    ],
+  },
+  {
+    name: "6-ready-for-eu-customers",
+    title: "Ready for EU customers — NIS2, DORA, data residency",
+    segments: [
+      opener("Ready for EU customers", "NIS2, DORA and GDPR — with proof.", "Selling to European customers? They'll ask about NIS2, DORA — and where your data lives.", "Selling to European customers? They'll ask about NIS two, DORA — and where your data lives."),
+      { clip: "02-add-framework", say: "Add NIS2 to the frameworks you already run, and your existing work is credited on day one.", voice: "Add NIS two to the frameworks you already run, and your existing work is credited on day one." },
+      { clip: "20-aws-facts", say: "ShieldFlow checks where every copy of your data lives. Promised EU hosting? It found a backup copy in Virginia — and the supplier data sheet is one click.", voice: "ShieldFlow checks where every copy of your data lives. Promised E U hosting? It found a backup copy in Virginia — and the supplier data sheet is one click." },
+      SHORT_END,
+    ],
+  },
+  {
+    name: "7-your-first-audit-guided",
+    title: "Your first audit, guided",
+    segments: [
+      opener("Your first audit, guided", "A plan, drafts and answers — built in.", "First time doing compliance? Nobody hands you a plan."),
+      { clip: "10-sprint", say: "The 14-day sprint does: four phases, and each one opens up as you make real progress.", voice: "The fourteen-day sprint does: four phases, and each one opens up as you make real progress." },
+      { clip: "08-policy", say: "Need a policy? Pick one and get a first draft in seconds. You read it, edit it, approve it." },
+      { clip: "13-copilot", say: "Stuck? Ask the Co-Pilot. It answers from your own workspace — starting with what's actually broken." },
+      SHORT_END,
+    ],
+  },
+  {
+    name: "8-audit-ready-by-default",
+    title: "Audit-ready by default",
+    segments: [
+      opener("Audit-ready by default", "Every decision, on the record.", "Audits fail on missing records, not missing effort."),
+      { clip: "07-access-review", say: "Access reviews: keep or revoke down the list, and the signed record is filed as evidence." },
+      { clip: "14-vendors-risks", say: "Vendors and risks live alongside: each vendor's last review, each risk's plan." },
+      { clip: "15-activity", say: "And every change is logged — who did what, and when. Nobody on the team can edit it." },
+      SHORT_END,
+    ],
+  },
+];
+
+/** Longest a one-minute video may run. */
+const SHORT_MAX = 60;
+
+const CUTS: { name: string; title: string; segments: Segment[]; dir?: string; max?: number }[] = [
+  { name: "walkthrough", title: "Walkthrough — the pitch (clips 1–6)", segments: [TITLE, ...PITCH, END], dir: "walkthrough" },
+  { name: "aws", title: "ShieldFlow for AWS (clips 16–20)", segments: [TITLE_AWS, ...AWS, END], dir: "aws" },
+  { name: "full-tour", title: "Full tour — every feature (clips 1–20)", segments: [TITLE, ...PITCH, ...MORE, ...AWS, END], dir: "full-tour" },
+  ...SHORTS.map((s) => ({ ...s, title: `One minute: ${s.title}`, dir: "one-minute", max: SHORT_MAX })),
 ];
 
 // ------------------------------------------------------------------ helpers
@@ -235,6 +360,27 @@ async function speech(s: Segment): Promise<{ sentence: string; wav: string | nul
   const spoken = sentences(s.voice ?? s.say);
   const same = shown.length === spoken.length;
   const out: { sentence: string; wav: string | null; seconds: number }[] = [];
+
+  // Groq's free tier allows ~100 voice requests a day, so a line that isn't
+  // already cached sentence by sentence is spoken in ONE request, and its
+  // sentences are timed by their share of it (subtitles still change per sentence).
+  if (!voiceProblem && !spoken.every((s) => isCached(s))) {
+    try {
+      const wav = await speak(s.voice ?? s.say);
+      const seconds = audioSeconds(wav);
+      const chars = shown.reduce((n, x) => n + x.length, 0);
+      // The whole line plays from the first sentence's slot; the rest carry timing only.
+      return shown.map((sentence, i) => ({
+        sentence,
+        wav: i === 0 ? wav : null,
+        seconds: Math.max(0.3, (seconds * sentence.length) / chars - (i < shown.length - 1 ? GAP : 0)),
+      }));
+    } catch (e) {
+      if (!(e instanceof TtsUnavailable)) throw e;
+      voiceProblem = e.message;
+    }
+  }
+
   // One at a time: gentler on the voice API's rate limit, and cached after the first run.
   for (const [i, sentence] of shown.entries()) {
     const say = same ? spoken[i] : sentence;
@@ -289,6 +435,10 @@ async function buildCut(cut: (typeof CUTS)[number]): Promise<string[]> {
     start += length - FADE;
   }
   const total = start + FADE;
+  const outDir = cut.dir ? path.join(OUT_DIR, cut.dir) : OUT_DIR;
+  mkdirSync(outDir, { recursive: true });
+  const shown = cut.dir ? `${cut.dir}/${cut.name}` : cut.name;
+  if (cut.max && total > cut.max) console.log(`  ⚠ ${cut.name} runs ${mmss(total)} — over ${cut.max}s; trim a line`);
 
   // Subtitles stay up through short pauses, so they don't flicker between sentences.
   for (let i = 0; i < lines.length; i++) {
@@ -317,7 +467,7 @@ async function buildCut(cut: (typeof CUTS)[number]): Promise<string[]> {
     ...lines.map((l) => `Dialogue: 0,${stamp(l.start, ".")},${stamp(l.end, ".")},Default,,0,0,0,,${l.text.replace(/\n/g, " ")}`),
   ].join("\n");
   writeFileSync(path.join(TMP, `${cut.name}.ass`), ass, "utf8");
-  const subtitled = path.join(OUT_DIR, `${cut.name}-subtitles.mp4`);
+  const subtitled = path.join(outDir, `${cut.name}-subtitles.mp4`);
   run([
     "-i", clean,
     "-vf", `subtitles=${cut.name}.ass:fontsdir=.`,
@@ -325,13 +475,13 @@ async function buildCut(cut: (typeof CUTS)[number]): Promise<string[]> {
   ]);
 
   writeFileSync(
-    path.join(OUT_DIR, `${cut.name}.srt`),
+    path.join(outDir, `${cut.name}.srt`),
     lines.map((l, i) => `${i + 1}\n${stamp(l.start, ",")} --> ${stamp(l.end, ",")}\n${l.text}\n`).join("\n"),
     "utf8",
   );
 
   // Voice: every sentence placed at its moment, mixed, levelled for speech.
-  const voiced = path.join(OUT_DIR, `${cut.name}-voice.mp4`);
+  const voiced = path.join(outDir, `${cut.name}-voice.mp4`);
   if (!voiceProblem && spoken.length) {
     const inputs = spoken.flatMap((s) => ["-i", s.wav]);
     const delays = spoken.map((s, k) => `[${k + 1}:a]adelay=${Math.round(s.at * 1000)}:all=1[a${k}]`);
@@ -352,7 +502,7 @@ async function buildCut(cut: (typeof CUTS)[number]): Promise<string[]> {
   return [
     `## ${cut.title}`,
     "",
-    `Length ${mmss(total)}. \`${cut.name}-voice.mp4\` has the AI narrator; \`${cut.name}-subtitles.mp4\` shows the same words as subtitles with no sound; \`${cut.name}.srt\` is the caption file for uploads.`,
+    `Length ${mmss(total)}. \`${shown}-voice.mp4\` has the AI narrator; \`${shown}-subtitles.mp4\` shows the same words as subtitles with no sound; \`${shown}.srt\` is the caption file for uploads.`,
     "",
     "| Starts | Clip | Narration |",
     "|---|---|---|",
@@ -370,8 +520,16 @@ async function main() {
   // The older versions (made for a human narrator) are replaced by these two.
   for (const f of readdirSync(OUT_DIR)) if (/-(clean|captioned)\.mp4$/.test(f)) rmSync(path.join(OUT_DIR, f));
 
+  // `stitch.ts one-minute` (or any cut name) builds just those.
+  const only = process.argv.slice(2);
+  const chosen = only.length ? CUTS.filter((c) => only.some((o) => c.name.includes(o) || c.dir === o)) : CUTS;
   const sections: string[] = [];
-  for (const cut of CUTS) sections.push(...(await buildCut(cut)));
+  for (const cut of chosen) sections.push(...(await buildCut(cut)));
+  if (only.length) {
+    rmSync(TMP, { recursive: true, force: true });
+    if (voiceProblem) console.log(`\nVoice versions skipped — ${voiceProblem}`);
+    return; // VOICEOVER.md covers every cut; a full run rewrites it
+  }
 
   const md = [
     "# Narration script — ShieldFlow videos",

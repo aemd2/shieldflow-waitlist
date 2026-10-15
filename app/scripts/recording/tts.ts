@@ -29,12 +29,21 @@ export function audioSeconds(file: string): number {
   );
 }
 
+const cacheFile = (text: string, voice: string) =>
+  path.join(CACHE, `${createHash("sha256").update(`${MODEL}|${voice}|${text}`).digest("hex").slice(0, 20)}.wav`);
+
+/** Already spoken (and so free to reuse)? */
+export function isCached(text: string, voice = VOICE): boolean {
+  return existsSync(cacheFile(text, voice));
+}
+
 /** A wav of `text` spoken by the narrator; returns its path. */
 export async function speak(text: string, voice = VOICE): Promise<string> {
   mkdirSync(CACHE, { recursive: true });
-  const id = createHash("sha256").update(`${MODEL}|${voice}|${text}`).digest("hex").slice(0, 20);
-  const file = path.join(CACHE, `${id}.wav`);
+  const file = cacheFile(text, voice);
+  const id = path.basename(file, ".wav");
   if (existsSync(file)) return file;
+  console.log(`  voice: "${text.slice(0, 60)}${text.length > 60 ? "…" : ""}"`);
 
   for (let attempt = 0; attempt < 6; attempt++) {
     const res = await fetch("https://api.groq.com/openai/v1/audio/speech", {
