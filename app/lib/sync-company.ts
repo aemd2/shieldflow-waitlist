@@ -14,6 +14,7 @@ import {
 import { notifyCompanyViaAdmin } from "@/lib/notify";
 import { awsWeeklyDigest } from "@/lib/aws/weekly";
 import { plural, agree } from "@/lib/plural";
+import { buildDigestText, postToSlack, redChecksText } from "@/lib/slack-alerts";
 
 export interface CompanySyncSummary {
   integrations: number;
@@ -47,11 +48,16 @@ export async function syncCompany(admin: SupabaseClient, companyId: string): Pro
 
   let companyDrift = 0;
   let companyFailing = 0;
+  /** Checks that were passing (or can't-tell) yesterday and fail today — for Slack. */
+  const turnedRed: { checkKey: string; detail: string }[] = [];
 
   // HR systems first: they bring Personnel up to date, and every other
   // provider's leaver check reads Personnel.
   const HR_FIRST = new Set(["personio", "hibob", "bamboohr"]);
-  const ordered = ((integs ?? []) as ConnectedIntegration[]).sort((a, b) => Number(HR_FIRST.has(b.provider)) - Number(HR_FIRST.has(a.provider)));
+  // Ticket trackers last: they look up the tickets of the changes the code hosts just recorded.
+  const TRACKERS_LAST = new Set(["jira", "linear"]);
+  const rank = (p: string) => (HR_FIRST.has(p) ? 0 : TRACKERS_LAST.has(p) ? 2 : 1);
+  const ordered = ((integs ?? []) as ConnectedIntegration[]).sort((a, b) => rank(a.provider) - rank(b.provider));
 
   for (const integ of ordered) {
     summary.integrations++;
@@ -87,7 +93,10 @@ export async function syncCompany(admin: SupabaseClient, companyId: string): Pro
         const old = oldByKey.get(rc.checkKey);
         if (old && old !== rc.result && (rc.result === "fail" || old === "fail")) {
           companyDrift++;
-          if (rc.result === "fail") companyFailing++;
+          if (rc.result === "fail") {
+            companyFailing++;
+            if (rc.controlCodes.length) turnedRed.push({ checkKey: rc.checkKey, detail: rc.detail });
+          }
         }
       }
     } catch (err) {
@@ -133,10 +142,16 @@ export async function syncCompany(admin: SupabaseClient, companyId: string): Pro
     });
   }
 
-  // Mondays: the weekly AWS summary (it skips itself if sent in the last 6 days).
+  // Slack: the checks that turned red this morning (informational ones never alert).
+  const { data: company } = await admin.from("companies").select("name").eq("id", companyId).maybeSingle();
+  const companyName = (company?.name as string | undefined) ?? "your workspace";
+  if (turnedRed.length) await postToSlack(admin, companyId, "alerts", () => redChecksText(companyName, turnedRed));
+
+  // Mondays: the weekly AWS summary and the Slack digest (each skips itself if sent in the last 6 days).
   if (new Date().getUTCDay() === 1) {
     const weekly = await awsWeeklyDigest(admin, companyId).catch(() => null);
     if (weekly) await notifyCompanyViaAdmin(admin, companyId, weekly);
+    await postToSlack(admin, companyId, "weekly", () => buildDigestText(admin, companyId, companyName));
   }
 
   return summary;

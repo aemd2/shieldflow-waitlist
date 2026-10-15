@@ -10,6 +10,7 @@ import { scanOkta } from "@/lib/integrations/okta/scan";
 import { scanGcp } from "@/lib/integrations/gcp/scan";
 import { scanCloudflare } from "@/lib/integrations/cloudflare/scan";
 import { scanGitLab } from "@/lib/integrations/gitlab/scan";
+import { scanTracker } from "@/lib/integrations/tickets/scan";
 
 /**
  * Providers whose posture maps to automated checks AND can be re-synced without a
@@ -36,6 +37,8 @@ export const SYNCABLE_PROVIDERS = [
   "bamboohr",
   "kandji",
   "jamf",
+  "jira",
+  "linear",
 ] as const;
 export type SyncableProvider = (typeof SYNCABLE_PROVIDERS)[number];
 
@@ -106,6 +109,10 @@ export async function fetchPostureFor(
     case "bamboohr":
       // Also brings Personnel up to date, before the other providers' leaver checks read it.
       return scanHris(db, integ.provider, { id: integ.id, company_id: integ.company_id, access_token: integ.access_token, metadata: integ.metadata ?? null });
+    case "jira":
+    case "linear":
+      // After GitHub / GitLab (see sync-company), so today's merges get their tickets looked up.
+      return scanTracker(db, integ.provider, row);
     case "kandji":
     case "jamf":
       return scanMdm(db, integ.provider, { id: integ.id, company_id: integ.company_id, access_token: integ.access_token, metadata: integ.metadata ?? null });

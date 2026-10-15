@@ -17,6 +17,9 @@ import { OKTA_DEFAULTS, type OktaExtra } from "@/lib/integrations/okta/scan";
 import { canSignIn } from "@/lib/integrations/okta/evaluate";
 import type { CloudflareExtra } from "@/lib/integrations/cloudflare/scan";
 import { GCP_DEFAULTS, type GcpExtra } from "@/lib/integrations/gcp/scan";
+import type { TrackerExtra } from "@/lib/integrations/tickets/scan";
+import { jiraProjects, linearTeams, type JiraCreds } from "@/lib/integrations/tickets/clients";
+import { decryptSecret } from "@/lib/crypto";
 import { MDM_DEFAULTS, type MdmExtra } from "@/lib/integrations/mdm/scan";
 
 /**
@@ -55,6 +58,9 @@ export interface ChangeRowView {
   approvers: string[];
   independent: boolean;
   ticket: string | null;
+  ticketTitle: string | null;
+  ticketStatus: string | null;
+  ticketUrl: string | null;
   /** Recorded reason if it was accepted as an emergency change. */
   reason: string | null;
 }
@@ -107,6 +113,21 @@ export interface DeviceRowView {
   leaver: boolean;
 }
 
+export interface TicketingView {
+  tracker: "jira" | "linear";
+  target: string;
+  /** checkKey → ticket already created. */
+  tickets: Record<string, string>;
+}
+
+export interface TrackerView {
+  incidents: { key: string; title: string; status: string | null; url: string | null; created: string | null; resolved: string | null }[];
+  unlinked: { repo: string; number: number; title: string; ticket: string | null; provider: string }[];
+  checked: number;
+  found: number;
+  ticketing: { enabled: boolean; target: string | null; options: { key: string; name: string }[] };
+}
+
 export interface ProviderView {
   provider: string;
   status: "connected" | "error" | "disconnected" | null;
@@ -120,6 +141,10 @@ export interface ProviderView {
   devices: { rows: DeviceRowView[]; note: string; missing: string | null; staleDays: number; mdm: string } | null;
   /** Areas a scan couldn't read, and the permission to add. */
   unread: string[];
+  /** Ticket creation, when the workspace turned it on in Jira or Linear. */
+  ticketing: TicketingView | null;
+  /** Jira / Linear pages only. */
+  tracker: TrackerView | null;
   changes: { rows: ChangeRowView[]; windowDays: number; note: string; checkKey: string; sep: string } | null;
   alerts: { rows: AlertRowView[]; note: string } | null;
   settings: Record<string, number> | null;
@@ -197,6 +222,8 @@ export async function loadProviderView(db: SupabaseClient, companyId: string, en
     apps: null,
     devices: null,
     unread: [],
+    ticketing: null,
+    tracker: null,
     changes: null,
     alerts: null,
     settings: null,
@@ -497,6 +524,43 @@ export async function loadProviderView(db: SupabaseClient, companyId: string, en
     view.devices = devicesView(entry.key, entry.title, x.devices, settings.staleDays, byEmail);
   }
 
+  // Ticket creation, wherever a check can fail.
+  {
+    const { data: trackers } = await db.from("integrations").select("provider, status, metadata").eq("company_id", companyId).in("provider", ["jira", "linear"]);
+    const on = ((trackers ?? []) as { provider: "jira" | "linear"; status: string; metadata: { ticketing?: { enabled?: boolean; target?: string }; tickets?: Record<string, string> } | null }[]).find(
+      (t) => t.status === "connected" && t.metadata?.ticketing?.enabled && t.metadata.ticketing.target,
+    );
+    if (on) view.ticketing = { tracker: on.provider, target: on.metadata!.ticketing!.target!, tickets: on.metadata?.tickets ?? {} };
+  }
+
+  if ((entry.key === "jira" || entry.key === "linear") && integ) {
+    const x = (scan?.extra ?? null) as TrackerExtra | null;
+    const { data: incidents } = await db
+      .from("incident_records")
+      .select("key, title, status, url, created_at_source, resolved_at")
+      .eq("company_id", companyId)
+      .eq("provider", entry.key)
+      .order("created_at_source", { ascending: false })
+      .limit(200);
+    const t = (meta.ticketing as { enabled?: boolean; target?: string } | undefined) ?? {};
+    let options: { key: string; name: string }[] = [];
+    try {
+      const { data: cred } = await db.from("integrations").select("access_token").eq("company_id", companyId).eq("provider", entry.key).maybeSingle();
+      const secret = decryptSecret((cred?.access_token as string) ?? "");
+      options = entry.key === "jira" ? await jiraProjects(JSON.parse(secret) as JiraCreds) : (await linearTeams(secret)).map((x) => ({ key: x.key, name: x.name }));
+    } catch {
+      // Shown as a free-text field when the list can't be read.
+    }
+    view.tracker = {
+      incidents: ((incidents ?? []) as Record<string, string | null>[]).map((i) => ({ key: i.key!, title: i.title!, status: i.status, url: i.url, created: i.created_at_source, resolved: i.resolved_at })),
+      unlinked: x?.unlinked ?? [],
+      checked: x?.checked ?? 0,
+      found: x?.found ?? 0,
+      ticketing: { enabled: Boolean(t.enabled), target: t.target ?? null, options },
+    };
+    if (scan) view.scan!.summary = [`${view.tracker.incidents.length} incidents in 12 months`, `${x?.found ?? 0} of ${x?.checked ?? 0} change tickets found in the last scan`];
+  }
+
   if (entry.key === "gitlab" && scan) {
     const x = scan.extra as GitLabExtra;
     const settings = settingsOf(meta, GITLAB_DEFAULTS);
@@ -594,7 +658,7 @@ async function loadChanges(
   const since = new Date(Date.now() - 90 * DAY).toISOString();
   const { data } = await db
     .from("code_changes")
-    .select("id, repo, number, title, url, author, merged_by, merged_at, approvers, independent_approval, ticket")
+    .select("id, repo, number, title, url, author, merged_by, merged_at, approvers, independent_approval, ticket, ticket_title, ticket_status, ticket_url")
     .eq("company_id", companyId)
     .eq("provider", provider)
     .gte("merged_at", since)
@@ -621,6 +685,9 @@ async function loadChanges(
         approvers: (c.approvers as string[] | null) ?? [],
         independent: Boolean(c.independent_approval),
         ticket: (c.ticket as string | null) ?? null,
+        ticketTitle: (c.ticket_title as string | null) ?? null,
+        ticketStatus: (c.ticket_status as string | null) ?? null,
+        ticketUrl: (c.ticket_url as string | null) ?? null,
         reason: reasons.get(resourceId) ?? null,
       };
     }),

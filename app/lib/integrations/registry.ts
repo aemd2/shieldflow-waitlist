@@ -10,6 +10,7 @@ import { CLOUDFLARE_AREAS, CLOUDFLARE_CHECKS, CLOUDFLARE_READS } from "@/lib/int
 import { GCP_AREAS, GCP_CHECKS, GCP_READS } from "@/lib/integrations/gcp/catalog";
 import { OKTA_AREAS, OKTA_CHECKS, OKTA_READS } from "@/lib/integrations/okta/catalog";
 import { GITLAB_AREAS, GITLAB_CHECKS, GITLAB_READS } from "@/lib/integrations/gitlab/catalog";
+import { TRACKER_AREAS, trackerChecks } from "@/lib/integrations/tickets/scan";
 
 /**
  * Every integration that has its own page (/integrations/<key>) and its own
@@ -183,6 +184,36 @@ export const PROVIDERS: ProviderEntry[] = [
     reads: GCP_READS,
     never: ["Data inside buckets, databases or VMs — Viewer and Security Reviewer only see configuration.", "Change anything: both roles are read-only."],
     settings: [{ key: "keyMaxDays", label: "Service-account keys rotated within", help: "User-managed keys older than this fail the key-age check.", min: 30, max: 365, unit: "days" }],
+  },
+  {
+    key: "jira",
+    checkPrefix: "jira",
+    title: "Jira",
+    subtitle: "Every merged change traced to its Jira ticket, the incident log kept as evidence, and — if you switch it on — a ticket for any failing check in one click.",
+    checks: trackerChecks("jira"),
+    areas: TRACKER_AREAS,
+    connectStory: "Paste your Jira Cloud address, your email and an API token (id.atlassian.com → Security → API tokens). ShieldFlow reads issues by key and searches for incidents; it creates issues only if you turn ticket creation on and pick a project.",
+    reads: [
+      ["Issues (read)", "the title, status and link of each ticket a merged change names"],
+      ["Search (read)", "issues typed Incident or labelled incident / security-incident in the last 12 months"],
+      ["Issues (create — only if you turn it on)", "a ticket for a failing check, in the project you choose"],
+    ],
+    never: ["Issue comments, attachments or anything outside the fields above.", "Create or change anything unless you switch ticket creation on — and even then only new issues, never edits."],
+  },
+  {
+    key: "linear",
+    checkPrefix: "linear",
+    title: "Linear",
+    subtitle: "Every merged change traced to its Linear issue, the incident log kept as evidence, and — if you switch it on — an issue for any failing check in one click.",
+    checks: trackerChecks("linear"),
+    areas: TRACKER_AREAS,
+    connectStory: "Paste a personal API key (Linear → Settings → Security & access → Personal API keys). ShieldFlow reads issues by identifier and searches for incidents; it creates issues only if you turn ticket creation on and pick a team.",
+    reads: [
+      ["Issues (read)", "the title, status and link of each issue a merged change names"],
+      ["Issues by label (read)", "issues labelled incident / security incident in the last 12 months"],
+      ["Issue create (only if you turn it on)", "an issue for a failing check, in the team you choose"],
+    ],
+    never: ["Comments, attachments, projects or cycles.", "Create or change anything unless you switch issue creation on — and even then only new issues, never edits."],
   },
 ];
 

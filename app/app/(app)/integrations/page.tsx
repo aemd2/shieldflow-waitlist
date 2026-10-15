@@ -346,6 +346,9 @@ export default async function IntegrationsPage() {
             oauthEnabled={isSlackOAuthConfigured()}
             status={slack?.status ?? null}
             lastSyncedAt={slack?.last_synced_at ?? null}
+            channel={(slack?.metadata as { channel?: string } | null)?.channel ?? null}
+            alerts={(slack?.metadata as { slack?: { alerts?: boolean } } | null)?.slack?.alerts !== false}
+            weekly={(slack?.metadata as { slack?: { weekly?: boolean } } | null)?.slack?.weekly !== false}
           />
         </IntegrationCard>
       </PageSection>
@@ -412,6 +415,7 @@ export default async function IntegrationsPage() {
             connectAction={connectJira}
             syncAction={syncJira}
             disconnectAction={disconnectJira}
+            page={{ href: "/integrations/jira", label: "Open Jira" }}
             disconnectConfirm="Disconnect Jira? Collected evidence stays in the vault."
             setupHint={<>id.atlassian.com → Security → Create and manage API tokens.</>}
           />
@@ -432,6 +436,7 @@ export default async function IntegrationsPage() {
             connectAction={connectLinear}
             syncAction={syncLinear}
             disconnectAction={disconnectLinear}
+            page={{ href: "/integrations/linear", label: "Open Linear" }}
             disconnectConfirm="Disconnect Linear? Collected evidence stays in the vault."
             setupHint={<>Linear → Settings → API → Personal API keys → create a key.</>}
           />

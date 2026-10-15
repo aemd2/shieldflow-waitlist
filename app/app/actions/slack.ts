@@ -3,16 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import {
-  getCompanyForUser,
-  assertCanWrite,
-  getControlsWithStatus,
-  listFrameworks,
-  listSelectedFrameworkIds,
-} from "@/lib/db/queries";
+import { getCompanyForUser, assertCanWrite } from "@/lib/db/queries";
 import { assertFeature, assertIntegrationSlot } from "@/lib/plan-server";
-import { computeScore } from "@/lib/score";
-import { loadAlerts } from "@/lib/workspace-alerts";
+import { buildDigestText } from "@/lib/slack-alerts";
 import { sendSlackMessage, isValidSlackWebhook, SlackError } from "@/lib/slack";
 import { slackWebhookSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -125,43 +118,7 @@ export async function sendComplianceDigest() {
 
   let text: string;
   try {
-    const [controls, allFrameworks, selectedIds] = await Promise.all([
-      getControlsWithStatus(supabase, company.id),
-      listFrameworks(supabase),
-      listSelectedFrameworkIds(supabase, company.id),
-    ]);
-    const frameworks = allFrameworks.filter((f) => selectedIds.includes(f.id));
-    const score = computeScore(controls.map((c) => c.status));
-    const frameworkProgress = frameworks.map((f) => ({
-      name: f.name,
-      pct: computeScore(controls.filter((c) => c.framework_id === f.id).map((c) => c.status)),
-    }));
-    const alerts = await loadAlerts(supabase, company.id, controls, frameworkProgress);
-
-    const high = alerts.filter((a) => a.severity === "high").length;
-    const warning = alerts.filter((a) => a.severity === "warning").length;
-    const info = alerts.filter((a) => a.severity === "info").length;
-
-    const lines = [
-      `:shield: *ShieldFlow compliance digest — ${company.name}*`,
-      `Overall score: *${score}%*`,
-      frameworkProgress.map((fp) => `• ${fp.name}: ${fp.pct}%`).join("\n"),
-    ];
-    if (alerts.length === 0) {
-      // Zero alerts is a result worth celebrating, not an empty message.
-      lines.push(`:white_check_mark: *All clear* — no open alerts.`);
-    } else {
-      lines.push(
-        `Open alerts: *${alerts.length}* (${high} high, ${warning} warning, ${info} info)`,
-        ...alerts.slice(0, 5).map((a) => {
-          const icon =
-            a.severity === "high" ? ":red_circle:" : a.severity === "warning" ? ":large_yellow_circle:" : ":large_blue_circle:";
-          return `${icon} ${a.title} — ${a.detail}`;
-        }),
-      );
-      if (alerts.length > 5) lines.push(`…and ${alerts.length - 5} more in the dashboard.`);
-    }
-    text = lines.filter(Boolean).join("\n");
+    text = await buildDigestText(supabase, company.id, company.name);
   } catch {
     return { error: DB_ERROR };
   }
@@ -220,6 +177,28 @@ export async function disconnectSlack() {
     label: INTEGRATION_LABELS.slack,
   });
 
+  revalidatePath("/integrations");
+  return { ok: true };
+}
+
+/** Slack alerts (a check turned red) and the Monday digest — both on unless switched off. */
+export async function updateSlackSettings(input: unknown) {
+  const v = (input && typeof input === "object" ? input : {}) as { alerts?: unknown; weekly?: unknown };
+  if ((v.alerts !== undefined && typeof v.alerts !== "boolean") || (v.weekly !== undefined && typeof v.weekly !== "boolean")) return { error: "Invalid settings." };
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const company = await getCompanyForUser(supabase, user.id).catch(() => null);
+  if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
+  const { data: integ } = await supabase.from("integrations").select("id, metadata").eq("company_id", company.id).eq("provider", "slack").maybeSingle();
+  if (!integ) return { error: "Slack isn't connected yet." };
+  const meta = (integ.metadata as Record<string, unknown> | null) ?? {};
+  const current = (meta.slack as Record<string, unknown> | undefined) ?? {};
+  const next = { ...current, ...(v.alerts !== undefined ? { alerts: v.alerts } : {}), ...(v.weekly !== undefined ? { weekly: v.weekly } : {}) };
+  const { error } = await supabase.from("integrations").update({ metadata: { ...meta, slack: next } }).eq("id", integ.id);
+  if (error) return { error: DB_ERROR };
   revalidatePath("/integrations");
   return { ok: true };
 }

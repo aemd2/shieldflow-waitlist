@@ -15,6 +15,9 @@ import { syncGitLab } from "@/app/actions/gitlab";
 import { syncCloudflare } from "@/app/actions/cloudflare";
 import { syncGcp } from "@/app/actions/gcp";
 import { updateProviderSettings } from "@/app/actions/provider-settings";
+import { syncJira } from "@/app/actions/jira";
+import { syncLinear } from "@/app/actions/linear";
+import { createTicketForCheck, updateTicketing } from "@/app/actions/tickets";
 import { createCheckException } from "@/app/actions/check-exceptions";
 import { dismissIdentityAccount, restoreIdentityAccount, linkIdentity, unlinkIdentity } from "@/app/actions/identity";
 import type { CheckDef } from "@/lib/checks-core";
@@ -45,6 +48,8 @@ const SCAN: Partial<Record<string, Action>> = {
   gitlab: syncGitLab as unknown as Action,
   cloudflare: syncCloudflare as unknown as Action,
   gcp: syncGcp as unknown as Action,
+  jira: syncJira as unknown as Action,
+  linear: syncLinear as unknown as Action,
 };
 const SAVE_SETTINGS: Partial<Record<string, Action>> = {
   github: updateGitHubSettings as unknown as Action,
@@ -60,7 +65,7 @@ const SAVE_SETTINGS: Partial<Record<string, Action>> = {
   gcp: ((input: unknown) => updateProviderSettings("gcp", input)) as Action,
 };
 
-type Tab = "posture" | "people" | "apps" | "devices" | "changes" | "vulnerabilities" | "settings";
+type Tab = "posture" | "people" | "apps" | "devices" | "changes" | "vulnerabilities" | "incidents" | "settings";
 
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—");
 const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -87,6 +92,7 @@ export function ProviderWorkspace({
     if (view.devices) t.push({ value: "devices", label: "Devices" });
     if (view.changes) t.push({ value: "changes", label: "Changes" });
     if (view.alerts) t.push({ value: "vulnerabilities", label: "Vulnerabilities" });
+    if (view.tracker) t.push({ value: "incidents", label: "Incidents & tickets" });
     if (view.settings && settingFields.length) t.push({ value: "settings", label: "Settings" });
     return t;
   }, [view, settingFields]);
@@ -140,6 +146,8 @@ export function ProviderWorkspace({
         <Devices view={view} />
       ) : tab === "changes" && view.changes ? (
         <Changes view={view} canWrite={canWrite} />
+      ) : tab === "incidents" && view.tracker ? (
+        <Tracker view={view} canWrite={canWrite} title={title} />
       ) : tab === "vulnerabilities" && view.alerts ? (
         <Vulnerabilities view={view} />
       ) : tab === "settings" && view.settings ? (
@@ -153,6 +161,7 @@ export function ProviderWorkspace({
           exceptions={view.exceptions}
           canWrite={canWrite}
           emptyText={`Nothing failing in ${title}. 🎉`}
+          extraFor={view.ticketing && canWrite ? (def, res) => (res?.result === "fail" ? <TicketButton view={view} checkKey={def.key} /> : null) : undefined}
         />
       )}
     </div>
@@ -508,6 +517,121 @@ function ApproveApp({ row, onDone }: { row: AppRowView; onDone: () => void }) {
   );
 }
 
+// ----------------------------------------------------------------- tickets
+
+function TicketButton({ view, checkKey }: { view: ProviderView; checkKey: string }) {
+  const toast = useToast();
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const t = view.ticketing!;
+  const name = t.tracker === "jira" ? "Jira" : "Linear";
+  const existing = t.tickets[checkKey];
+  if (existing) return <p className="text-xs text-muted-foreground">Ticket {existing} is open in {name}.</p>;
+  async function create() {
+    setBusy(true);
+    const r = await createTicketForCheck({ page: view.provider, checkKey }).catch(() => ({ error: NETWORK }));
+    setBusy(false);
+    if ("error" in r && r.error) return toast("error", r.error);
+    toast("success", `Created ${(r as { key?: string }).key} in ${name}`);
+    router.refresh();
+  }
+  return (
+    <Button size="sm" variant="outline" onClick={create} disabled={busy}>
+      {busy ? "Creating…" : `Create a ${name} ticket in ${t.target}`}
+    </Button>
+  );
+}
+
+function Tracker({ view, canWrite, title }: { view: ProviderView; canWrite: boolean; title: string }) {
+  const router = useRouter();
+  const toast = useToast();
+  const x = view.tracker!;
+  const [enabled, setEnabled] = useState(x.ticketing.enabled);
+  const [target, setTarget] = useState(x.ticketing.target ?? x.ticketing.options[0]?.key ?? "");
+  const [busy, setBusy] = useState(false);
+  async function save(next: boolean) {
+    setBusy(true);
+    const r = await updateTicketing({ tracker: view.provider, enabled: next, target: target || undefined }).catch(() => ({ error: NETWORK }));
+    setBusy(false);
+    if ("error" in r && r.error) return toast("error", r.error);
+    setEnabled(next);
+    toast("success", next ? `Failing checks get a "Create a ticket" button — tickets go to ${target}` : "Ticket creation is off");
+    router.refresh();
+  }
+  return (
+    <div className="space-y-4">
+      <section className="card space-y-2 text-sm">
+        <h2 className="font-semibold">Create tickets for failing checks</h2>
+        <p className="text-xs text-muted-foreground">
+          Off by default — it's the only thing ShieldFlow ever writes. When on, every failing check on every integration page gets a button that opens one ticket with the
+          affected resources and the fix. The next scan after the fix turns the check green.
+        </p>
+        {canWrite && (
+          <div className="flex flex-wrap items-center gap-2">
+            {x.ticketing.options.length ? (
+              <select value={target} onChange={(e) => setTarget(e.target.value)} className="input w-auto py-1" disabled={busy}>
+                {x.ticketing.options.map((o) => (
+                  <option key={o.key} value={o.key}>
+                    {o.name} ({o.key})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input value={target} onChange={(e) => setTarget(e.target.value.toUpperCase())} placeholder={view.provider === "jira" ? "Project key, e.g. SEC" : "Team key, e.g. ENG"} className="input w-40 py-1" />
+            )}
+            <Button size="sm" variant={enabled ? "outline" : "accent"} disabled={busy || (!enabled && !target)} onClick={() => save(!enabled)}>
+              {enabled ? "Turn off" : "Turn on"}
+            </Button>
+            <span className="text-xs text-muted-foreground">{enabled ? `On — tickets go to ${x.ticketing.target}` : "Off"}</span>
+          </div>
+        )}
+      </section>
+
+      <section className="card space-y-1">
+        <h3 className="text-sm font-semibold">
+          Incidents <span className="font-normal text-muted-foreground">· last 12 months, typed Incident or labelled incident — filed daily on the incident log</span>
+        </h3>
+        {x.incidents.length ? (
+          <ul className="divide-y divide-border text-sm">
+            {x.incidents.map((i) => (
+              <li key={i.key} className="flex flex-wrap items-center gap-2 py-2">
+                <span className="w-24 shrink-0 text-xs tabular-nums text-muted-foreground">{day(i.created)}</span>
+                {i.url ? (
+                  <a href={i.url} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline">{i.key}</a>
+                ) : (
+                  <span className="font-medium">{i.key}</span>
+                )}
+                <span className="min-w-0 flex-1 truncate">{i.title}</span>
+                <Badge variant={i.resolved ? "success" : "warning"}>{i.resolved ? `resolved ${day(i.resolved)}` : i.status ?? "open"}</Badge>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">No incidents recorded in {title} in the last 12 months. Label incident tickets <b>incident</b> so they're counted.</p>
+        )}
+      </section>
+
+      <section className="card space-y-1">
+        <h3 className="text-sm font-semibold">
+          Recent changes without a real ticket <span className="font-normal text-muted-foreground">· {x.found} of {x.checked} ticket IDs found in the last scan</span>
+        </h3>
+        {x.unlinked.length ? (
+          <ul className="divide-y divide-border text-sm">
+            {x.unlinked.map((c) => (
+              <li key={`${c.repo}${c.number}`} className="py-2">
+                <span className="font-medium">{c.repo}{c.provider === "gitlab" ? "!" : "#"}{c.number}</span> <span className="text-muted-foreground">{c.title}</span>
+                <span className="ml-2 text-xs text-warning">{c.ticket ? `${c.ticket} not found` : "no ticket ID"}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">Every change merged in the last 30 days names a ticket that exists — or no code host is connected yet.</p>
+        )}
+      </section>
+    </div>
+  );
+}
+
 // ----------------------------------------------------------------- devices
 
 function Devices({ view }: { view: ProviderView }) {
@@ -650,7 +774,14 @@ function Changes({ view, canWrite }: { view: ProviderView; canWrite: boolean }) 
                       ) : (
                         <span className="font-medium">{r.repo}{c.sep}{r.number}</span>
                       )}
-                      {r.ticket && <Badge variant="neutral">{r.ticket}</Badge>}
+                      {r.ticket &&
+                        (r.ticketUrl ? (
+                          <a href={r.ticketUrl} target="_blank" rel="noopener noreferrer" title={r.ticketTitle ?? undefined}>
+                            <Badge variant="neutral">{r.ticket}{r.ticketStatus ? ` · ${r.ticketStatus}` : ""}</Badge>
+                          </a>
+                        ) : (
+                          <Badge variant="neutral">{r.ticket}</Badge>
+                        ))}
                     </div>
                     <div className="text-xs text-muted-foreground">{r.title}</div>
                     {!r.independent && (

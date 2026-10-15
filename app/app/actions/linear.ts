@@ -10,7 +10,10 @@ import { linearTokenSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { logEvent } from "@/lib/audit";
 import { fileIntegrationCsv, disconnectProvider, INTEGRATION_LABELS } from "@/lib/integration-evidence";
-import { encryptSecret, decryptSecret, isEncryptionConfigured, ENCRYPTION_NOT_CONFIGURED } from "@/lib/crypto";
+import { encryptSecret, isEncryptionConfigured, ENCRYPTION_NOT_CONFIGURED } from "@/lib/crypto";
+import { scanWithCredentials, checksReportCsv } from "@/lib/integrations/token-actions";
+import { scanTracker, trackerChecks } from "@/lib/integrations/tickets/scan";
+import { csvRow, fileMeasureCsv } from "@/lib/evidence-population";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";
 
@@ -67,82 +70,39 @@ export async function connectLinear(input: { token: string }) {
 }
 
 export async function syncLinear() {
-  const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  let company;
-  try {
-    company = await getCompanyForUser(supabase, user.id);
-  } catch {
-    return { error: DB_ERROR };
-  }
-  if (!company) return { error: "No company found." };
-  const denied =
-    (await assertCanWrite(supabase, company.id, user.id)) ??
-    (await assertFeature(supabase, company.id, "integrations"));
-  if (denied) return { error: denied };
-
-  if (!checkRateLimit(`linear-sync:${company.id}`, 1, 60_000)) {
-    return { error: "Already synced recently — try again in a minute." };
-  }
-
-  const { data: integ } = await supabase
-    .from("integrations")
-    .select("id, access_token, status")
-    .eq("company_id", company.id)
-    .eq("provider", "linear")
-    .maybeSingle();
-  if (!integ?.access_token || integ.status === "disconnected") {
-    return { error: "Linear isn't connected yet." };
-  }
-
-  let token: string;
-  try {
-    token = decryptSecret(integ.access_token);
-  } catch {
-    return { error: "Stored Linear key is unreadable — please reconnect." };
-  }
-
-  try {
-    const r = await fetchActivity(token);
-    const csv = [
-      `# Linear issue-tracking report`,
-      `# Generated: ${new Date().toISOString()}`,
-      `# Company: ${company.name}`,
-      `# Summary: ${r.teams} teams | ${r.issuesSampled} recent issues sampled (${r.completed} closed, ${r.open} open)`,
-      ``,
-      `metric,value`,
-      `Teams,${r.teams}`,
-      `Recent issues sampled,${r.issuesSampled}`,
-      `Closed/cancelled,${r.completed}`,
-      `Open,${r.open}`,
-    ].join("\n");
-
-    const filed = await fileIntegrationCsv({
-      supabase,
-      companyId: company.id,
-      userId: user.id,
-      integrationId: integ.id,
-      fileBase: "linear-issue-tracking",
-      csv,
-      note: `Automated Linear sync: ${r.teams} teams, ${r.issuesSampled} recent issues sampled.`,
-    });
-    if (filed.error) return { error: filed.error };
-
-    revalidatePath("/integrations");
-    revalidatePath("/evidence");
-    return { ok: true, summary: { teams: r.teams, issues: r.issuesSampled } };
-  } catch (err) {
-    if (err instanceof LinearError) {
-      if (err.kind === "auth") {
-        await supabase.from("integrations").update({ status: "error" }).eq("id", integ.id);
-        revalidatePath("/integrations");
-      }
-      return { error: err.userMessage };
-    }
-    return { error: "Sync failed. Please try again." };
-  }
+  return scanWithCredentials(
+    "linear",
+    trackerChecks("linear"),
+    (db, integ) => scanTracker(db, "linear", integ),
+    (scan, company) => {
+      const x = scan.extra;
+      return {
+        csv: checksReportCsv("Linear", company, scan, trackerChecks("linear"), [
+          csvRow("incident", "title", "status", "created", "resolved", "url"),
+          ...x.incidents.map((i) => csvRow(i.key, i.title, i.status, i.created, i.resolved, i.url)),
+        ]),
+        note: `Automated Linear scan: ${x.found} of ${x.checked} change tickets found, ${x.incidents.length} incidents in the last 12 months.`,
+        summary: { tickets: x.found, checked: x.checked, incidents: x.incidents.length },
+      };
+    },
+    async (db, companyId, userId, scan) => {
+      if (!scan.extra.incidents.length) return;
+      const day = new Date().toISOString().slice(0, 10);
+      await fileMeasureCsv(
+        db,
+        companyId,
+        userId,
+        "incident-log",
+        `linear-incidents-${day}.csv`,
+        [
+          csvRow(`# Incidents recorded in Linear, last 12 months — ${day}`),
+          csvRow("incident", "title", "status", "created", "resolved", "url"),
+          ...scan.extra.incidents.map((i) => csvRow(i.key, i.title, i.status, i.created, i.resolved, i.url)),
+        ].join("\n"),
+        "Generated from Linear by ShieldFlow: every ticket typed or labelled as an incident in the last 12 months — the population an auditor samples for incident response.",
+      );
+    },
+  );
 }
 
 export async function disconnectLinear() {

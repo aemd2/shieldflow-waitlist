@@ -11,7 +11,10 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { csvSafe } from "@/lib/csv";
 import { logEvent } from "@/lib/audit";
 import { fileIntegrationCsv, disconnectProvider, INTEGRATION_LABELS } from "@/lib/integration-evidence";
-import { encryptSecret, decryptSecret, isEncryptionConfigured, ENCRYPTION_NOT_CONFIGURED } from "@/lib/crypto";
+import { encryptSecret, isEncryptionConfigured, ENCRYPTION_NOT_CONFIGURED } from "@/lib/crypto";
+import { scanWithCredentials, checksReportCsv } from "@/lib/integrations/token-actions";
+import { scanTracker, trackerChecks } from "@/lib/integrations/tickets/scan";
+import { csvRow, fileMeasureCsv } from "@/lib/evidence-population";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";
 
@@ -73,79 +76,39 @@ export async function connectJira(input: { site: string; email: string; token: s
 }
 
 export async function syncJira() {
-  const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  let company;
-  try {
-    company = await getCompanyForUser(supabase, user.id);
-  } catch {
-    return { error: DB_ERROR };
-  }
-  if (!company) return { error: "No company found." };
-  const denied =
-    (await assertCanWrite(supabase, company.id, user.id)) ??
-    (await assertFeature(supabase, company.id, "integrations"));
-  if (denied) return { error: denied };
-
-  if (!checkRateLimit(`jira-sync:${company.id}`, 1, 60_000)) {
-    return { error: "Already synced recently — try again in a minute." };
-  }
-
-  const { data: integ } = await supabase
-    .from("integrations")
-    .select("id, access_token, status")
-    .eq("company_id", company.id)
-    .eq("provider", "jira")
-    .maybeSingle();
-  if (!integ?.access_token || integ.status === "disconnected") {
-    return { error: "Jira isn't connected yet." };
-  }
-
-  let creds: { host: string; email: string; token: string };
-  try {
-    creds = JSON.parse(decryptSecret(integ.access_token));
-  } catch {
-    return { error: "Stored credentials are corrupt — please reconnect." };
-  }
-
-  try {
-    const r = await fetchProjects(creds.host, creds.email, creds.token);
-    const csv = [
-      `# Jira projects report`,
-      `# Generated: ${new Date().toISOString()}`,
-      `# Company: ${company.name}`,
-      `# Summary: ${r.totalProjects} projects tracked for change management`,
-      ``,
-      `project_key,project_name`,
-      ...r.projects.map((p) => `${csvSafe(p.key)},${csvSafe(p.name)}`),
-    ].join("\n");
-
-    const filed = await fileIntegrationCsv({
-      supabase,
-      companyId: company.id,
-      userId: user.id,
-      integrationId: integ.id,
-      fileBase: "jira-projects",
-      csv,
-      note: `Automated Jira sync: ${r.totalProjects} projects tracked.`,
-    });
-    if (filed.error) return { error: filed.error };
-
-    revalidatePath("/integrations");
-    revalidatePath("/evidence");
-    return { ok: true, summary: { projects: r.totalProjects } };
-  } catch (err) {
-    if (err instanceof JiraError) {
-      if (err.kind === "auth") {
-        await supabase.from("integrations").update({ status: "error" }).eq("id", integ.id);
-        revalidatePath("/integrations");
-      }
-      return { error: err.userMessage };
-    }
-    return { error: "Sync failed. Please try again." };
-  }
+  return scanWithCredentials(
+    "jira",
+    trackerChecks("jira"),
+    (db, integ) => scanTracker(db, "jira", integ),
+    (scan, company) => {
+      const x = scan.extra;
+      return {
+        csv: checksReportCsv("Jira", company, scan, trackerChecks("jira"), [
+          csvRow("incident", "title", "status", "created", "resolved", "url"),
+          ...x.incidents.map((i) => csvRow(i.key, i.title, i.status, i.created, i.resolved, i.url)),
+        ]),
+        note: `Automated Jira scan: ${x.found} of ${x.checked} change tickets found, ${x.incidents.length} incidents in the last 12 months.`,
+        summary: { tickets: x.found, checked: x.checked, incidents: x.incidents.length },
+      };
+    },
+    async (db, companyId, userId, scan) => {
+      if (!scan.extra.incidents.length) return;
+      const day = new Date().toISOString().slice(0, 10);
+      await fileMeasureCsv(
+        db,
+        companyId,
+        userId,
+        "incident-log",
+        `jira-incidents-${day}.csv`,
+        [
+          csvRow(`# Incidents recorded in Jira, last 12 months — ${day}`),
+          csvRow("incident", "title", "status", "created", "resolved", "url"),
+          ...scan.extra.incidents.map((i) => csvRow(i.key, i.title, i.status, i.created, i.resolved, i.url)),
+        ].join("\n"),
+        "Generated from Jira by ShieldFlow: every ticket typed or labelled as an incident in the last 12 months — the population an auditor samples for incident response.",
+      );
+    },
+  );
 }
 
 export async function disconnectJira() {

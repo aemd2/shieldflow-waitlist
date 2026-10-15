@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Send, Unplug, MessageSquare } from "lucide-react";
-import { connectSlack, sendComplianceDigest, disconnectSlack } from "@/app/actions/slack";
+import { connectSlack, sendComplianceDigest, disconnectSlack, updateSlackSettings } from "@/app/actions/slack";
 import { useToast } from "@/components/ui/Toast";
 import { Button, buttonClasses } from "@/components/ui/Button";
 
@@ -12,11 +12,15 @@ export function SlackCard({
   lastSyncedAt,
   oauthEnabled,  // true when SLACK_CLIENT_ID + SECRET are set
   channel,       // e.g. "#compliance" stored from OAuth callback
+  alerts = true, // post when a check turns red in the morning scan
+  weekly = true, // Monday digest
 }: {
   status: "connected" | "error" | "disconnected" | null;
   lastSyncedAt: string | null;
   oauthEnabled: boolean;
   channel?: string | null;
+  alerts?: boolean;
+  weekly?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -25,6 +29,17 @@ export function SlackCard({
 
   const connected = status === "connected";
   const needsReconnect = status === "error";
+  const [prefs, setPrefs] = useState({ alerts, weekly });
+
+  async function toggle(key: "alerts" | "weekly") {
+    const next = { ...prefs, [key]: !prefs[key] };
+    setPrefs(next);
+    const res = await updateSlackSettings({ [key]: next[key] }).catch(() => ({ error: "Network problem — check your connection and try again." }));
+    if (res?.error) {
+      setPrefs(prefs);
+      toast("error", res.error);
+    }
+  }
 
   // Webhook URL paste — fallback when OAuth app is not configured.
   async function connectWebhook(e: React.FormEvent) {
@@ -78,9 +93,19 @@ export function SlackCard({
           </Button>
           {lastSyncedAt && (
             <span className="text-xs text-muted-foreground">
-              Last digest {new Date(lastSyncedAt).toLocaleString()}
+              Last message {new Date(lastSyncedAt).toLocaleString()}
             </span>
           )}
+        </div>
+        <div className="flex flex-wrap gap-x-5 gap-y-1 pt-1 text-xs">
+          <label className="inline-flex items-center gap-1.5">
+            <input type="checkbox" checked={prefs.alerts} onChange={() => toggle("alerts")} />
+            Post when a check starts failing
+          </label>
+          <label className="inline-flex items-center gap-1.5">
+            <input type="checkbox" checked={prefs.weekly} onChange={() => toggle("weekly")} />
+            Weekly digest on Mondays
+          </label>
         </div>
       </div>
     );

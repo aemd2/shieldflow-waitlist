@@ -63,9 +63,8 @@ function syncToastFor(provider: TokenIntegrationProvider, res: any): string {
     case "gitlab":
       return `Synced: ${s.total} projects, ${s.protected} protected`;
     case "jira":
-      return `Synced: ${s.projects} projects`;
     case "linear":
-      return `Synced: ${s.teams} teams, ${s.issues} issues`;
+      return `Scanned: ${s.tickets} of ${s.checked} change tickets found, ${s.incidents} incidents in the last year`;
     case "gcp":
       return `Synced: ${s.owners} owners, ${s.editors} editors`;
     case "cloudflare":
