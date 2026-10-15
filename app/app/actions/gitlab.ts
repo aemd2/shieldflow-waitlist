@@ -4,20 +4,17 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, assertCanWrite } from "@/lib/db/queries";
-import { assertFeature, assertIntegrationSlot } from "@/lib/plan-server";
-import { validateToken, fetchRepoSecurity, GitLabError } from "@/lib/gitlab";
+import { assertIntegrationSlot } from "@/lib/plan-server";
+import { validateToken, GitLabError } from "@/lib/gitlab";
 import { gitlabTokenSchema } from "@/lib/validation";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { csvSafe } from "@/lib/csv";
 import { logEvent } from "@/lib/audit";
-import { fileIntegrationCsv, disconnectProvider, INTEGRATION_LABELS } from "@/lib/integration-evidence";
-import { recordChecksForSync } from "@/lib/checks";
+import { disconnectProvider, INTEGRATION_LABELS } from "@/lib/integration-evidence";
 import { scanWithCredentials, checksReportCsv } from "@/lib/integrations/token-actions";
 import { scanGitLab } from "@/lib/integrations/gitlab/scan";
 import { normalizeGitLabUrl, gitlabUser as collectGitLabUser } from "@/lib/integrations/gitlab/collect";
 import { GITLAB_CHECKS } from "@/lib/integrations/gitlab/catalog";
 import { csvRow, fileMeasureCsv } from "@/lib/evidence-population";
-import { encryptSecret, decryptSecret, isEncryptionConfigured, ENCRYPTION_NOT_CONFIGURED } from "@/lib/crypto";
+import { encryptSecret, isEncryptionConfigured, ENCRYPTION_NOT_CONFIGURED } from "@/lib/crypto";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";
 

@@ -15,7 +15,6 @@ import { csvSafe } from "@/lib/csv";
 import { logEvent } from "@/lib/audit";
 import { INTEGRATION_LABELS } from "@/lib/integration-evidence";
 import { recordChecksForSync, clearChecksForProvider } from "@/lib/checks";
-import { encryptIfConfigured } from "@/lib/crypto";
 import { newUuid } from "@/lib/uuid";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";

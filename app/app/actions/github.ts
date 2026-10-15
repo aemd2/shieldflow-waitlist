@@ -16,7 +16,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { logEvent } from "@/lib/audit";
 import { INTEGRATION_LABELS } from "@/lib/integration-evidence";
 import { recordChecksForSync, clearChecksForProvider } from "@/lib/checks";
-import { encryptSecret, decryptSecret, isEncryptionConfigured, ENCRYPTION_NOT_CONFIGURED } from "@/lib/crypto";
+import { encryptSecret, isEncryptionConfigured, ENCRYPTION_NOT_CONFIGURED } from "@/lib/crypto";
 import { newUuid } from "@/lib/uuid";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";

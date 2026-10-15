@@ -4,18 +4,16 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, assertCanWrite } from "@/lib/db/queries";
-import { assertFeature, assertIntegrationSlot } from "@/lib/plan-server";
-import { validateServiceAccount, fetchProjectSecurity, GcpError } from "@/lib/gcp";
+import { assertIntegrationSlot } from "@/lib/plan-server";
+import { validateServiceAccount, GcpError } from "@/lib/gcp";
 import { gcpSchema } from "@/lib/validation";
-import { checkRateLimit } from "@/lib/rate-limit";
 import { logEvent } from "@/lib/audit";
-import { fileIntegrationCsv, disconnectProvider, INTEGRATION_LABELS } from "@/lib/integration-evidence";
-import { recordChecksForSync } from "@/lib/checks";
+import { disconnectProvider, INTEGRATION_LABELS } from "@/lib/integration-evidence";
 import { scanWithCredentials, checksReportCsv } from "@/lib/integrations/token-actions";
 import { scanGcp } from "@/lib/integrations/gcp/scan";
 import { GCP_CHECKS } from "@/lib/integrations/gcp/catalog";
 import { csvRow } from "@/lib/evidence-population";
-import { encryptSecret, decryptSecret, isEncryptionConfigured, ENCRYPTION_NOT_CONFIGURED } from "@/lib/crypto";
+import { encryptSecret, isEncryptionConfigured, ENCRYPTION_NOT_CONFIGURED } from "@/lib/crypto";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";
 

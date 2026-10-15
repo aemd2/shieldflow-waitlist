@@ -296,7 +296,8 @@ function Changes({ view, canWrite }: { view: AwsView; canWrite: boolean }) {
 function Backups({ view }: { view: AwsView }) {
   const b = view.backups;
   const days = view.settings.restoreTestDays;
-  const recent = b.restores.filter((r) => Date.now() - Date.parse(r.at) <= days * 86_400_000);
+  const [now] = useState(() => Date.now());
+  const recent = b.restores.filter((r) => now - Date.parse(r.at) <= days * 86_400_000);
   return (
     <div className="space-y-4">
       <section className="card space-y-2 text-sm">

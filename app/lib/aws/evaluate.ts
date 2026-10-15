@@ -9,8 +9,6 @@ import type {
   ChangeEvent,
   RegionalPosture,
   RestoreRecord,
-  Section,
-  Tags,
 } from "@/lib/aws/types";
 
 /**

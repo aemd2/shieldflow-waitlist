@@ -1,4 +1,5 @@
 "use server";
+/* eslint-disable @typescript-eslint/no-explicit-any -- rows from untyped Supabase joins and older integrations' stored postures; typed at the edges that use them. */
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";

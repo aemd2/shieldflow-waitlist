@@ -24,9 +24,11 @@ export function MobileNav({
   const sections = visibleNavSections(role, sprintReady);
 
   // Close the drawer whenever the route changes (e.g. after a link click).
-  useEffect(() => {
+  const [shownFor, setShownFor] = useState(pathname);
+  if (shownFor !== pathname) {
+    setShownFor(pathname);
     setOpen(false);
-  }, [pathname]);
+  }
 
   // While the drawer is open: lock body scroll and let Esc close it.
   useEffect(() => {

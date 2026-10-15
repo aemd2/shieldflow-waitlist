@@ -24,6 +24,8 @@ export function SprintBanner({
   const [dismissed, setDismissed] = useState(true);
 
   useEffect(() => {
+    // localStorage only exists in the browser; reading it in render would break hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDismissed(localStorage.getItem(DISMISS_KEY) === "1");
   }, []);
 

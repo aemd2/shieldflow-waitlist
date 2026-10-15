@@ -9,7 +9,6 @@ import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MeasureEvidence } from "@/components/measures/MeasureEvidence";
-import { cn } from "@/lib/cn";
 import type { MeasureWithStatus } from "@/lib/db/queries";
 import type { ControlStatus } from "@/lib/score";
 

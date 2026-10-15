@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Suspense } from "react";
 import {
   Building2,
@@ -181,7 +182,7 @@ export default async function IntegrationsPage() {
                 deeper checks <b>AuditLog.Read.All</b>, <b>Policy.Read.All</b>, <b>RoleManagement.Read.Directory</b>,{" "}
                 <b>Directory.Read.All</b> and, with Intune, <b>DeviceManagementManagedDevices.Read.All</b> — all read-only →
                 Grant admin consent. Finally Certificates &amp; secrets → New client secret, and paste the secret{" "}
-                <b>Value</b> (not the Secret ID) above. <a href="/checks/microsoft" className="underline">What each one is for</a>.
+                <b>Value</b> (not the Secret ID) above. <Link href="/checks/microsoft" className="underline">What each one is for</Link>.
               </>
             }
           />
@@ -212,7 +213,7 @@ export default async function IntegrationsPage() {
             setupHint={
               <>
                 Personio → Settings → Integrations → API credentials → generate, read access to employees, with email, status, hire date,
-                termination date and last working day readable. <a href="/checks/personio" className="underline">Exactly what we read</a>.
+                termination date and last working day readable. <Link href="/checks/personio" className="underline">Exactly what we read</Link>.
               </>
             }
           />
@@ -240,7 +241,7 @@ export default async function IntegrationsPage() {
             setupHint={
               <>
                 HiBob → Settings → Integrations → Service users → create one; give its permission group read access to People (name, email,
-                work, lifecycle) including former employees. <a href="/checks/hibob" className="underline">Exactly what we read</a>.
+                work, lifecycle) including former employees. <Link href="/checks/hibob" className="underline">Exactly what we read</Link>.
               </>
             }
           />
@@ -268,7 +269,7 @@ export default async function IntegrationsPage() {
             setupHint={
               <>
                 BambooHR → your name → API Keys → Add new key, for a user whose access level can see work email, job, hire and termination
-                dates. <a href="/checks/bamboohr" className="underline">Exactly what we read</a>.
+                dates. <Link href="/checks/bamboohr" className="underline">Exactly what we read</Link>.
               </>
             }
           />
@@ -299,7 +300,7 @@ export default async function IntegrationsPage() {
             setupHint={
               <>
                 Kandji → Settings → Access → API token → Add token, with only device list and device details (read). Copy the API URL from the same
-                page. <a href="/checks/kandji" className="underline">Exactly what we read</a>.
+                page. <Link href="/checks/kandji" className="underline">Exactly what we read</Link>.
               </>
             }
           />
@@ -328,7 +329,7 @@ export default async function IntegrationsPage() {
             setupHint={
               <>
                 Jamf Pro → Settings → API roles and clients → a role with Read Computers + Read Computer Inventory Collection, then an API client
-                with that role. <a href="/checks/jamf" className="underline">Exactly what we read</a>.
+                with that role. <Link href="/checks/jamf" className="underline">Exactly what we read</Link>.
               </>
             }
           />
@@ -451,6 +452,7 @@ export default async function IntegrationsPage() {
           status={cardStatus(aws)}
         >
           <AwsCard
+            // The card only needs each account's settings — not its (large) last scan or region list.
             accounts={(awsView?.accounts ?? []).map(({ scan: _scan, regions: _regions, ...a }) => a)}
             canWrite={access?.canWrite ?? false}
           />

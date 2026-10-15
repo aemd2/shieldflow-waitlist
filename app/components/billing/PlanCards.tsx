@@ -99,7 +99,7 @@ export function PlanCards({
       setBusy(null);
       return;
     }
-    if (res?.url) window.location.href = res.url;
+    if (res?.url) window.location.assign(res.url);
   }
 
   async function managePortal() {

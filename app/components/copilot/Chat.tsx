@@ -61,7 +61,7 @@ export function Chat({
         const data = await res.json().catch(() => ({}));
         // 401 mid-session = logged out in another tab; send them back to login.
         if (res.status === 401) {
-          window.location.href = "/login?reason=expired";
+          window.location.assign("/login?reason=expired");
           return;
         }
         setError(data.error ?? "The co-pilot is unavailable right now.");
@@ -76,9 +76,10 @@ export function Chat({
         const { done, value } = await reader.read();
         if (done) break;
         acc += decoder.decode(value, { stream: true });
+        const content = acc;
         setMessages((m) => {
           const copy = [...m];
-          copy[copy.length - 1] = { role: "assistant", content: acc };
+          copy[copy.length - 1] = { role: "assistant", content };
           return copy;
         });
       }

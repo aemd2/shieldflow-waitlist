@@ -563,7 +563,7 @@ function Tracker({ view, canWrite, title }: { view: ProviderView; canWrite: bool
       <section className="card space-y-2 text-sm">
         <h2 className="font-semibold">Create tickets for failing checks</h2>
         <p className="text-xs text-muted-foreground">
-          Off by default — it's the only thing ShieldFlow ever writes. When on, every failing check on every integration page gets a button that opens one ticket with the
+          Off by default — it&apos;s the only thing ShieldFlow ever writes. When on, every failing check on every integration page gets a button that opens one ticket with the
           affected resources and the fix. The next scan after the fix turns the check green.
         </p>
         {canWrite && (
@@ -607,7 +607,7 @@ function Tracker({ view, canWrite, title }: { view: ProviderView; canWrite: bool
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted-foreground">No incidents recorded in {title} in the last 12 months. Label incident tickets <b>incident</b> so they're counted.</p>
+          <p className="text-sm text-muted-foreground">No incidents recorded in {title} in the last 12 months. Label incident tickets <b>incident</b> so they&apos;re counted.</p>
         )}
       </section>
 

@@ -75,6 +75,8 @@ export function AuthForm({ mode }: { mode: Mode }) {
   // Restore "remember me" + saved email from the last visit on this browser.
   // Also resume any active brute-force lockout that survived a page refresh.
   useEffect(() => {
+    // Browser-only storage, read once after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRememberMe(getRememberMePreference());
     const savedEmail = getRememberedEmail();
     if (savedEmail) setEmail(savedEmail);
@@ -100,7 +102,6 @@ export function AuthForm({ mode }: { mode: Mode }) {
         }
       }, 1000);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // A dropped connection / unreachable Supabase rejects the auth call itself.

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- rows from untyped Supabase joins and older integrations' stored postures; typed at the edges that use them. */
 // Measure-layer logic shared by the server actions and the sync/cron paths.
 //
 // Kept out of app/actions/measures.ts on purpose: the cron runs with the

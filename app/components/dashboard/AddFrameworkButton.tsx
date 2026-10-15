@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { addFramework } from "@/app/actions/frameworks";
@@ -41,13 +41,9 @@ export function AddFrameworkButton({
   // `available` shrinks after each successful add (server props refresh via
   // router.refresh()), but useState's initializer only runs once at mount —
   // `choice` would otherwise keep pointing at a framework that's already
-  // been added. Self-heals only when the current choice is actually stale,
-  // so it doesn't yank a valid in-progress selection on unrelated re-renders.
-  useEffect(() => {
-    if (!available.some((f) => f.id === choice)) {
-      setChoice(available[0]?.id ?? "");
-    }
-  }, [available, choice]);
+  // been added. A stale choice falls back to the first one still available,
+  // without yanking a valid in-progress selection on unrelated re-renders.
+  const current = available.some((f) => f.id === choice) ? choice : (available[0]?.id ?? "");
 
   if (!canManage) return null;
 
@@ -56,7 +52,7 @@ export function AddFrameworkButton({
   }
 
   function submit() {
-    const framework = available.find((f) => f.id === choice);
+    const framework = available.find((f) => f.id === current);
     if (!framework) return;
     const ok = confirm(
       `Add ${framework.name}? This adds ${framework.controlCount} control${framework.controlCount === 1 ? "" : "s"}. Any already covered by measures you've worked on are credited straight away; the rest start at 0%, so your compliance score may dip and your 14-Day Sprint may reopen until they're addressed.`,
@@ -93,7 +89,7 @@ export function AddFrameworkButton({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Select value={choice} onChange={(e) => setChoice(e.target.value)} className="w-auto">
+      <Select value={current} onChange={(e) => setChoice(e.target.value)} className="w-auto">
         {available.map((f) => (
           <option key={f.id} value={f.id}>
             {f.name}
