@@ -4,6 +4,7 @@ import { scanWorkspace } from "@/lib/aws/scan";
 import { scanGitHub } from "@/lib/integrations/github/scan";
 import { scanGoogle } from "@/lib/integrations/google/scan";
 import { scanMicrosoft } from "@/lib/integrations/microsoft/scan";
+import { scanHris } from "@/lib/integrations/hris/scan";
 import { fetchUserSecurity as fetchOktaSecurity } from "@/lib/okta";
 import { fetchProjectSecurity as fetchGcpSecurity } from "@/lib/gcp";
 import { fetchZoneSecurity as fetchCloudflareSecurity } from "@/lib/cloudflare";
@@ -29,6 +30,9 @@ export const SYNCABLE_PROVIDERS = [
   "gitlab",
   "google_workspace",
   "microsoft",
+  "personio",
+  "hibob",
+  "bamboohr",
 ] as const;
 export type SyncableProvider = (typeof SYNCABLE_PROVIDERS)[number];
 
@@ -94,6 +98,11 @@ export async function fetchPostureFor(
       return fetchGitlabRepoSecurity(secret);
     case "microsoft":
       return scanMicrosoft(db, { id: integ.id, company_id: integ.company_id, access_token: integ.access_token, metadata: integ.metadata ?? null });
+    case "personio":
+    case "hibob":
+    case "bamboohr":
+      // Also brings Personnel up to date, before the other providers' leaver checks read it.
+      return scanHris(db, integ.provider, { id: integ.id, company_id: integ.company_id, access_token: integ.access_token, metadata: integ.metadata ?? null });
     default:
       throw new Error(`provider ${integ.provider} is not syncable`);
   }

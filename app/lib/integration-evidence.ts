@@ -22,6 +22,11 @@ export const INTEGRATION_LABELS: Record<string, string> = {
   cloudflare: "Cloudflare",
   gcp: "Google Cloud",
   microsoft: "Microsoft 365",
+  personio: "Personio",
+  hibob: "HiBob",
+  bamboohr: "BambooHR",
+  kandji: "Kandji",
+  jamf: "Jamf",
 };
 
 /**

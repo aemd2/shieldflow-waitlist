@@ -8,6 +8,7 @@ import { syncGitHub, updateGitHubSettings } from "@/app/actions/github";
 import { syncGoogleWorkspace, updateGoogleSettings } from "@/app/actions/integrations";
 import { createVendor } from "@/app/actions/vendors";
 import { syncMicrosoft, updateMicrosoftSettings } from "@/app/actions/microsoft";
+import { syncPersonio, syncHiBob, syncBambooHR, updatePersonioSettings, updateHiBobSettings, updateBambooHRSettings } from "@/app/actions/hris";
 import { createCheckException } from "@/app/actions/check-exceptions";
 import { dismissIdentityAccount, restoreIdentityAccount, linkIdentity, unlinkIdentity } from "@/app/actions/identity";
 import type { CheckDef } from "@/lib/checks-core";
@@ -29,11 +30,17 @@ const SCAN: Partial<Record<string, Action>> = {
   github: syncGitHub as unknown as Action,
   google_workspace: syncGoogleWorkspace as unknown as Action,
   microsoft: syncMicrosoft as unknown as Action,
+  personio: syncPersonio as unknown as Action,
+  hibob: syncHiBob as unknown as Action,
+  bamboohr: syncBambooHR as unknown as Action,
 };
 const SAVE_SETTINGS: Partial<Record<string, Action>> = {
   github: updateGitHubSettings as unknown as Action,
   google_workspace: updateGoogleSettings as unknown as Action,
   microsoft: updateMicrosoftSettings as unknown as Action,
+  personio: updatePersonioSettings as unknown as Action,
+  hibob: updateHiBobSettings as unknown as Action,
+  bamboohr: updateBambooHRSettings as unknown as Action,
 };
 
 type Tab = "posture" | "people" | "apps" | "devices" | "changes" | "vulnerabilities" | "settings";
@@ -200,7 +207,7 @@ const MATCH: Record<PersonMatch, { variant: BadgeVariant; label: (r: PersonRowVi
   matched: { variant: "success", label: (r) => r.person?.name ?? "In Personnel" },
   dismissed: { variant: "neutral", label: () => "Marked not a person" },
   bot: { variant: "neutral", label: () => "Bot" },
-  inactive: { variant: "neutral", label: (r) => (r.person ? `${r.person.name} · can't sign in` : "Can't sign in") },
+  inactive: { variant: "neutral", label: (r) => (r.where === "left" ? "Left" : r.person ? `${r.person.name} · can't sign in` : "Can't sign in") },
 };
 
 function LinkPerson({ row, provider, personnel, onDone }: { row: PersonRowView; provider: string; personnel: ProviderView["personnel"]; onDone: () => void }) {

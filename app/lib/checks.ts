@@ -12,9 +12,7 @@ import { plural, agree } from "@/lib/plural";
 import type { AwsWorkspaceScan } from "@/lib/aws/scan";
 import { awsRosters, peopleBlindSpot, type WorkspacePeople } from "@/lib/aws/roster";
 import { isProviderScan, outcomesToRaw, type ProviderRoster } from "@/lib/integrations/scan-store";
-import { GITHUB_CHECKS } from "@/lib/integrations/github/catalog";
-import { GOOGLE_CHECKS } from "@/lib/integrations/google/catalog";
-import { MICROSOFT_CHECKS } from "@/lib/integrations/microsoft/catalog";
+import { PROVIDERS } from "@/lib/integrations/registry";
 
 // Continuous control checks: turn the security posture each integration already
 // computes (root MFA, branch protection, 2FA %, TLS…) into pass/fail results
@@ -79,8 +77,7 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
   },
 
   github(p) {
-    // The deep scan (lib/integrations/github) hands over finished outcomes.
-    if (isProviderScan(p)) return outcomesToRaw(p.results, GITHUB_CHECKS);
+    // Deep scans (ProviderScan) never reach here — rawChecksFor handles them for every provider.
     // Older connections' last posture (repository list + protection) until their next sync.
     const checks: RawCheck[] = [];
     if (p.totalRepos === 0) {
@@ -129,11 +126,6 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
     return checks;
   },
 
-  microsoft(p) {
-    // The identity checks (leavers, unknown accounts) come from ASYNC_EVALUATORS.
-    return isProviderScan(p) ? outcomesToRaw(p.results, MICROSOFT_CHECKS) : [];
-  },
-
   okta(p) {
     const checks: RawCheck[] = [];
     if (p.mfaChecked === 0) {
@@ -174,7 +166,6 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
   },
 
   google(p) {
-    if (isProviderScan(p)) return outcomesToRaw(p.results, GOOGLE_CHECKS);
     if (!p.total) {
       return [
         { checkKey: "google.2fa", controlCodes: MFA, result: "inconclusive", detail: "No users found." },
@@ -296,6 +287,11 @@ export const CHECK_PROVIDER_LABELS: Record<string, string> = {
   cloudflare: "Cloudflare",
   gitlab: "GitLab",
   microsoft: "Microsoft 365",
+  personio: "Personio",
+  hibob: "HiBob",
+  bamboohr: "BambooHR",
+  kandji: "Kandji",
+  jamf: "Jamf",
   shieldflow: "ShieldFlow",
 };
 
@@ -429,18 +425,12 @@ export const ASYNC_EVALUATORS: Record<
     ...(await identityChecks(db, companyId, "okta", oktaAccounts(posture), Boolean(posture?.truncated))),
     ...(await ssoChecks(db, posture)),
   ],
+  // Older connections' last posture, until their next (deep) scan.
   google: (posture, db, companyId) =>
-    isProviderScan(posture)
-      ? rosterChecks(db, companyId, "google", posture.roster ?? null)
-      : identityChecks(db, companyId, "google", googleAccounts(posture), Boolean(posture?.truncated)),
+    identityChecks(db, companyId, "google", googleAccounts(posture), Boolean(posture?.truncated)),
   microsoft: (posture, db, companyId) =>
-    isProviderScan(posture)
-      ? rosterChecks(db, companyId, "microsoft", posture.roster ?? null)
-      : identityChecks(db, companyId, "microsoft", microsoftAccounts(posture), Boolean(posture?.truncated)),
+    identityChecks(db, companyId, "microsoft", microsoftAccounts(posture), Boolean(posture?.truncated)),
   aws: (posture: AwsWorkspaceScan, db, companyId) => awsIdentityChecks(db, companyId, posture?.people ?? null),
-  // A personal account (no organisation) has no members to reconcile: no checks at all.
-  github: (posture, db, companyId) =>
-    isProviderScan(posture) && posture.roster !== null ? rosterChecks(db, companyId, "github", posture.roster ?? null) : Promise.resolve([]),
 };
 
 /**
@@ -647,6 +637,21 @@ async function rawChecksFor(
   db: SupabaseClient,
   companyId: string,
 ): Promise<RawCheck[] | null> {
+  // Every deep integration hands over a ProviderScan: its outcomes, plus the
+  // people list for the leaver / unknown-account checks. One path for all of them.
+  const entry = isProviderScan(posture) ? PROVIDERS.find((p) => p.checkPrefix === provider) : undefined;
+  if (entry && isProviderScan(posture)) {
+    const checks: RawCheck[] = outcomesToRaw(posture.results, entry.checks);
+    if (posture.roster) {
+      try {
+        checks.push(...(await rosterChecks(db, companyId, provider, posture.roster)));
+      } catch {
+        // Leave the provider's own checks standing.
+      }
+    }
+    return checks;
+  }
+
   const sync = EVALUATORS[provider];
   const async_ = ASYNC_EVALUATORS[provider];
   if (!sync && !async_) return null;

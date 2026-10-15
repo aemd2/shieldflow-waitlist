@@ -740,7 +740,12 @@ export type IntegrationProvider =
   | "linear"
   | "cloudflare"
   | "gcp"
-  | "microsoft";
+  | "microsoft"
+  | "personio"
+  | "hibob"
+  | "bamboohr"
+  | "kandji"
+  | "jamf";
 
 export interface Integration {
   id: string;

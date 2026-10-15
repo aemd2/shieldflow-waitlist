@@ -2,6 +2,8 @@ import type { CheckDef } from "@/lib/checks-core";
 import { GITHUB_AREAS, GITHUB_CHECKS, GITHUB_APP_PERMISSIONS } from "@/lib/integrations/github/catalog";
 import { GOOGLE_AREAS, GOOGLE_CHECKS, GOOGLE_READS } from "@/lib/integrations/google/catalog";
 import { MICROSOFT_AREAS, MICROSOFT_CHECKS, MICROSOFT_READS } from "@/lib/integrations/microsoft/catalog";
+import { HRIS_AREAS, HRIS_META } from "@/lib/integrations/hris/catalog";
+import type { HrisProvider } from "@/lib/integrations/hris/clients";
 
 /**
  * Every integration that has its own page (/integrations/<key>) and its own
@@ -101,6 +103,20 @@ export const PROVIDERS: ProviderEntry[] = [
       { key: "staleDays", label: "Devices count as stale after", help: "An Intune device that hasn't checked in for this long fails the check-in check, and its encryption counts as unknown.", min: 3, max: 90, unit: "days" },
     ],
   },
+  ...(["personio", "hibob", "bamboohr"] as HrisProvider[]).map(
+    (key): ProviderEntry => ({
+      key,
+      checkPrefix: key,
+      title: HRIS_META[key].title,
+      subtitle: `Your HR system keeps Personnel right: joiners, notice periods and leavers with their leaving date, synced every morning — so every leaver check in Google, Microsoft, GitHub and AWS runs off HR, not a list someone has to remember. Read-only.`,
+      checks: HRIS_META[key].checks,
+      areas: HRIS_AREAS,
+      connectStory: HRIS_META[key].connect,
+      reads: HRIS_META[key].reads,
+      never: HRIS_META[key].never,
+      settings: [{ key: "trainingDays", label: "Joiners finish security training within", help: "People who started longer ago than this without a completed training record fail the joiner check.", min: 7, max: 120, unit: "days" }],
+    }),
+  ),
 ];
 
 export const PROVIDER_BY_KEY = new Map(PROVIDERS.map((p) => [p.key, p]));

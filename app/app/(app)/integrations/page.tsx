@@ -7,6 +7,7 @@ import {
   Cloud,
   KeyRound,
   Ticket,
+  Users,
 } from "lucide-react";
 import { createServerSupabase, getRequestUser } from "@/lib/supabase/server";
 import {
@@ -31,6 +32,17 @@ import { IntegrationConnectCard } from "@/components/integrations/IntegrationCon
 import { IntegrationsUrlToast } from "@/components/integrations/IntegrationsUrlToast";
 import { connectOkta, syncOkta, disconnectOkta } from "@/app/actions/okta";
 import { connectMicrosoft, syncMicrosoft, disconnectMicrosoft } from "@/app/actions/microsoft";
+import {
+  connectPersonio,
+  syncPersonio,
+  disconnectPersonio,
+  connectHiBob,
+  syncHiBob,
+  disconnectHiBob,
+  connectBambooHR,
+  syncBambooHR,
+  disconnectBambooHR,
+} from "@/app/actions/hris";
 import { connectGitLab, syncGitLab, disconnectGitLab } from "@/app/actions/gitlab";
 import { connectJira, syncJira, disconnectJira } from "@/app/actions/jira";
 import { connectLinear, syncLinear, disconnectLinear } from "@/app/actions/linear";
@@ -69,6 +81,9 @@ export default async function IntegrationsPage() {
   const awsView = await loadAwsView(supabase, company.id).catch(() => null);
   const okta = byProvider("okta");
   const microsoft = byProvider("microsoft");
+  const personio = byProvider("personio");
+  const hibob = byProvider("hibob");
+  const bamboohr = byProvider("bamboohr");
   const gitlab = byProvider("gitlab");
   const jira = byProvider("jira");
   const linear = byProvider("linear");
@@ -135,7 +150,7 @@ export default async function IntegrationsPage() {
 
         <IntegrationCard
           name="Microsoft 365"
-          description="Entra ID directory — who has an account and whether it's still enabled. Powers the leaver and untracked-account checks."
+          description="MFA actually required and registered, admins, guests, apps that can read everyone's mail — and with Intune, every laptop encrypted. Plus leavers and unknown accounts."
           icon={<KeyRound className="h-5 w-5 text-muted-foreground" />}
           status={cardStatus(microsoft)}
         >
@@ -162,6 +177,93 @@ export default async function IntegrationsPage() {
                 <b>Directory.Read.All</b> and, with Intune, <b>DeviceManagementManagedDevices.Read.All</b> — all read-only →
                 Grant admin consent. Finally Certificates &amp; secrets → New client secret, and paste the secret{" "}
                 <b>Value</b> (not the Secret ID) above. <a href="/checks/microsoft" className="underline">What each one is for</a>.
+              </>
+            }
+          />
+        </IntegrationCard>
+      </PageSection>
+
+      <PageSection title="HR systems" columns={2}>
+        <IntegrationCard
+          name="Personio"
+          description="Joiners, notice periods and leavers with their leaving date, synced into Personnel every morning — so every leaver check runs off HR."
+          icon={<Users className="h-5 w-5 text-muted-foreground" />}
+          status={cardStatus(personio)}
+        >
+          <IntegrationConnectCard
+            provider="personio"
+            status={personio?.status ?? null}
+            lastSyncedAt={personio?.last_synced_at ?? null}
+            identityLabel={personio ? meta(personio).org ?? "Connected" : null}
+            fields={[
+              { name: "clientId", placeholder: "Client ID" },
+              { name: "clientSecret", placeholder: "Client secret", type: "password" },
+            ]}
+            connectAction={connectPersonio}
+            syncAction={syncPersonio}
+            disconnectAction={disconnectPersonio}
+            page={{ href: "/integrations/personio", label: "Open Personio" }}
+            disconnectConfirm="Disconnect Personio? Personnel and collected evidence stay."
+            setupHint={
+              <>
+                Personio → Settings → Integrations → API credentials → generate, read access to employees, with email, status, hire date,
+                termination date and last working day readable. <a href="/checks/personio" className="underline">Exactly what we read</a>.
+              </>
+            }
+          />
+        </IntegrationCard>
+        <IntegrationCard
+          name="HiBob"
+          description="Joiners, notice periods and leavers with their leaving date, synced into Personnel every morning — so every leaver check runs off HR."
+          icon={<Users className="h-5 w-5 text-muted-foreground" />}
+          status={cardStatus(hibob)}
+        >
+          <IntegrationConnectCard
+            provider="hibob"
+            status={hibob?.status ?? null}
+            lastSyncedAt={hibob?.last_synced_at ?? null}
+            identityLabel={hibob ? meta(hibob).org ?? "Connected" : null}
+            fields={[
+              { name: "serviceUserId", placeholder: "Service user ID" },
+              { name: "token", placeholder: "Service user token", type: "password" },
+            ]}
+            connectAction={connectHiBob}
+            syncAction={syncHiBob}
+            disconnectAction={disconnectHiBob}
+            page={{ href: "/integrations/hibob", label: "Open HiBob" }}
+            disconnectConfirm="Disconnect HiBob? Personnel and collected evidence stay."
+            setupHint={
+              <>
+                HiBob → Settings → Integrations → Service users → create one; give its permission group read access to People (name, email,
+                work, lifecycle) including former employees. <a href="/checks/hibob" className="underline">Exactly what we read</a>.
+              </>
+            }
+          />
+        </IntegrationCard>
+        <IntegrationCard
+          name="BambooHR"
+          description="Joiners and leavers with their termination date, synced into Personnel every morning — so every leaver check runs off HR."
+          icon={<Users className="h-5 w-5 text-muted-foreground" />}
+          status={cardStatus(bamboohr)}
+        >
+          <IntegrationConnectCard
+            provider="bamboohr"
+            status={bamboohr?.status ?? null}
+            lastSyncedAt={bamboohr?.last_synced_at ?? null}
+            identityLabel={bamboohr ? meta(bamboohr).org ?? "Connected" : null}
+            fields={[
+              { name: "subdomain", placeholder: "Subdomain (yourco in yourco.bamboohr.com)" },
+              { name: "apiKey", placeholder: "API key", type: "password" },
+            ]}
+            connectAction={connectBambooHR}
+            syncAction={syncBambooHR}
+            disconnectAction={disconnectBambooHR}
+            page={{ href: "/integrations/bamboohr", label: "Open BambooHR" }}
+            disconnectConfirm="Disconnect BambooHR? Personnel and collected evidence stay."
+            setupHint={
+              <>
+                BambooHR → your name → API Keys → Add new key, for a user whose access level can see work email, job, hire and termination
+                dates. <a href="/checks/bamboohr" className="underline">Exactly what we read</a>.
               </>
             }
           />

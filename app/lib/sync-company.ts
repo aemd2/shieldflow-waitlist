@@ -48,7 +48,12 @@ export async function syncCompany(admin: SupabaseClient, companyId: string): Pro
   let companyDrift = 0;
   let companyFailing = 0;
 
-  for (const integ of (integs ?? []) as ConnectedIntegration[]) {
+  // HR systems first: they bring Personnel up to date, and every other
+  // provider's leaver check reads Personnel.
+  const HR_FIRST = new Set(["personio", "hibob", "bamboohr"]);
+  const ordered = ((integs ?? []) as ConnectedIntegration[]).sort((a, b) => Number(HR_FIRST.has(b.provider)) - Number(HR_FIRST.has(a.provider)));
+
+  for (const integ of ordered) {
     summary.integrations++;
     try {
       const posture = await fetchPostureFor(integ, admin);

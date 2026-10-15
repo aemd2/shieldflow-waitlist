@@ -10,6 +10,7 @@ import { riskyScopes } from "@/lib/integrations/google/catalog";
 import { MICROSOFT_DEFAULTS, type MicrosoftExtra } from "@/lib/integrations/microsoft/scan";
 import { msAppResource } from "@/lib/integrations/microsoft/evaluate";
 import { deviceResource, type Device } from "@/lib/integrations/devices";
+import { HRIS_DEFAULTS, type HrisExtra } from "@/lib/integrations/hris/scan";
 
 /**
  * Everything one integration page shows, built on the server from the last scan
@@ -463,6 +464,50 @@ export async function loadProviderView(db: SupabaseClient, companyId: string, en
     view.devices = x.devices
       ? devicesView("microsoft", "Intune", x.devices, settings.staleDays, byEmail)
       : { rows: [], note: "", missing: "Intune isn't set up in this tenant (or the app registration lacks DeviceManagementManagedDevices.Read.All). Connect Kandji or Jamf instead, if that's where your laptops are.", staleDays: settings.staleDays, mdm: "Intune" };
+  }
+
+  if ((entry.key === "personio" || entry.key === "hibob" || entry.key === "bamboohr") && scan) {
+    const x = scan.extra as HrisExtra;
+    const settings = settingsOf(meta, HRIS_DEFAULTS);
+    view.settings = settings;
+    const current = x.employees.filter((e) => e.state !== "left");
+    view.scan!.summary = [
+      `${current.length} current employees`,
+      `${x.employees.filter((e) => e.state === "leaving").length} in their notice period`,
+      `Personnel: ${x.sync.added} added, ${x.sync.updated} updated in the last sync`,
+    ];
+    if (x.missingFields.length) view.unread = x.missingFields.map((f) => `these credentials can't read ${f}`);
+    const yearAgo = new Date(Date.now() - 365 * DAY).toISOString().slice(0, 10);
+    const rows: PersonRowView[] = x.employees
+      .filter((e) => e.state !== "left" || (e.endDate ?? "") >= yearAgo)
+      .map((e) => {
+        const flags: PersonRowView["flags"] = [];
+        if (e.startDate) flags.push({ label: `started ${e.startDate}`, bad: false });
+        if (e.state === "leaving") flags.push({ label: `leaving ${e.endDate}`, bad: false });
+        if (e.state === "left") flags.push({ label: e.endDate ? `left ${e.endDate}` : "left — no leaving date", bad: !e.endDate });
+        if (!e.email && e.state !== "left") flags.push({ label: "no work email", bad: true });
+        if (e.state !== "left" && e.trained === false) flags.push({ label: "security training not done", bad: true });
+        const p = e.email ? byEmail.get(norm(e.email)) : undefined;
+        return {
+          account: e.email ?? e.name,
+          subject: e.email ?? e.name,
+          name: e.email ? e.name : null,
+          role: e.title ?? "—",
+          where: e.state === "active" ? "employed" : e.state === "leaving" ? "notice period" : "left",
+          flags,
+          match: e.state === "left" ? "inactive" : p ? "matched" : "unknown",
+          person: p ? { name: p.name, email: norm(p.email), endedAt: p.ended_at } : null,
+          linked: false,
+        };
+      });
+    const order: Record<PersonMatch, number> = { leaver: 0, unknown: 1, matched: 2, dismissed: 3, bot: 4, inactive: 5 };
+    rows.sort((a, b) => order[a.match] - order[b.match] || a.account.localeCompare(b.account));
+    view.people = {
+      rows,
+      note: `Synced into Personnel every morning: new joiners added, leaving dates and leavers updated, nobody deleted. Leavers from the last 12 months are shown; each scan also files them as evidence on the offboarding measure.`,
+      blindSpot: x.truncated ? "the HR system has more people than one scan reads" : null,
+      linkable: false,
+    };
   }
 
   return view;
