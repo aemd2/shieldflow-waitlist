@@ -18,6 +18,7 @@ const ROSTER_LABELS: Record<string, string> = {
   google_workspace: "Google Workspace",
   microsoft: "Microsoft 365",
   aws: "AWS (production accounts)",
+  github: "GitHub (organisation members)",
 };
 
 export default async function AccessReviewsPage() {

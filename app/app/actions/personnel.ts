@@ -73,7 +73,7 @@ export async function createPerson(input: unknown) {
  * none of the three fight over one budget.
  */
 export async function pullPersonnelFrom(provider: RosterProvider) {
-  if (provider === "aws") return { error: "AWS isn't a list of who works here — import from your identity provider." };
+  if (provider === "aws" || provider === "github") return { error: "That isn't a list of who works here — import from your identity provider." };
   const res = await companyOrError();
   if ("error" in res) return { error: res.error };
   const { supabase, company } = res;

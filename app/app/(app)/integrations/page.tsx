@@ -25,6 +25,7 @@ import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { PageShell, PageSection } from "@/components/ui/page";
 import { GoogleWorkspaceCard } from "@/components/integrations/GoogleWorkspaceCard";
 import { GitHubCard } from "@/components/integrations/GitHubCard";
+import { appConfig } from "@/lib/integrations/github/client";
 import { SlackCard } from "@/components/integrations/SlackCard";
 import { AwsCard } from "@/components/integrations/AwsCard";
 import { loadAwsView } from "@/lib/aws/view";
@@ -188,7 +189,9 @@ export default async function IntegrationsPage() {
             status={github?.status ?? null}
             lastSyncedAt={github?.last_synced_at ?? null}
             oauthEnabled={isGitHubOAuthConfigured()}
+            appEnabled={appConfig().configured}
             connectedLogin={(github?.metadata as { login?: string } | null)?.login ?? null}
+            connection={(github?.metadata as { connection?: string } | null)?.connection ?? null}
           />
         </IntegrationCard>
 

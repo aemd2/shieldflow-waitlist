@@ -19,7 +19,7 @@ export interface ProviderRoster {
   blindSpot: string | null;
 }
 
-export interface ProviderScan<X = Record<string, unknown>> {
+export interface ProviderScan<X = unknown> {
   /** Check-provider key (the prefix of every check key: github, google, okta…). */
   provider: string;
   scannedAt: string;
@@ -51,7 +51,7 @@ export async function loadExceptions(db: SupabaseClient, companyId: string, prov
 }
 
 /** Keep the scan for the provider page. Best-effort: the checks stand without it. */
-export async function saveScan(db: SupabaseClient, integrationId: string, scan: ProviderScan): Promise<void> {
+export async function saveScan(db: SupabaseClient, integrationId: string, scan: ProviderScan<unknown>): Promise<void> {
   await db.from("integrations").update({ last_scan: scan }).eq("id", integrationId);
 }
 

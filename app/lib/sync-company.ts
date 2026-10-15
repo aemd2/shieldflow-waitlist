@@ -40,7 +40,7 @@ export async function syncCompany(admin: SupabaseClient, companyId: string): Pro
   const { data: integs } = await admin
     .from("integrations")
     // refresh_token/token_expires_at are Google's; the others ignore them.
-    .select("id, company_id, provider, access_token, refresh_token, token_expires_at")
+    .select("id, company_id, provider, access_token, refresh_token, token_expires_at, metadata")
     .eq("company_id", companyId)
     .eq("status", "connected")
     .in("provider", [...SYNCABLE_PROVIDERS]);

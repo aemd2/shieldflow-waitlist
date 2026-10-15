@@ -11,6 +11,8 @@ import {
 import { plural, agree } from "@/lib/plural";
 import type { AwsWorkspaceScan } from "@/lib/aws/scan";
 import { awsRosters, peopleBlindSpot, type WorkspacePeople } from "@/lib/aws/roster";
+import { isProviderScan, outcomesToRaw, type ProviderRoster } from "@/lib/integrations/scan-store";
+import { GITHUB_CHECKS } from "@/lib/integrations/github/catalog";
 
 // Continuous control checks: turn the security posture each integration already
 // computes (root MFA, branch protection, 2FA %, TLS…) into pass/fail results
@@ -75,6 +77,9 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
   },
 
   github(p) {
+    // The deep scan (lib/integrations/github) hands over finished outcomes.
+    if (isProviderScan(p)) return outcomesToRaw(p.results, GITHUB_CHECKS);
+    // Older connections' last posture (repository list + protection) until their next sync.
     const checks: RawCheck[] = [];
     if (p.totalRepos === 0) {
       checks.push({
@@ -421,7 +426,46 @@ export const ASYNC_EVALUATORS: Record<
   microsoft: (posture, db, companyId) =>
     identityChecks(db, companyId, "microsoft", microsoftAccounts(posture), Boolean(posture?.truncated)),
   aws: (posture: AwsWorkspaceScan, db, companyId) => awsIdentityChecks(db, companyId, posture?.people ?? null),
+  // A personal account (no organisation) has no members to reconcile: no checks at all.
+  github: (posture, db, companyId) =>
+    isProviderScan(posture) && posture.roster !== null ? rosterChecks(db, companyId, "github", posture.roster ?? null) : Promise.resolve([]),
 };
+
+/**
+ * Leavers and unknown logins for any provider that hands over a ProviderRoster
+ * (GitHub, GitLab, Cloudflare, MDM device owners…): the same engine as the
+ * identity providers. A pass is downgraded when part of the list couldn't be
+ * seen, and is never made on an empty list.
+ */
+async function rosterChecks(db: SupabaseClient, companyId: string, provider: string, roster: ProviderRoster | null): Promise<RawCheck[]> {
+  const [{ data: rows }, { data: exceptions }, offCodes, onCodes] = await Promise.all([
+    db.from("personnel").select("name, email, status, ended_at").eq("company_id", companyId),
+    db.from("identity_exceptions").select("email").eq("company_id", companyId),
+    controlCodesForMeasure(db, "offboarding-checklist"),
+    controlCodesForMeasure(db, "onboarding-checklist"),
+  ]);
+  if (!roster) {
+    const detail = `Couldn't read who has access in ${CHECK_PROVIDER_LABELS[provider] ?? provider}, so this couldn't be checked.`;
+    return [
+      { checkKey: `${provider}.offboarding_drift`, controlCodes: offCodes, result: "inconclusive", detail },
+      { checkKey: `${provider}.untracked_accounts`, controlCodes: onCodes, result: "inconclusive", detail },
+    ];
+  }
+  const records = (rows ?? []) as PersonRecord[];
+  const dismissed = ((exceptions ?? []) as { email: string }[]).map((e) => e.email);
+  const finish = (v: { result: CheckResultValue; detail: string; subjects?: string[] }) =>
+    v.result === "pass" && roster.blindSpot
+      ? { result: "inconclusive" as const, detail: `${v.detail.replace(/\.$/, "")} — but ${roster.blindSpot}.` }
+      : v;
+  const drift = finish(
+    evaluateOffboardingDrift({ roster: roster.all, truncated: roster.truncated, people: records, graceDays: OFFBOARDING_GRACE_DAYS }),
+  );
+  const untracked = finish(evaluateUntrackedAccounts({ roster: roster.humans, truncated: roster.truncated, people: records, dismissed }));
+  return [
+    { checkKey: `${provider}.offboarding_drift`, controlCodes: offCodes, result: drift.result, detail: drift.detail },
+    { checkKey: `${provider}.untracked_accounts`, controlCodes: onCodes, result: untracked.result, detail: untracked.detail, subjects: untracked.subjects },
+  ];
+}
 
 /**
  * Leavers and unknown logins in AWS: the same engine as the identity

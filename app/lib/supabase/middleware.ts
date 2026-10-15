@@ -23,6 +23,8 @@ const PUBLIC_PATHS = [
   // The public AWS check catalogue — what we read and what we never read, for a
   // DevOps buyer to check before connecting anything.
   "/aws-checks",
+  // The same, per integration (/checks/github, /checks/google_workspace, …).
+  "/checks",
   "/privacy",
   "/terms",
   "/thanks",

@@ -5,10 +5,14 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getCompanyForUser, assertCanWrite } from "@/lib/db/queries";
 import { assertFeature, assertIntegrationSlot } from "@/lib/plan-server";
-import { validateToken, fetchRepoSecurity, GitHubError } from "@/lib/github";
+import { validateToken, GitHubError } from "@/lib/github";
+import { scanGitHub, type GitHubIntegrationRow } from "@/lib/integrations/github/scan";
+import { GitHubAccessError } from "@/lib/integrations/github/client";
+import { GITHUB_CHECK_BY_KEY } from "@/lib/integrations/github/catalog";
+import { csvRow, fileMeasureCsv } from "@/lib/evidence-population";
+import { z } from "zod";
 import { githubTokenSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { csvSafe } from "@/lib/csv";
 import { logEvent } from "@/lib/audit";
 import { INTEGRATION_LABELS } from "@/lib/integration-evidence";
 import { recordChecksForSync, clearChecksForProvider } from "@/lib/checks";
@@ -76,8 +80,9 @@ export async function connectGitHub(input: { token: string }) {
 }
 
 /**
- * Pull a repository-security report (branch protection, visibility) and file
- * it as evidence — same compensating-cleanup pattern as the Workspace sync.
+ * Scan GitHub now: the deep read-only scan (lib/integrations/github), the report
+ * filed as evidence, the merged-change population filed on "Track every
+ * production change", and the checks recorded.
  */
 export async function syncGitHub() {
   const supabase = await createServerSupabase();
@@ -102,7 +107,7 @@ export async function syncGitHub() {
 
   const { data: integ } = await supabase
     .from("integrations")
-    .select("id, access_token, status")
+    .select("id, company_id, access_token, status, metadata")
     .eq("company_id", company.id)
     .eq("provider", "github")
     .maybeSingle();
@@ -110,42 +115,51 @@ export async function syncGitHub() {
     return { error: "GitHub isn't connected yet." };
   }
 
-  let token: string;
+  let scan: Awaited<ReturnType<typeof scanGitHub>>;
   try {
-    token = decryptSecret(integ.access_token);
-  } catch {
-    return { error: "Stored GitHub token is unreadable — please reconnect." };
+    scan = await scanGitHub(supabase, integ as GitHubIntegrationRow);
+  } catch (err) {
+    if (err instanceof GitHubAccessError) {
+      if (err.kind === "auth") {
+        await supabase.from("integrations").update({ status: "error" }).eq("id", integ.id);
+        revalidatePath("/integrations");
+      }
+      return { error: err.userMessage };
+    }
+    return { error: "The GitHub scan failed. Please try again." };
   }
 
-  try {
-    const report = await fetchRepoSecurity(token);
+  const day = new Date().toISOString().slice(0, 10);
+  const counts = { pass: 0, fail: 0, inconclusive: 0 };
+  for (const r of scan.results) if (!GITHUB_CHECK_BY_KEY.get(r.key)?.informational) counts[r.result]++;
 
-    const active = report.repos.filter((r) => !r.archived);
-    const lines = [
-      `# GitHub repository security report`,
-      `# Generated: ${new Date().toISOString()}`,
-      `# Company: ${company.name}`,
-      `# Summary: ${report.totalRepos} repositories | ${active.length} active | ${report.protectedCount} with branch protection | ${report.publicCount} public${report.truncated ? " | partial report (large account or rate limit)" : ""}`,
-      ``,
-      `repository,visibility,branch_protection,archived`,
-      ...report.repos.map(
-        (r) =>
-          `${csvSafe(r.fullName)},${r.isPrivate ? "private" : "public"},${r.branchProtection},${r.archived ? "yes" : "no"}`,
+  // The report: every check, its verdict and the resources behind it.
+  const report = [
+    csvRow("# GitHub security report", new Date().toISOString(), company.name),
+    csvRow("# Accounts", scan.extra.owners.map((o) => o.login).join(" "), `${scan.extra.repos.length} repositories`),
+    csvRow("check", "result", "detail", "resources"),
+    ...scan.results.map((r) => csvRow(GITHUB_CHECK_BY_KEY.get(r.key)?.title ?? r.key, r.result, r.detail, r.resources.map((x) => x.label).join("; "))),
+    "",
+    csvRow("repository", "visibility", "default_branch", "pull_request_required", "approvals", "force_push_blocked", "dependabot", "archived"),
+    ...scan.extra.repos.map((r) =>
+      csvRow(
+        r.fullName,
+        r.private ? "private" : "public",
+        r.defaultBranch,
+        r.protection ? r.protection.prRequired : "unknown",
+        r.protection?.approvals ?? "",
+        r.protection ? r.protection.forcePushBlocked : "unknown",
+        r.dependabot ?? "unknown",
+        r.archived,
       ),
-    ];
-    const csv = lines.join("\n");
-    const fileName = `github-repo-security-${new Date().toISOString().slice(0, 10)}.csv`;
-    const path = `${company.id}/integrations/${newUuid()}-${fileName}`;
-
-    const { error: upErr } = await supabase.storage
-      .from("evidence")
-      .upload(path, new Blob([csv], { type: "text/csv" }), {
-        contentType: "text/csv",
-        upsert: false,
-      });
-    if (upErr) return { error: "Could not store the report. Please try again." };
-
-    const { data: inserted, error: insErr } = await supabase
+    ),
+  ].join("\n");
+  const fileName = `github-security-report-${day}.csv`;
+  const path = `${company.id}/integrations/${newUuid()}-${fileName}`;
+  let evidenceId: string | null = null;
+  const { error: upErr } = await supabase.storage.from("evidence").upload(path, new Blob([report], { type: "text/csv" }), { contentType: "text/csv" });
+  if (!upErr) {
+    const { data: ev } = await supabase
       .from("evidence")
       .insert({
         company_id: company.id,
@@ -153,45 +167,79 @@ export async function syncGitHub() {
         file_name: fileName,
         storage_path: path,
         mime_type: "text/csv",
-        size_bytes: csv.length,
-        note: `Automated GitHub sync: ${report.totalRepos} repos, ${report.protectedCount} with branch protection, ${report.publicCount} public.`,
+        size_bytes: report.length,
+        note: `Automated GitHub scan: ${counts.fail} failing, ${counts.pass} passing, ${counts.inconclusive} can't tell.`,
         uploaded_by: user.id,
       })
       .select("id")
       .single();
-    if (insErr) {
-      await supabase.storage.from("evidence").remove([path]);
-      return { error: "Could not save the evidence record. Please try again." };
-    }
-
-    await supabase
-      .from("integrations")
-      .update({ last_synced_at: new Date().toISOString(), status: "connected" })
-      .eq("id", integ.id);
-
-    await recordChecksForSync(supabase, company.id, "github", report, inserted?.id ?? null);
-
-    revalidatePath("/integrations");
-    revalidatePath("/evidence");
-    revalidatePath("/dashboard");
-    return {
-      ok: true,
-      summary: {
-        total: report.totalRepos,
-        protected: report.protectedCount,
-        public: report.publicCount,
-      },
-    };
-  } catch (err) {
-    if (err instanceof GitHubError) {
-      if (err.kind === "auth") {
-        await supabase.from("integrations").update({ status: "error" }).eq("id", integ.id);
-        revalidatePath("/integrations");
-      }
-      return { error: err.userMessage };
-    }
-    return { error: "Sync failed. Please try again." };
+    evidenceId = (ev?.id as string | undefined) ?? null;
   }
+
+  // The CC8.1 population an auditor samples.
+  if (scan.extra.pulls.length) {
+    const population = [
+      csvRow(`# Changes merged into default branches, last ${scan.extra.settings.windowDays} days — ${day}`),
+      csvRow("repository", "number", "title", "author", "merged_by", "merged_at", "approved_by", "independent_approval", "ticket", "url"),
+      ...scan.extra.pulls.map((p) => csvRow(p.repo, p.number, p.title, p.author, p.mergedBy, p.mergedAt, p.approvers.join(" "), p.independentApproval, p.ticket, p.url)),
+    ].join("\n");
+    await fileMeasureCsv(
+      supabase,
+      company.id,
+      user.id,
+      "change-management",
+      `github-merged-changes-${day}.csv`,
+      population,
+      "Generated from GitHub by ShieldFlow: every pull request merged into a default branch, with who approved it.",
+    );
+  }
+
+  await supabase.from("integrations").update({ last_synced_at: new Date().toISOString(), status: "connected" }).eq("id", integ.id);
+  await recordChecksForSync(supabase, company.id, "github", scan, evidenceId);
+
+  revalidatePath("/integrations");
+  revalidatePath("/integrations/github");
+  revalidatePath("/evidence");
+  revalidatePath("/dashboard");
+  const active = scan.extra.repos.filter((r) => !r.archived);
+  return {
+    ok: true,
+    ...counts,
+    summary: {
+      total: scan.extra.repos.length,
+      protected: active.filter((r) => r.protection?.prRequired).length,
+      public: active.filter((r) => !r.private).length,
+    },
+  };
+}
+
+const settingsSchema = z
+  .object({
+    criticalDays: z.number().int().min(1).max(90),
+    highDays: z.number().int().min(1).max(180),
+    windowDays: z.number().int().min(7).max(90),
+  })
+  .partial();
+
+/** Change the GitHub SLA / window settings; the rest stay as they were. */
+export async function updateGitHubSettings(input: unknown) {
+  const parsed = settingsSchema.safeParse(input);
+  if (!parsed.success) return { error: "SLA days must be 1–90 (critical) and 1–180 (high); the window 7–90 days." };
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const company = await getCompanyForUser(supabase, user.id).catch(() => null);
+  if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
+  const { data: integ } = await supabase.from("integrations").select("id, metadata").eq("company_id", company.id).eq("provider", "github").maybeSingle();
+  if (!integ) return { error: "GitHub isn't connected yet." };
+  const meta = (integ.metadata as Record<string, unknown> | null) ?? {};
+  const current = (meta.settings as Record<string, unknown> | undefined) ?? {};
+  const { error } = await supabase.from("integrations").update({ metadata: { ...meta, settings: { ...current, ...parsed.data } } }).eq("id", integ.id);
+  if (error) return { error: DB_ERROR };
+  revalidatePath("/integrations/github");
+  return { ok: true };
 }
 
 export async function disconnectGitHub() {

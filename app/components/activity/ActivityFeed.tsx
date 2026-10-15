@@ -147,6 +147,12 @@ function formatEvent(e: AuditEvent): Formatted {
         category: "Integration",
         predicate: <>disconnected {named ?? "an integration"}</>,
       };
+    case "identity_link.created":
+      return { icon: UserCheck, variant: "info", category: "Integration", predicate: <>linked the account {named} to a person</> };
+    case "identity_link.removed":
+      return { icon: UserMinus, variant: "neutral", category: "Integration", predicate: <>unlinked the account {named}</> };
+    case "check.exception_added":
+      return { icon: ShieldAlert, variant: "neutral", category: "Integration", predicate: <>marked {named ?? "a resource"} out of scope</> };
 
     case "company.created":
       return { icon: Sparkles, variant: "success", category: "Workspace", predicate: <>created the workspace {named}</> };

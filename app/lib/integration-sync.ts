@@ -3,7 +3,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { ensureGoogleAccessToken, fetchWorkspaceSecurity } from "@/lib/google";
 import { fetchDirectorySecurity as fetchMicrosoftDirectory } from "@/lib/microsoft";
 import { scanWorkspace } from "@/lib/aws/scan";
-import { fetchRepoSecurity as fetchGithubRepoSecurity } from "@/lib/github";
+import { scanGitHub } from "@/lib/integrations/github/scan";
 import { fetchUserSecurity as fetchOktaSecurity } from "@/lib/okta";
 import { fetchProjectSecurity as fetchGcpSecurity } from "@/lib/gcp";
 import { fetchZoneSecurity as fetchCloudflareSecurity } from "@/lib/cloudflare";
@@ -40,6 +40,8 @@ export interface ConnectedIntegration {
   /** Google only — the rest replay a stored key and never need these. */
   refresh_token?: string | null;
   token_expires_at?: string | null;
+  /** Workspace settings for the deep integrations (SLA days, windows…). */
+  metadata?: Record<string, unknown> | null;
 }
 
 /**
@@ -77,7 +79,8 @@ export async function fetchPostureFor(
 
   switch (integ.provider) {
     case "github":
-      return fetchGithubRepoSecurity(secret);
+      // The deep scan decrypts for itself: App installs store an installation id, not a token.
+      return scanGitHub(db, { id: integ.id, company_id: integ.company_id, access_token: integ.access_token, metadata: integ.metadata ?? null });
     case "okta": {
       const { host, token } = JSON.parse(secret) as { host: string; token: string };
       return fetchOktaSecurity(host, token);

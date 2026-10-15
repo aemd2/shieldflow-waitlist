@@ -22,9 +22,10 @@ import {
 import { ensureGoogleAccessToken, fetchWorkspaceUsers, GoogleError, type GoogleTokenRow } from "@/lib/google";
 import { mergePeople, productionGrants } from "@/lib/aws/roster";
 import type { AccountScan } from "@/lib/aws/types";
+import type { GitHubExtra } from "@/lib/integrations/github/scan";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";
-const ROSTER_PROVIDERS = ["okta", "google_workspace", "microsoft", "aws"] as const;
+const ROSTER_PROVIDERS = ["okta", "google_workspace", "microsoft", "aws", "github"] as const;
 export type RosterProvider = (typeof ROSTER_PROVIDERS)[number];
 export interface RosterProviderInfo {
   provider: RosterProvider;
@@ -108,6 +109,22 @@ export async function pullRosterFrom(provider: RosterProvider) {
       })
       .filter((r): r is { subject: string; access: string } => Boolean(r));
     return { ok: true as const, rows: out };
+  }
+
+  // GitHub: organisation members and outside collaborators from the last scan,
+  // each under the person they were matched to (or their login if nobody).
+  if (provider === "github") {
+    const { data: last } = await supabase.from("integrations").select("last_scan").eq("id", integ.id).maybeSingle();
+    const extra = (last?.last_scan as { extra?: GitHubExtra } | null)?.extra;
+    if (!extra) return { error: "GitHub hasn't been scanned yet — run a scan on the GitHub page first." };
+    if (extra.personal) return { error: "GitHub is connected to a personal account — there are no organisation members to review." };
+    return {
+      ok: true as const,
+      rows: extra.members.map((m) => ({
+        subject: m.person ?? m.login,
+        access: `${m.role === "owner" ? "Owner" : m.role === "outside" ? "Outside collaborator" : "Member"} of ${m.org} (@${m.login})${m.twoFactor === false ? ", 2FA off" : ""}`,
+      })),
+    };
   }
 
   try {
