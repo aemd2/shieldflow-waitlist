@@ -74,6 +74,9 @@ function syncToastFor(provider: TokenIntegrationProvider, res: any): string {
     case "hibob":
     case "bamboohr":
       return `Synced ${s.employees} employees — Personnel: ${s.added} added, ${s.updated} updated`;
+    case "kandji":
+    case "jamf":
+      return `Scanned ${s.devices} devices: ${res.fail} failing, ${res.pass} passing, ${res.inconclusive} can't tell`;
     default:
       return `Scanned: ${res.fail} failing, ${res.pass} passing, ${res.inconclusive} can't tell`;
   }

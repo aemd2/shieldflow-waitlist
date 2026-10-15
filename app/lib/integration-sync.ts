@@ -5,6 +5,7 @@ import { scanGitHub } from "@/lib/integrations/github/scan";
 import { scanGoogle } from "@/lib/integrations/google/scan";
 import { scanMicrosoft } from "@/lib/integrations/microsoft/scan";
 import { scanHris } from "@/lib/integrations/hris/scan";
+import { scanMdm } from "@/lib/integrations/mdm/scan";
 import { fetchUserSecurity as fetchOktaSecurity } from "@/lib/okta";
 import { fetchProjectSecurity as fetchGcpSecurity } from "@/lib/gcp";
 import { fetchZoneSecurity as fetchCloudflareSecurity } from "@/lib/cloudflare";
@@ -33,6 +34,8 @@ export const SYNCABLE_PROVIDERS = [
   "personio",
   "hibob",
   "bamboohr",
+  "kandji",
+  "jamf",
 ] as const;
 export type SyncableProvider = (typeof SYNCABLE_PROVIDERS)[number];
 
@@ -103,6 +106,9 @@ export async function fetchPostureFor(
     case "bamboohr":
       // Also brings Personnel up to date, before the other providers' leaver checks read it.
       return scanHris(db, integ.provider, { id: integ.id, company_id: integ.company_id, access_token: integ.access_token, metadata: integ.metadata ?? null });
+    case "kandji":
+    case "jamf":
+      return scanMdm(db, integ.provider, { id: integ.id, company_id: integ.company_id, access_token: integ.access_token, metadata: integ.metadata ?? null });
     default:
       throw new Error(`provider ${integ.provider} is not syncable`);
   }

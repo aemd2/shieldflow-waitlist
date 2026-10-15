@@ -9,6 +9,7 @@ import { syncGoogleWorkspace, updateGoogleSettings } from "@/app/actions/integra
 import { createVendor } from "@/app/actions/vendors";
 import { syncMicrosoft, updateMicrosoftSettings } from "@/app/actions/microsoft";
 import { syncPersonio, syncHiBob, syncBambooHR, updatePersonioSettings, updateHiBobSettings, updateBambooHRSettings } from "@/app/actions/hris";
+import { syncKandji, syncJamf, updateKandjiSettings, updateJamfSettings } from "@/app/actions/mdm";
 import { createCheckException } from "@/app/actions/check-exceptions";
 import { dismissIdentityAccount, restoreIdentityAccount, linkIdentity, unlinkIdentity } from "@/app/actions/identity";
 import type { CheckDef } from "@/lib/checks-core";
@@ -33,6 +34,8 @@ const SCAN: Partial<Record<string, Action>> = {
   personio: syncPersonio as unknown as Action,
   hibob: syncHiBob as unknown as Action,
   bamboohr: syncBambooHR as unknown as Action,
+  kandji: syncKandji as unknown as Action,
+  jamf: syncJamf as unknown as Action,
 };
 const SAVE_SETTINGS: Partial<Record<string, Action>> = {
   github: updateGitHubSettings as unknown as Action,
@@ -41,6 +44,8 @@ const SAVE_SETTINGS: Partial<Record<string, Action>> = {
   personio: updatePersonioSettings as unknown as Action,
   hibob: updateHiBobSettings as unknown as Action,
   bamboohr: updateBambooHRSettings as unknown as Action,
+  kandji: updateKandjiSettings as unknown as Action,
+  jamf: updateJamfSettings as unknown as Action,
 };
 
 type Tab = "posture" | "people" | "apps" | "devices" | "changes" | "vulnerabilities" | "settings";

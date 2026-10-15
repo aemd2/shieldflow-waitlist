@@ -8,6 +8,7 @@ import {
   KeyRound,
   Ticket,
   Users,
+  Laptop,
 } from "lucide-react";
 import { createServerSupabase, getRequestUser } from "@/lib/supabase/server";
 import {
@@ -32,6 +33,7 @@ import { IntegrationConnectCard } from "@/components/integrations/IntegrationCon
 import { IntegrationsUrlToast } from "@/components/integrations/IntegrationsUrlToast";
 import { connectOkta, syncOkta, disconnectOkta } from "@/app/actions/okta";
 import { connectMicrosoft, syncMicrosoft, disconnectMicrosoft } from "@/app/actions/microsoft";
+import { connectKandji, syncKandji, disconnectKandji, connectJamf, syncJamf, disconnectJamf } from "@/app/actions/mdm";
 import {
   connectPersonio,
   syncPersonio,
@@ -84,6 +86,8 @@ export default async function IntegrationsPage() {
   const personio = byProvider("personio");
   const hibob = byProvider("hibob");
   const bamboohr = byProvider("bamboohr");
+  const kandji = byProvider("kandji");
+  const jamf = byProvider("jamf");
   const gitlab = byProvider("gitlab");
   const jira = byProvider("jira");
   const linear = byProvider("linear");
@@ -264,6 +268,66 @@ export default async function IntegrationsPage() {
               <>
                 BambooHR → your name → API Keys → Add new key, for a user whose access level can see work email, job, hire and termination
                 dates. <a href="/checks/bamboohr" className="underline">Exactly what we read</a>.
+              </>
+            }
+          />
+        </IntegrationCard>
+      </PageSection>
+
+      <PageSection title="Laptops (device management)" columns={2}>
+        <IntegrationCard
+          name="Kandji"
+          description="Every Mac encrypted with FileVault, checking in, and belonging to someone in Personnel — no agent to install."
+          icon={<Laptop className="h-5 w-5 text-muted-foreground" />}
+          status={cardStatus(kandji)}
+        >
+          <IntegrationConnectCard
+            provider="kandji"
+            status={kandji?.status ?? null}
+            lastSyncedAt={kandji?.last_synced_at ?? null}
+            identityLabel={kandji ? meta(kandji).org ?? "Connected" : null}
+            fields={[
+              { name: "apiUrl", placeholder: "API URL, e.g. https://yourco.api.kandji.io" },
+              { name: "token", placeholder: "API token", type: "password" },
+            ]}
+            connectAction={connectKandji}
+            syncAction={syncKandji}
+            disconnectAction={disconnectKandji}
+            page={{ href: "/integrations/kandji", label: "Open Kandji" }}
+            disconnectConfirm="Disconnect Kandji? Collected evidence stays in the vault."
+            setupHint={
+              <>
+                Kandji → Settings → Access → API token → Add token, with only device list and device details (read). Copy the API URL from the same
+                page. <a href="/checks/kandji" className="underline">Exactly what we read</a>.
+              </>
+            }
+          />
+        </IntegrationCard>
+        <IntegrationCard
+          name="Jamf Pro"
+          description="Every Mac encrypted with FileVault, checking in, and belonging to someone in Personnel — no agent to install."
+          icon={<Laptop className="h-5 w-5 text-muted-foreground" />}
+          status={cardStatus(jamf)}
+        >
+          <IntegrationConnectCard
+            provider="jamf"
+            status={jamf?.status ?? null}
+            lastSyncedAt={jamf?.last_synced_at ?? null}
+            identityLabel={jamf ? meta(jamf).org ?? "Connected" : null}
+            fields={[
+              { name: "url", placeholder: "https://yourco.jamfcloud.com" },
+              { name: "clientId", placeholder: "API client ID" },
+              { name: "clientSecret", placeholder: "API client secret", type: "password" },
+            ]}
+            connectAction={connectJamf}
+            syncAction={syncJamf}
+            disconnectAction={disconnectJamf}
+            page={{ href: "/integrations/jamf", label: "Open Jamf" }}
+            disconnectConfirm="Disconnect Jamf Pro? Collected evidence stays in the vault."
+            setupHint={
+              <>
+                Jamf Pro → Settings → API roles and clients → a role with Read Computers + Read Computer Inventory Collection, then an API client
+                with that role. <a href="/checks/jamf" className="underline">Exactly what we read</a>.
               </>
             }
           />

@@ -4,6 +4,8 @@ import { GOOGLE_AREAS, GOOGLE_CHECKS, GOOGLE_READS } from "@/lib/integrations/go
 import { MICROSOFT_AREAS, MICROSOFT_CHECKS, MICROSOFT_READS } from "@/lib/integrations/microsoft/catalog";
 import { HRIS_AREAS, HRIS_META } from "@/lib/integrations/hris/catalog";
 import type { HrisProvider } from "@/lib/integrations/hris/clients";
+import { MDM_AREAS, MDM_META } from "@/lib/integrations/mdm/catalog";
+import type { MdmProvider } from "@/lib/integrations/mdm/clients";
 
 /**
  * Every integration that has its own page (/integrations/<key>) and its own
@@ -115,6 +117,20 @@ export const PROVIDERS: ProviderEntry[] = [
       reads: HRIS_META[key].reads,
       never: HRIS_META[key].never,
       settings: [{ key: "trainingDays", label: "Joiners finish security training within", help: "People who started longer ago than this without a completed training record fail the joiner check.", min: 7, max: 120, unit: "days" }],
+    }),
+  ),
+  ...(["kandji", "jamf"] as MdmProvider[]).map(
+    (key): ProviderEntry => ({
+      key,
+      checkPrefix: key,
+      title: MDM_META[key].title,
+      subtitle: `Every laptop encrypted, checking in, and belonging to someone in Personnel — and no leaver's laptop still out there. Without installing an agent: read from ${MDM_META[key].title}, read-only.`,
+      checks: MDM_META[key].checks,
+      areas: MDM_AREAS,
+      connectStory: MDM_META[key].connect,
+      reads: MDM_META[key].reads,
+      never: MDM_META[key].never,
+      settings: [{ key: "staleDays", label: "Devices count as stale after", help: "A device that hasn't checked in for this long fails the check-in check, and its encryption counts as unknown.", min: 3, max: 90, unit: "days" }],
     }),
   ),
 ];

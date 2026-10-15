@@ -11,6 +11,7 @@ import { MICROSOFT_DEFAULTS, type MicrosoftExtra } from "@/lib/integrations/micr
 import { msAppResource } from "@/lib/integrations/microsoft/evaluate";
 import { deviceResource, type Device } from "@/lib/integrations/devices";
 import { HRIS_DEFAULTS, type HrisExtra } from "@/lib/integrations/hris/scan";
+import { MDM_DEFAULTS, type MdmExtra } from "@/lib/integrations/mdm/scan";
 
 /**
  * Everything one integration page shows, built on the server from the last scan
@@ -508,6 +509,18 @@ export async function loadProviderView(db: SupabaseClient, companyId: string, en
       blindSpot: x.truncated ? "the HR system has more people than one scan reads" : null,
       linkable: false,
     };
+  }
+
+  if ((entry.key === "kandji" || entry.key === "jamf") && scan) {
+    const x = scan.extra as MdmExtra;
+    const settings = settingsOf(meta, MDM_DEFAULTS);
+    view.settings = settings;
+    view.scan!.summary = [
+      `${x.devices.length} devices${x.truncated ? " (more not read)" : ""}`,
+      `${x.devices.filter((d) => d.encrypted).length} encrypted`,
+      ...(x.detailsSkipped ? [`encryption not read for ${x.detailsSkipped}`] : []),
+    ];
+    view.devices = devicesView(entry.key, entry.title, x.devices, settings.staleDays, byEmail);
   }
 
   return view;
