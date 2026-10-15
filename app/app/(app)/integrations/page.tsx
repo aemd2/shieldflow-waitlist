@@ -7,8 +7,6 @@ import {
   Cloud,
   KeyRound,
   Ticket,
-  Fingerprint,
-  Mail,
 } from "lucide-react";
 import { createServerSupabase, getRequestUser } from "@/lib/supabase/server";
 import {
@@ -102,6 +100,10 @@ export default async function IntegrationsPage() {
               configured={isGoogleConfigured()}
               status={gws?.status ?? null}
               lastSyncedAt={gws?.last_synced_at ?? null}
+              needsReconnect={
+                gws?.status === "connected" &&
+                !((gws?.metadata as { scopes?: string[] } | null)?.scopes ?? []).some((sc) => sc.endsWith("admin.reports.audit.readonly"))
+              }
             />
           </Suspense>
         </IntegrationCard>
@@ -322,20 +324,6 @@ export default async function IntegrationsPage() {
         </IntegrationCard>
       </PageSection>
 
-      <PageSection title="Coming soon" columns={2}>
-        <IntegrationCard
-          name="Microsoft Entra ID"
-          description="User, MFA, and conditional-access evidence from Azure AD."
-          icon={<Fingerprint className="h-5 w-5 text-muted-foreground" />}
-          status="coming_soon"
-        />
-        <IntegrationCard
-          name="Microsoft 365"
-          description="Mailbox, sharing, and security-defaults evidence from Microsoft 365."
-          icon={<Mail className="h-5 w-5 text-muted-foreground" />}
-          status="coming_soon"
-        />
-      </PageSection>
     </PageShell>
   );
 }

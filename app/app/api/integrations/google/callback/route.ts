@@ -46,6 +46,12 @@ export async function GET(req: Request) {
 
   try {
     const tokens = await exchangeCode(code, `${origin}/api/integrations/google/callback`);
+    const { data: existing } = await supabase
+      .from("integrations")
+      .select("metadata")
+      .eq("company_id", company.id)
+      .eq("provider", "google_workspace")
+      .maybeSingle();
     const { error } = await supabase.from("integrations").upsert(
       {
         company_id: company.id,
@@ -60,6 +66,8 @@ export async function GET(req: Request) {
         ).toISOString(),
         status: "connected",
         connected_by: user.id,
+        // Settings from an earlier connection are kept; the granted scopes say what a scan can read.
+        metadata: { ...((existing?.metadata as Record<string, unknown> | null) ?? {}), scopes: tokens.scope?.split(" ") ?? [] },
       },
       { onConflict: "company_id,provider" },
     );
@@ -68,7 +76,7 @@ export async function GET(req: Request) {
     return done("error=exchange_failed");
   }
 
-  const res = done("connected=google");
+  const res = NextResponse.redirect(`${origin}/integrations/google_workspace?connected=1`);
   res.cookies.delete("gws_oauth_state");
   return res;
 }

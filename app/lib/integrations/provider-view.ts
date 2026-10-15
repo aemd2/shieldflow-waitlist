@@ -4,6 +4,9 @@ import { isProviderScan, settingsOf } from "@/lib/integrations/scan-store";
 import type { ProviderEntry } from "@/lib/integrations/registry";
 import { GITHUB_DEFAULTS, type GitHubExtra } from "@/lib/integrations/github/scan";
 import { prResourceId } from "@/lib/integrations/github/evaluate";
+import { GOOGLE_DEFAULTS, type GoogleExtra } from "@/lib/integrations/google/scan";
+import { appResource, isLive } from "@/lib/integrations/google/evaluate";
+import { riskyScopes } from "@/lib/integrations/google/catalog";
 
 /**
  * Everything one integration page shows, built on the server from the last scan
@@ -11,7 +14,7 @@ import { prResourceId } from "@/lib/integrations/github/evaluate";
  * doesn't have are null and their tab isn't shown.
  */
 
-export type PersonMatch = "leaver" | "unknown" | "matched" | "dismissed" | "bot";
+export type PersonMatch = "leaver" | "unknown" | "matched" | "dismissed" | "bot" | "inactive";
 
 export interface PersonRowView {
   /** The account at the provider ("octocat"), as stored in identity_links. */
@@ -58,6 +61,21 @@ export interface AlertRowView {
   overdue: boolean;
 }
 
+export interface AppRowView {
+  clientId: string;
+  resourceId: string;
+  name: string;
+  /** What it can reach that matters ("Gmail", "all of Drive"); empty = nothing sensitive. */
+  risky: string[];
+  scopes: string[];
+  people: number;
+  sample: string[];
+  lastAuthorized: string;
+  /** Recorded approval reason (an exception on google.oauth_apps). */
+  approved: string | null;
+  inVendors: boolean;
+}
+
 export interface ProviderView {
   provider: string;
   status: "connected" | "error" | "disconnected" | null;
@@ -66,7 +84,8 @@ export interface ProviderView {
   connection: string | null;
   scan: { scannedAt: string; durationMs: number; results: CheckOutcome[]; summary: string[] } | null;
   exceptions: { id: string; checkKey: string; resourceId: string; label: string | null; reason: string; expiresAt: string | null; createdAt: string }[];
-  people: { rows: PersonRowView[]; note: string; blindSpot: string | null } | null;
+  people: { rows: PersonRowView[]; note: string; blindSpot: string | null; linkable: boolean } | null;
+  apps: { rows: AppRowView[]; note: string; missing: string | null } | null;
   changes: { rows: ChangeRowView[]; windowDays: number; note: string } | null;
   alerts: { rows: AlertRowView[]; note: string } | null;
   settings: Record<string, number> | null;
@@ -141,6 +160,7 @@ export async function loadProviderView(db: SupabaseClient, companyId: string, en
       : null,
     exceptions,
     people: null,
+    apps: null,
     changes: null,
     alerts: null,
     settings: null,
@@ -191,13 +211,14 @@ export async function loadProviderView(db: SupabaseClient, companyId: string, en
           linked: linkedAccounts.has(m.login.toLowerCase()),
         };
       });
-      const order: Record<PersonMatch, number> = { leaver: 0, unknown: 1, matched: 2, dismissed: 3, bot: 4 };
+      const order: Record<PersonMatch, number> = { leaver: 0, unknown: 1, matched: 2, dismissed: 3, bot: 4, inactive: 5 };
       rows.sort((a, b) => order[a.match] - order[b.match] || a.account.localeCompare(b.account));
       view.people = {
         rows,
         note:
           "GitHub rarely shares a work email, so we match a login to Personnel by name or by a handle that fits exactly one person. Anything we can't place, you link once — every scan uses it from then on.",
         blindSpot: scan.roster?.blindSpot ?? null,
+        linkable: true,
       };
     }
 
@@ -266,6 +287,78 @@ export async function loadProviderView(db: SupabaseClient, companyId: string, en
       note: `Open alerts GitHub found in the repositories ShieldFlow can see. Dependabot SLA: critical within ${settings.criticalDays} days, high within ${settings.highDays}. ${
         x.alerts.secret === null ? "Secret scanning isn't available on these repositories. " : ""
       }${x.alerts.code === null ? "Code scanning isn't set up — that's fine, it's never required." : ""}`.trim(),
+    };
+  }
+
+  if (entry.key === "google_workspace" && scan) {
+    const x = scan.extra as GoogleExtra;
+    const settings = settingsOf(meta, GOOGLE_DEFAULTS);
+    view.settings = settings;
+    view.account = x.domain;
+    const live = x.users.filter(isLive);
+    view.scan!.summary = [
+      `${live.length} active accounts${x.truncated ? " (more not read)" : ""}`,
+      `${live.filter((u) => u.enforced2sv).length} with 2-step verification enforced`,
+      x.apps ? `${x.apps.length} third-party apps` : "apps not read",
+    ];
+
+    const now = Date.now();
+    const rows: PersonRowView[] = x.users.map((u) => {
+      const live = isLive(u);
+      const { match, person } = matchOf(u.email, [u.email, ...u.aliases]);
+      const flags: PersonRowView["flags"] = [];
+      if (live && !u.enrolled2sv) flags.push({ label: "2-step verification off", bad: true });
+      else if (live && !u.enforced2sv) flags.push({ label: "2-step verification not enforced", bad: true });
+      if (u.suspended) flags.push({ label: "suspended", bad: false });
+      if (u.archived) flags.push({ label: "archived", bad: false });
+      const idle = u.lastLogin ? Math.floor((now - Date.parse(u.lastLogin)) / DAY) : null;
+      flags.push({ label: idle === null ? "never signed in" : idle === 0 ? "signed in today" : `last sign-in ${idle} days ago`, bad: live && (idle === null || idle > settings.dormantDays) });
+      return {
+        account: u.email,
+        subject: u.email,
+        name: u.name,
+        role: u.superAdmin ? "Super admin" : u.delegatedAdmin ? "Admin" : "User",
+        where: u.orgUnit,
+        flags,
+        // A leaver whose account is suspended is done; a live one isn't.
+        match: !live ? "inactive" : match,
+        person,
+        linked: false,
+      };
+    });
+    const order: Record<PersonMatch, number> = { leaver: 0, unknown: 1, matched: 2, dismissed: 3, bot: 4, inactive: 5 };
+    rows.sort((a, b) => order[a.match] - order[b.match] || a.account.localeCompare(b.account));
+    view.people = {
+      rows,
+      note: "Matched to Personnel by email address, aliases included. Suspended and archived accounts can't sign in, so they never count as a leaver's access.",
+      blindSpot: x.truncated ? "the directory is larger than one scan reads" : null,
+      linkable: false,
+    };
+
+    const { data: vendors } = await db.from("vendors").select("name").eq("company_id", companyId);
+    const vendorNames = new Set(((vendors ?? []) as { name: string }[]).map((v) => norm(v.name)));
+    const approvals = new Map(exceptions.filter((e) => e.checkKey === "google.oauth_apps").map((e) => [e.resourceId, e.reason]));
+    const domain = x.domain ?? "workspace";
+    view.apps = {
+      missing: x.apps === null ? x.appsError ?? "Reconnect Google Workspace once to read which apps people granted access to (adds read-only audit-log access)." : null,
+      note: `Apps people signed into with their Google account and allowed to read data, from the last ${x.appsWindowDays} days of the audit log (grants revoked since are left out). Apps that can read mail or all of Drive are vendors holding your data.`,
+      rows: (x.apps ?? [])
+        .map((a) => {
+          const resourceId = appResource(domain, a.clientId, a.name).id;
+          return {
+            clientId: a.clientId,
+            resourceId,
+            name: a.name,
+            risky: riskyScopes(a.scopes),
+            scopes: a.scopes,
+            people: a.users.length,
+            sample: a.users.slice(0, 5),
+            lastAuthorized: a.lastAuthorized,
+            approved: approvals.get(resourceId) ?? null,
+            inVendors: vendorNames.has(norm(a.name)),
+          };
+        })
+        .sort((a, b) => b.risky.length - a.risky.length || b.people - a.people),
     };
   }
 

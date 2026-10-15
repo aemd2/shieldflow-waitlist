@@ -16,7 +16,11 @@ const USERS_URL =
 // 11–200 employee target market, and keeps memory/time bounded for outliers.
 const MAX_USER_PAGES = 4;
 
-export const GOOGLE_SCOPE = "https://www.googleapis.com/auth/admin.directory.user.readonly";
+// Both read-only: accounts, and the audit log (which third-party apps people let in).
+export const GOOGLE_SCOPE = [
+  "https://www.googleapis.com/auth/admin.directory.user.readonly",
+  "https://www.googleapis.com/auth/admin.reports.audit.readonly",
+].join(" ");
 
 export function isGoogleConfigured(): boolean {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
@@ -49,6 +53,8 @@ export interface GoogleTokens {
   access_token: string;
   refresh_token?: string;
   expires_in: number;
+  /** The scopes actually granted, space-separated. */
+  scope?: string;
 }
 
 export async function exchangeCode(code: string, redirectUri: string): Promise<GoogleTokens> {

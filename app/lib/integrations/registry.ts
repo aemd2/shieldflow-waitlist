@@ -1,5 +1,6 @@
 import type { CheckDef } from "@/lib/checks-core";
 import { GITHUB_AREAS, GITHUB_CHECKS, GITHUB_APP_PERMISSIONS } from "@/lib/integrations/github/catalog";
+import { GOOGLE_AREAS, GOOGLE_CHECKS, GOOGLE_READS } from "@/lib/integrations/google/catalog";
 
 /**
  * Every integration that has its own page (/integrations/<key>) and its own
@@ -57,6 +58,26 @@ export const PROVIDERS: ProviderEntry[] = [
       { key: "criticalDays", label: "Critical vulnerabilities fixed within", help: "Dependabot critical alerts open longer fail the SLA check.", min: 1, max: 90, unit: "days" },
       { key: "highDays", label: "High vulnerabilities fixed within", help: "Dependabot high alerts open longer fail the SLA check.", min: 1, max: 180, unit: "days" },
       { key: "windowDays", label: "Merged changes reviewed over the last", help: "The window of merged pull requests checked for an independent approval.", min: 7, max: 90, unit: "days" },
+    ],
+  },
+  {
+    key: "google_workspace",
+    checkPrefix: "google",
+    title: "Google Workspace",
+    subtitle:
+      "Whether 2-step verification is enforced (not just switched on), who holds admin, accounts nobody uses, leavers still signed in, and the third-party apps that can read your mail and Drive. Read-only.",
+    checks: GOOGLE_CHECKS,
+    areas: GOOGLE_AREAS,
+    connectStory:
+      "A Workspace admin signs in with Google and approves two read-only permissions: the user directory, and the audit log. No service account, no domain-wide delegation, nothing that could change a setting. Remove access any time at myaccount.google.com/permissions.",
+    reads: GOOGLE_READS,
+    never: [
+      "Email, documents, calendars or chats — no Gmail, Drive or Calendar permission is asked for.",
+      "Change anything: both permissions are read-only. (Google's token API can list app grants too, but its permission can also revoke them — so we read the audit log instead.)",
+      "Passwords or 2-step verification secrets — only whether they're set.",
+    ],
+    settings: [
+      { key: "dormantDays", label: "Accounts count as unused after", help: "Active accounts with no sign-in for this long are listed (new joiners excepted).", min: 30, max: 365, unit: "days" },
     ],
   },
 ];

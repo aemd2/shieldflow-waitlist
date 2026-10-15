@@ -5,11 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { RefreshCw, CircleAlert, ExternalLink, Link2, Ban } from "lucide-react";
 import { syncGitHub, updateGitHubSettings } from "@/app/actions/github";
+import { syncGoogleWorkspace, updateGoogleSettings } from "@/app/actions/integrations";
+import { createVendor } from "@/app/actions/vendors";
 import { createCheckException } from "@/app/actions/check-exceptions";
 import { dismissIdentityAccount, restoreIdentityAccount, linkIdentity, unlinkIdentity } from "@/app/actions/identity";
 import type { CheckDef } from "@/lib/checks-core";
 import type { SettingField } from "@/lib/integrations/registry";
-import type { ProviderView, PersonRowView, ChangeRowView, PersonMatch } from "@/lib/integrations/provider-view";
+import type { ProviderView, PersonRowView, ChangeRowView, PersonMatch, AppRowView } from "@/lib/integrations/provider-view";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
@@ -24,12 +26,14 @@ type Action = (input?: unknown) => Promise<ActionResult>;
 /** Scan and settings actions per provider page. */
 const SCAN: Partial<Record<string, Action>> = {
   github: syncGitHub as unknown as Action,
+  google_workspace: syncGoogleWorkspace as unknown as Action,
 };
 const SAVE_SETTINGS: Partial<Record<string, Action>> = {
   github: updateGitHubSettings as unknown as Action,
+  google_workspace: updateGoogleSettings as unknown as Action,
 };
 
-type Tab = "posture" | "people" | "changes" | "vulnerabilities" | "settings";
+type Tab = "posture" | "people" | "apps" | "changes" | "vulnerabilities" | "settings";
 
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—");
 const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -52,6 +56,7 @@ export function ProviderWorkspace({
   const tabs = useMemo(() => {
     const t: { value: Tab; label: string }[] = [{ value: "posture", label: "Posture" }];
     if (view.people) t.push({ value: "people", label: "People" });
+    if (view.apps) t.push({ value: "apps", label: "Third-party apps" });
     if (view.changes) t.push({ value: "changes", label: "Changes" });
     if (view.alerts) t.push({ value: "vulnerabilities", label: "Vulnerabilities" });
     if (view.settings && settingFields.length) t.push({ value: "settings", label: "Settings" });
@@ -89,6 +94,8 @@ export function ProviderWorkspace({
         <p className="card text-sm text-muted-foreground">Not scanned yet — run a scan to see every check.</p>
       ) : tab === "people" && view.people ? (
         <People view={view} canWrite={canWrite} title={title} />
+      ) : tab === "apps" && view.apps ? (
+        <Apps view={view} canWrite={canWrite} />
       ) : tab === "changes" && view.changes ? (
         <Changes view={view} canWrite={canWrite} />
       ) : tab === "vulnerabilities" && view.alerts ? (
@@ -140,7 +147,7 @@ function ScanHeader({ view, title, canWrite }: { view: ProviderView; title: stri
     <section className="card flex flex-wrap items-center gap-x-6 gap-y-2">
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="font-semibold">{view.account ? `@${view.account}` : title}</span>
+          <span className="font-semibold">{view.account ? (view.provider === "github" ? `@${view.account}` : view.account) : title}</span>
           {view.connection === "app" ? <Badge variant="success">read-only App</Badge> : view.connection === "token" ? <Badge variant="neutral">token</Badge> : null}
           {view.status === "error" && <Badge variant="critical">access stopped working</Badge>}
         </div>
@@ -175,6 +182,7 @@ const MATCH: Record<PersonMatch, { variant: BadgeVariant; label: (r: PersonRowVi
   matched: { variant: "success", label: (r) => r.person?.name ?? "In Personnel" },
   dismissed: { variant: "neutral", label: () => "Marked not a person" },
   bot: { variant: "neutral", label: () => "Bot" },
+  inactive: { variant: "neutral", label: (r) => (r.person ? `${r.person.name} · can't sign in` : "Can't sign in") },
 };
 
 function LinkPerson({ row, provider, personnel, onDone }: { row: PersonRowView; provider: string; personnel: ProviderView["personnel"]; onDone: () => void }) {
@@ -294,7 +302,7 @@ function People({ view, canWrite, title }: { view: ProviderView; canWrite: boole
                     </div>
                     {canWrite && open !== r.account && (
                       <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                        {(r.match === "unknown" || r.match === "dismissed" || r.linked) && (
+                        {p.linkable && (r.match === "unknown" || r.match === "dismissed" || r.linked) && (
                           <button type="button" className="inline-flex items-center gap-1 underline" onClick={() => setOpen(r.account)}>
                             <Link2 className="h-3 w-3" /> {r.linked ? "Change person" : "This is…"}
                           </button>
@@ -327,6 +335,134 @@ function People({ view, canWrite, title }: { view: ProviderView; canWrite: boole
         </table>
       </section>
     </div>
+  );
+}
+
+// -------------------------------------------------------------------- apps
+
+function Apps({ view, canWrite }: { view: ProviderView; canWrite: boolean }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [open, setOpen] = useState<string | null>(null);
+  const [all, setAll] = useState(false);
+  const a = view.apps!;
+  const risky = a.rows.filter((r) => r.risky.length);
+  const rows = all ? a.rows : risky;
+  async function addVendor(r: AppRowView) {
+    const res = await createVendor({
+      name: r.name.slice(0, 120),
+      category: "Google Workspace app",
+      risk_level: r.risky.length ? "high" : "medium",
+      status: "under_review",
+      notes: `Found by ShieldFlow in Google Workspace: ${r.people} ${r.people === 1 ? "person" : "people"} granted it access${r.risky.length ? ` to ${r.risky.join(", ")}` : ""}. OAuth client ${r.clientId}.`,
+      soc2_status: "none",
+      data_sensitivity: r.risky.length ? "pii" : "internal",
+    }).catch(() => ({ error: NETWORK }));
+    if ("error" in res && res.error) return toast("error", res.error);
+    toast("success", `${r.name} added to Vendors — review it there`);
+    router.refresh();
+  }
+  if (a.missing) return <p className="card text-sm text-muted-foreground">{a.missing}</p>;
+  return (
+    <div className="space-y-4">
+      <section className="card space-y-2 text-sm">
+        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+          <div>
+            <span className="text-2xl font-semibold">{a.rows.length}</span> <span className="text-muted-foreground">apps holding access</span>
+          </div>
+          <div>
+            <span className="text-2xl font-semibold text-destructive">{risky.filter((r) => !r.approved).length}</span>{" "}
+            <span className="text-muted-foreground">can read mail or all of Drive, not approved</span>
+          </div>
+          <div>
+            <span className="text-2xl font-semibold">{a.rows.filter((r) => r.inVendors).length}</span> <span className="text-muted-foreground">already in Vendors</span>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">{a.note}</p>
+      </section>
+      <SegmentedControl
+        options={[
+          { value: "risky", label: "Mail, Drive or admin" },
+          { value: "all", label: "All apps" },
+        ]}
+        value={all ? "all" : "risky"}
+        onChange={(v) => setAll(v === "all")}
+      />
+      {rows.length ? (
+        <section className="card p-0">
+          <ul className="divide-y divide-border">
+            {rows.map((r) => (
+              <li key={r.clientId} className="space-y-1 px-4 py-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{r.name}</span>
+                  {r.risky.map((x) => (
+                    <Badge key={x} variant="high">{x}</Badge>
+                  ))}
+                  {r.approved && <Badge variant="success">approved</Badge>}
+                  {r.inVendors && <Badge variant="neutral">in Vendors</Badge>}
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {r.people} {r.people === 1 ? "person" : "people"} · last granted {day(r.lastAuthorized)}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {r.sample.join(", ")}
+                  {r.people > r.sample.length ? ` and ${r.people - r.sample.length} more` : ""}
+                </div>
+                {r.approved && <div className="text-xs text-muted-foreground">Approved: {r.approved}</div>}
+                {canWrite && (
+                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                    {!r.inVendors && (
+                      <button type="button" className="underline" onClick={() => addVendor(r)}>
+                        Add to Vendors
+                      </button>
+                    )}
+                    {r.risky.length > 0 && !r.approved && open !== r.clientId && (
+                      <button type="button" className="underline" onClick={() => setOpen(r.clientId)}>
+                        Approve…
+                      </button>
+                    )}
+                  </div>
+                )}
+                {open === r.clientId && <ApproveApp row={r} onDone={() => { setOpen(null); router.refresh(); }} />}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : (
+        <p className="card text-sm text-muted-foreground">{all ? "No third-party app grants." : "No app can read mail, all of Drive or admin settings. 🎉"}</p>
+      )}
+    </div>
+  );
+}
+
+function ApproveApp({ row, onDone }: { row: AppRowView; onDone: () => void }) {
+  const toast = useToast();
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    const label = `${row.name} — ${row.risky.join(", ")}`;
+    const expiresAt = new Date(Date.now() + 365 * 86_400_000).toISOString();
+    const r = await createCheckException({ checkKey: "google.oauth_apps", resourceId: row.resourceId, label, reason, expiresAt }).catch(() => ({ error: NETWORK }));
+    setBusy(false);
+    if ("error" in r && r.error) return toast("error", r.error);
+    toast("success", "Approved for a year — from the next scan");
+    onDone();
+  }
+  return (
+    <form onSubmit={save} className="flex flex-wrap items-center gap-2">
+      <input
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        required
+        minLength={5}
+        placeholder="Why it's fine — e.g. our CRM, DPA signed, reviewed in Vendors"
+        className="input min-w-[16rem] flex-1 text-sm"
+      />
+      <Button type="submit" size="sm" disabled={busy}>{busy ? "Saving…" : "Approve"}</Button>
+      <button type="button" className="text-xs text-muted-foreground underline" onClick={onDone}>Cancel</button>
+    </form>
   );
 }
 

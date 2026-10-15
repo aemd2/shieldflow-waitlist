@@ -1,9 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decryptSecret } from "@/lib/crypto";
-import { ensureGoogleAccessToken, fetchWorkspaceSecurity } from "@/lib/google";
 import { fetchDirectorySecurity as fetchMicrosoftDirectory } from "@/lib/microsoft";
 import { scanWorkspace } from "@/lib/aws/scan";
 import { scanGitHub } from "@/lib/integrations/github/scan";
+import { scanGoogle } from "@/lib/integrations/google/scan";
 import { fetchUserSecurity as fetchOktaSecurity } from "@/lib/okta";
 import { fetchProjectSecurity as fetchGcpSecurity } from "@/lib/gcp";
 import { fetchZoneSecurity as fetchCloudflareSecurity } from "@/lib/cloudflare";
@@ -66,13 +66,14 @@ export async function fetchPostureFor(
   // Google refreshes rather than replaying, so it must not go through decryptSecret
   // here — ensureGoogleAccessToken owns that, including the write-back.
   if (integ.provider === "google_workspace") {
-    const token = await ensureGoogleAccessToken(db, {
+    return scanGoogle(db, {
       id: integ.id,
+      company_id: integ.company_id,
       access_token: integ.access_token,
       refresh_token: integ.refresh_token ?? null,
       token_expires_at: integ.token_expires_at ?? null,
+      metadata: integ.metadata ?? null,
     });
-    return fetchWorkspaceSecurity(token);
   }
 
   const secret = decryptSecret(integ.access_token);

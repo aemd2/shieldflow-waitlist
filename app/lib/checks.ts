@@ -13,6 +13,7 @@ import type { AwsWorkspaceScan } from "@/lib/aws/scan";
 import { awsRosters, peopleBlindSpot, type WorkspacePeople } from "@/lib/aws/roster";
 import { isProviderScan, outcomesToRaw, type ProviderRoster } from "@/lib/integrations/scan-store";
 import { GITHUB_CHECKS } from "@/lib/integrations/github/catalog";
+import { GOOGLE_CHECKS } from "@/lib/integrations/google/catalog";
 
 // Continuous control checks: turn the security posture each integration already
 // computes (root MFA, branch protection, 2FA %, TLS…) into pass/fail results
@@ -167,6 +168,7 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
   },
 
   google(p) {
+    if (isProviderScan(p)) return outcomesToRaw(p.results, GOOGLE_CHECKS);
     if (!p.total) {
       return [
         { checkKey: "google.2fa", controlCodes: MFA, result: "inconclusive", detail: "No users found." },
@@ -422,7 +424,9 @@ export const ASYNC_EVALUATORS: Record<
     ...(await ssoChecks(db, posture)),
   ],
   google: (posture, db, companyId) =>
-    identityChecks(db, companyId, "google", googleAccounts(posture), Boolean(posture?.truncated)),
+    isProviderScan(posture)
+      ? rosterChecks(db, companyId, "google", posture.roster ?? null)
+      : identityChecks(db, companyId, "google", googleAccounts(posture), Boolean(posture?.truncated)),
   microsoft: (posture, db, companyId) =>
     identityChecks(db, companyId, "microsoft", microsoftAccounts(posture), Boolean(posture?.truncated)),
   aws: (posture: AwsWorkspaceScan, db, companyId) => awsIdentityChecks(db, companyId, posture?.people ?? null),
