@@ -71,7 +71,7 @@ and you should decline the fight.
 |---|---|---|
 | **1–10** | Seed | **Let them serve themselves. Do not sell to them.** The free tier fits: one framework, three integrations. But the roster checks have almost nothing to reconcile at this size, and many have no identity provider at all. A pipeline for later, not revenue now. The one thing that works on day one is the access-review cadence check — it needs no integration. |
 | **11–50** | Core | **Everything built lands here.** Real roster, real identity provider, real customer pressure, still no compliance hire. 9 of 12 access-control measures automate. This is Sam. Spend your time here. |
-| **51–200** | Edge | **Sell it, but name the horizon out loud.** It works today. Within a year they will ask for HRIS sync, SCIM provisioning and device monitoring, and none of the three exist. Say so at the start; a customer who knew is a renewal, a customer who found out is a refund. |
+| **51–200** | Edge | **Sell it, but name the horizon out loud.** It works today. Within a year they will ask for HRIS sync, SCIM provisioning and device monitoring. HRIS sync (Personio, HiBob, BambooHR) and device evidence through their MDM (Intune, Kandji, Jamf — no agent) now exist; SCIM provisioning still doesn't. Say so at the start; a customer who knew is a renewal, a customer who found out is a refund. |
 | **200+** | Not ours | **Send them to Vanta or Drata and mean it.** Dedicated compliance staff, an HRIS, hundreds of integrations expected, a named CSM. You would lose the deal slowly instead of quickly. |
 
 ---
@@ -88,7 +88,7 @@ tell, it is not a pass.
 | ✅ Pass | Do they run Okta, Google Workspace or Microsoft 365? | A hard requirement, and easy to forget to ask. Without one of the three, access-control automation drops from 9 of 12 measures to 3. |
 | ⚠️ Inconclusive | Are they US-only, with one framework? | The weakest ground, and worth admitting. Against Vanta and Drata you're left with flat pricing, no laptop agent and being straight with people. All real, none structural. Take the meeting; don't build the strategy on it. |
 | ❌ Fail | Do they need a completed Type II report? | Walk away, and say why. Type II needs a 3–12 month observation window, and separately the sync still overwrites check history, so that evidence cannot be produced today. Selling into this is the Delve failure mode exactly. |
-| ❌ Fail | Does a customer already require laptop monitoring? | Disk encryption, screen lock, antivirus. There is no agent and no plan for one. Send them to Vanta or Oneleet. The DevOps engineer who asked about this accepted the trade-off immediately because it was volunteered rather than discovered — repeat that. |
+| ⚠️ Depends | Does a customer already require laptop monitoring? | If their laptops are in Intune, Kandji or Jamf: yes — disk encryption, check-in and "everyone has a managed laptop" are read from the MDM, no agent. If they have no MDM at all: there is no agent and no plan for one; send them to Vanta or Oneleet. The DevOps engineer who asked about this accepted the trade-off immediately because it was volunteered rather than discovered — repeat that. |
 
 ---
 
@@ -130,8 +130,9 @@ a single screen. None were redeemed. Reverse the order.
 
 Turning someone away is the cheapest trust you will ever buy.
 
-- **Anyone over 200 people with an HRIS.** They need SCIM, device monitoring and
-  a named CSM. Vanta or Drata.
+- **Anyone over 200 people.** HRIS sync and MDM device evidence now exist, but
+  they also need SCIM provisioning, hundreds of integrations and a named CSM.
+  Vanta or Drata.
 - **The team that needs SOC 2 and nothing else, forever.** Comp AI is free and
   open-source. You cannot win on price and should not try.
 - **Anyone whose auditor is already booked.** There are no named partner
