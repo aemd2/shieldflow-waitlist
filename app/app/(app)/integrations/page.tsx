@@ -145,6 +145,7 @@ export default async function IntegrationsPage() {
             connectAction={connectOkta}
             syncAction={syncOkta}
             disconnectAction={disconnectOkta}
+            page={{ href: "/integrations/okta", label: "Open Okta" }}
             disconnectConfirm="Disconnect Okta? Collected evidence stays in the vault."
             setupHint={
               <>Okta Admin → Security → API → Tokens → create a read-only token; paste your org URL above.</>
@@ -377,10 +378,14 @@ export default async function IntegrationsPage() {
             status={gitlab?.status ?? null}
             lastSyncedAt={gitlab?.last_synced_at ?? null}
             identityLabel={gitlab ? `Connected as @${meta(gitlab).username ?? "user"}` : null}
-            fields={[{ name: "token", placeholder: "glpat-...", type: "password" }]}
+            fields={[
+              { name: "token", placeholder: "glpat-... (read_api)", type: "password" },
+              { name: "host", placeholder: "Server address — leave empty for gitlab.com", optional: true },
+            ]}
             connectAction={connectGitLab}
             syncAction={syncGitLab}
             disconnectAction={disconnectGitLab}
+            page={{ href: "/integrations/gitlab", label: "Open GitLab" }}
             disconnectConfirm="Disconnect GitLab? Collected evidence stays in the vault."
             setupHint={<>GitLab → Preferences → Access Tokens → create a token with the read_api scope.</>}
           />
@@ -463,6 +468,7 @@ export default async function IntegrationsPage() {
             connectAction={connectGcp}
             syncAction={syncGcp}
             disconnectAction={disconnectGcp}
+            page={{ href: "/integrations/gcp", label: "Open Google Cloud" }}
             disconnectConfirm="Disconnect Google Cloud? Collected evidence stays in the vault."
             setupHint={
               <>GCP → IAM → Service Accounts → create a key (JSON); grant it the Viewer role. Paste the whole file.</>
@@ -485,6 +491,7 @@ export default async function IntegrationsPage() {
             connectAction={connectCloudflare}
             syncAction={syncCloudflare}
             disconnectAction={disconnectCloudflare}
+            page={{ href: "/integrations/cloudflare", label: "Open Cloudflare" }}
             disconnectConfirm="Disconnect Cloudflare? Collected evidence stays in the vault."
             setupHint={
               <>Cloudflare → My Profile → API Tokens → create a token with read access to your zones.</>

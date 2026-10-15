@@ -12,13 +12,20 @@ import { csvSafe } from "@/lib/csv";
 import { logEvent } from "@/lib/audit";
 import { fileIntegrationCsv, disconnectProvider, INTEGRATION_LABELS } from "@/lib/integration-evidence";
 import { recordChecksForSync } from "@/lib/checks";
+import { scanWithCredentials, checksReportCsv } from "@/lib/integrations/token-actions";
+import { scanGitLab } from "@/lib/integrations/gitlab/scan";
+import { normalizeGitLabUrl, gitlabUser as collectGitLabUser } from "@/lib/integrations/gitlab/collect";
+import { GITLAB_CHECKS } from "@/lib/integrations/gitlab/catalog";
+import { csvRow, fileMeasureCsv } from "@/lib/evidence-population";
 import { encryptSecret, decryptSecret, isEncryptionConfigured, ENCRYPTION_NOT_CONFIGURED } from "@/lib/crypto";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";
 
-export async function connectGitLab(input: { token: string }) {
-  const parsed = gitlabTokenSchema.safeParse(input);
+export async function connectGitLab(input: { token: string; host?: string }) {
+  const parsed = gitlabTokenSchema.safeParse({ token: input?.token });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid token." };
+  const base = normalizeGitLabUrl(typeof input?.host === "string" ? input.host : "");
+  if (!base) return { error: "Enter your GitLab server's https address (a public hostname), or leave it empty for gitlab.com." };
 
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
@@ -39,7 +46,7 @@ export async function connectGitLab(input: { token: string }) {
 
   let username: string;
   try {
-    username = await validateToken(parsed.data.token);
+    username = base === "https://gitlab.com" ? await validateToken(parsed.data.token) : (await collectGitLabUser(base, parsed.data.token));
   } catch (err) {
     return { error: err instanceof GitLabError ? err.userMessage : "Couldn't reach GitLab." };
   }
@@ -48,10 +55,10 @@ export async function connectGitLab(input: { token: string }) {
     {
       company_id: company.id,
       provider: "gitlab",
-      access_token: encryptSecret(parsed.data.token),
+      access_token: encryptSecret(JSON.stringify({ base, token: parsed.data.token })),
       status: "connected",
       connected_by: user.id,
-      metadata: { username },
+      metadata: { username, login: username, base },
     },
     { onConflict: "company_id,provider" },
   );
@@ -69,82 +76,40 @@ export async function connectGitLab(input: { token: string }) {
 }
 
 export async function syncGitLab() {
-  const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  let company;
-  try {
-    company = await getCompanyForUser(supabase, user.id);
-  } catch {
-    return { error: DB_ERROR };
-  }
-  if (!company) return { error: "No company found." };
-  const denied =
-    (await assertCanWrite(supabase, company.id, user.id)) ??
-    (await assertFeature(supabase, company.id, "integrations"));
-  if (denied) return { error: denied };
-
-  if (!checkRateLimit(`gitlab-sync:${company.id}`, 1, 60_000)) {
-    return { error: "Already synced recently — try again in a minute." };
-  }
-
-  const { data: integ } = await supabase
-    .from("integrations")
-    .select("id, access_token, status")
-    .eq("company_id", company.id)
-    .eq("provider", "gitlab")
-    .maybeSingle();
-  if (!integ?.access_token || integ.status === "disconnected") {
-    return { error: "GitLab isn't connected yet." };
-  }
-
-  let token: string;
-  try {
-    token = decryptSecret(integ.access_token);
-  } catch {
-    return { error: "Stored GitLab token is unreadable — please reconnect." };
-  }
-
-  try {
-    const r = await fetchRepoSecurity(token);
-    const csv = [
-      `# GitLab repository security report`,
-      `# Generated: ${new Date().toISOString()}`,
-      `# Company: ${company.name}`,
-      `# Summary: ${r.total} projects | ${r.protectedCount} with protected branches | ${r.publicCount} public${r.truncated ? " | partial (large account or rate limit)" : ""}`,
-      ``,
-      `project,visibility,branch_protection`,
-      ...r.repos.map((p) => `${csvSafe(p.fullPath)},${p.visibility},${p.branchProtection}`),
-    ].join("\n");
-
-    const filed = await fileIntegrationCsv({
-      supabase,
-      companyId: company.id,
-      userId: user.id,
-      integrationId: integ.id,
-      fileBase: "gitlab-repo-security",
-      csv,
-      note: `Automated GitLab sync: ${r.total} projects, ${r.protectedCount} with protected branches, ${r.publicCount} public.`,
-    });
-    if (filed.error) return { error: filed.error };
-
-    await recordChecksForSync(supabase, company.id, "gitlab", r, filed.evidenceId ?? null);
-
-    revalidatePath("/integrations");
-    revalidatePath("/evidence");
-    revalidatePath("/dashboard");
-    return { ok: true, summary: { total: r.total, protected: r.protectedCount, public: r.publicCount } };
-  } catch (err) {
-    if (err instanceof GitLabError) {
-      if (err.kind === "auth") {
-        await supabase.from("integrations").update({ status: "error" }).eq("id", integ.id);
-        revalidatePath("/integrations");
-      }
-      return { error: err.userMessage };
-    }
-    return { error: "Sync failed. Please try again." };
-  }
+  return scanWithCredentials(
+    "gitlab",
+    GITLAB_CHECKS,
+    scanGitLab,
+    (scan, company) => {
+      const x = scan.extra;
+      const active = x.projects.filter((p) => !p.archived);
+      return {
+        csv: checksReportCsv("GitLab", company, scan, GITLAB_CHECKS, [
+          csvRow("project", "visibility", "default_branch", "merge_request_required", "approvals_required", "force_push"),
+          ...active.map((p) => csvRow(p.path, p.visibility, p.defaultBranch, p.protection === null ? "unknown" : p.protection ? p.protection.pushRestricted : false, p.approvalsRequired ?? "unknown", p.protection ? p.protection.forcePushAllowed : "")),
+        ]),
+        note: `Automated GitLab scan: ${active.length} projects, ${x.merges.length} merged changes.`,
+        summary: { total: active.length, protected: active.filter((p) => p.protection && p.protection.pushRestricted).length },
+      };
+    },
+    async (db, companyId, userId, scan) => {
+      if (!scan.extra.merges.length) return;
+      const day = new Date().toISOString().slice(0, 10);
+      await fileMeasureCsv(
+        db,
+        companyId,
+        userId,
+        "change-management",
+        `gitlab-merged-changes-${day}.csv`,
+        [
+          csvRow(`# Changes merged into default branches, last ${scan.extra.settings.windowDays} days — ${day}`),
+          csvRow("project", "number", "title", "author", "merged_by", "merged_at", "approved_by", "independent_approval", "ticket", "url"),
+          ...scan.extra.merges.map((m) => csvRow(m.repo, m.number, m.title, m.author, m.mergedBy, m.mergedAt, m.approvers.join(" "), m.independentApproval, m.ticket, m.url)),
+        ].join("\n"),
+        "Generated from GitLab by ShieldFlow: every merge request merged into a default branch, with who approved it.",
+      );
+    },
+  );
 }
 
 export async function disconnectGitLab() {

@@ -12,6 +12,10 @@ import { csvSafe } from "@/lib/csv";
 import { logEvent } from "@/lib/audit";
 import { fileIntegrationCsv, disconnectProvider, INTEGRATION_LABELS } from "@/lib/integration-evidence";
 import { recordChecksForSync } from "@/lib/checks";
+import { scanWithCredentials, checksReportCsv } from "@/lib/integrations/token-actions";
+import { scanCloudflare } from "@/lib/integrations/cloudflare/scan";
+import { CLOUDFLARE_CHECKS } from "@/lib/integrations/cloudflare/catalog";
+import { csvRow } from "@/lib/evidence-population";
 import { encryptSecret, decryptSecret, isEncryptionConfigured, ENCRYPTION_NOT_CONFIGURED } from "@/lib/crypto";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";
@@ -66,84 +70,22 @@ export async function connectCloudflare(input: { token: string }) {
 }
 
 export async function syncCloudflare() {
-  const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  let company;
-  try {
-    company = await getCompanyForUser(supabase, user.id);
-  } catch {
-    return { error: DB_ERROR };
-  }
-  if (!company) return { error: "No company found." };
-  const denied =
-    (await assertCanWrite(supabase, company.id, user.id)) ??
-    (await assertFeature(supabase, company.id, "integrations"));
-  if (denied) return { error: denied };
-
-  if (!checkRateLimit(`cloudflare-sync:${company.id}`, 1, 60_000)) {
-    return { error: "Already synced recently — try again in a minute." };
-  }
-
-  const { data: integ } = await supabase
-    .from("integrations")
-    .select("id, access_token, status")
-    .eq("company_id", company.id)
-    .eq("provider", "cloudflare")
-    .maybeSingle();
-  if (!integ?.access_token || integ.status === "disconnected") {
-    return { error: "Cloudflare isn't connected yet." };
-  }
-
-  let token: string;
-  try {
-    token = decryptSecret(integ.access_token);
-  } catch {
-    return { error: "Stored Cloudflare token is unreadable — please reconnect." };
-  }
-
-  try {
-    const r = await fetchZoneSecurity(token);
-    const csv = [
-      `# Cloudflare zone security report`,
-      `# Generated: ${new Date().toISOString()}`,
-      `# Company: ${company.name}`,
-      `# Summary: ${r.totalZones} zones${r.truncated ? " (first 25 detailed)" : ""}`,
-      ``,
-      `zone,ssl_mode,min_tls_version,always_use_https`,
-      ...r.zones.map(
-        (z) => `${csvSafe(z.name)},${csvSafe(z.ssl)},${csvSafe(z.minTls)},${csvSafe(z.alwaysHttps)}`,
-      ),
-    ].join("\n");
-
-    const filed = await fileIntegrationCsv({
-      supabase,
-      companyId: company.id,
-      userId: user.id,
-      integrationId: integ.id,
-      fileBase: "cloudflare-zone-security",
-      csv,
-      note: `Automated Cloudflare sync: ${r.totalZones} zones, SSL/TLS posture captured.`,
-    });
-    if (filed.error) return { error: filed.error };
-
-    await recordChecksForSync(supabase, company.id, "cloudflare", r, filed.evidenceId ?? null);
-
-    revalidatePath("/integrations");
-    revalidatePath("/evidence");
-    revalidatePath("/dashboard");
-    return { ok: true, summary: { zones: r.totalZones } };
-  } catch (err) {
-    if (err instanceof CloudflareError) {
-      if (err.kind === "auth") {
-        await supabase.from("integrations").update({ status: "error" }).eq("id", integ.id);
-        revalidatePath("/integrations");
-      }
-      return { error: err.userMessage };
-    }
-    return { error: "Sync failed. Please try again." };
-  }
+  return scanWithCredentials(
+    "cloudflare",
+    CLOUDFLARE_CHECKS,
+    scanCloudflare,
+    (scan, company) => {
+      const zones = scan.extra.zones;
+      return {
+        csv: checksReportCsv("Cloudflare", company, scan, CLOUDFLARE_CHECKS, [
+          csvRow("zone", "ssl", "min_tls", "always_https", "hsts", "dnssec"),
+          ...zones.map((z) => csvRow(z.name, z.ssl ?? "unknown", z.minTls ?? "unknown", z.alwaysHttps ?? "unknown", z.hsts ?? "unknown", z.dnssec ?? "unknown")),
+        ]),
+        note: `Automated Cloudflare scan: ${zones.length} zones.`,
+        summary: { zones: zones.length },
+      };
+    },
+  );
 }
 
 export async function disconnectCloudflare() {

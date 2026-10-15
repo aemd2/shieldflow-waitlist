@@ -11,6 +11,12 @@ import { MICROSOFT_DEFAULTS, type MicrosoftExtra } from "@/lib/integrations/micr
 import { msAppResource } from "@/lib/integrations/microsoft/evaluate";
 import { deviceResource, type Device } from "@/lib/integrations/devices";
 import { HRIS_DEFAULTS, type HrisExtra } from "@/lib/integrations/hris/scan";
+import { GITLAB_DEFAULTS, type GitLabExtra } from "@/lib/integrations/gitlab/scan";
+import { glMergeResourceId } from "@/lib/integrations/gitlab/evaluate";
+import { OKTA_DEFAULTS, type OktaExtra } from "@/lib/integrations/okta/scan";
+import { canSignIn } from "@/lib/integrations/okta/evaluate";
+import type { CloudflareExtra } from "@/lib/integrations/cloudflare/scan";
+import { GCP_DEFAULTS, type GcpExtra } from "@/lib/integrations/gcp/scan";
 import { MDM_DEFAULTS, type MdmExtra } from "@/lib/integrations/mdm/scan";
 
 /**
@@ -114,7 +120,7 @@ export interface ProviderView {
   devices: { rows: DeviceRowView[]; note: string; missing: string | null; staleDays: number; mdm: string } | null;
   /** Areas a scan couldn't read, and the permission to add. */
   unread: string[];
-  changes: { rows: ChangeRowView[]; windowDays: number; note: string } | null;
+  changes: { rows: ChangeRowView[]; windowDays: number; note: string; checkKey: string; sep: string } | null;
   alerts: { rows: AlertRowView[]; note: string } | null;
   settings: Record<string, number> | null;
   /** Personnel with an email, for the "this account is…" picker. */
@@ -252,40 +258,8 @@ export async function loadProviderView(db: SupabaseClient, companyId: string, en
       };
     }
 
-    // Changes: the stored population (kept beyond GitHub's own window), newest first.
-    const since = new Date(Date.now() - 90 * DAY).toISOString();
-    const { data: changes } = await db
-      .from("code_changes")
-      .select("id, repo, number, title, url, author, merged_by, merged_at, approvers, independent_approval, ticket")
-      .eq("company_id", companyId)
-      .eq("provider", "github")
-      .gte("merged_at", since)
-      .order("merged_at", { ascending: false })
-      .limit(500);
-    const reasons = new Map(exceptions.filter((e) => e.checkKey === "github.unreviewed_merges").map((e) => [e.resourceId, e.reason]));
-    view.changes = {
-      windowDays: settings.windowDays,
-      note:
-        "Every pull request merged into a default branch, with who approved it before the merge. This is the population an auditor samples for change management; each day's list is also filed as evidence on “Track every production change”.",
-      rows: ((changes ?? []) as Record<string, unknown>[]).map((c) => {
-        const resourceId = prResourceId(c.repo as string, c.number as number);
-        return {
-          id: c.id as string,
-          resourceId,
-          repo: c.repo as string,
-          number: c.number as number,
-          title: c.title as string,
-          url: (c.url as string | null) ?? null,
-          author: (c.author as string | null) ?? null,
-          mergedBy: (c.merged_by as string | null) ?? null,
-          mergedAt: c.merged_at as string,
-          approvers: (c.approvers as string[] | null) ?? [],
-          independent: Boolean(c.independent_approval),
-          ticket: (c.ticket as string | null) ?? null,
-          reason: reasons.get(resourceId) ?? null,
-        };
-      }),
-    };
+    view.changes = await loadChanges(db, companyId, "github", exceptions, prResourceId, settings.windowDays, "#",
+      "Every pull request merged into a default branch, with who approved it before the merge. This is the population an auditor samples for change management; each day's list is also filed as evidence on “Track every production change”.");
 
     // Vulnerabilities
     const now = Date.now();
@@ -523,7 +497,134 @@ export async function loadProviderView(db: SupabaseClient, companyId: string, en
     view.devices = devicesView(entry.key, entry.title, x.devices, settings.staleDays, byEmail);
   }
 
+  if (entry.key === "gitlab" && scan) {
+    const x = scan.extra as GitLabExtra;
+    const settings = settingsOf(meta, GITLAB_DEFAULTS);
+    view.settings = settings;
+    view.account = x.login;
+    const active = x.projects.filter((p) => !p.archived);
+    view.scan!.summary = [
+      `${active.length} projects${x.projectsTruncated ? " (more not read)" : ""}`,
+      `${x.merges.length} merged changes in ${settings.windowDays} days`,
+      x.base === "https://gitlab.com" ? "gitlab.com" : x.base.replace(/^https:\/\//, ""),
+    ];
+    view.changes = await loadChanges(db, companyId, "gitlab", exceptions, glMergeResourceId, settings.windowDays, "!",
+      "Every merge request merged into a default branch, with who approved it. This is the population an auditor samples for change management; each day's list is also filed as evidence on “Track every production change”.");
+  }
+
+  if (entry.key === "okta" && scan) {
+    const x = scan.extra as OktaExtra;
+    const settings = settingsOf(meta, OKTA_DEFAULTS);
+    view.settings = settings;
+    view.account = x.host;
+    view.unread = x.unread;
+    const live = x.users.filter(canSignIn);
+    view.scan!.summary = [`${live.length} active accounts${x.truncated ? " (more not read)" : ""}`, `${live.filter((u) => u.factors?.length).length} with a second factor`];
+    const now = Date.now();
+    const rows: PersonRowView[] = x.users.map((u) => {
+      const { match, person } = matchOf(u.email, [u.email]);
+      const flags: PersonRowView["flags"] = [];
+      if (canSignIn(u) && u.factors && !u.factors.length) flags.push({ label: "no second factor", bad: true });
+      else if (canSignIn(u) && u.factors?.length && u.factors.every((f) => ["sms", "call", "email", "question"].includes(f))) flags.push({ label: "SMS / email codes only", bad: true });
+      if (u.roles?.length) flags.push({ label: u.roles.join(", ").toLowerCase().replace(/_/g, " "), bad: false });
+      const idle = u.lastLogin ? Math.floor((now - Date.parse(u.lastLogin)) / DAY) : null;
+      flags.push({ label: idle === null ? "never signed in" : `last sign-in ${idle} days ago`, bad: u.status === "ACTIVE" && (idle === null || idle > settings.dormantDays) });
+      return {
+        account: u.email,
+        subject: u.email,
+        name: u.name,
+        role: u.roles?.length ? "Admin" : "User",
+        where: u.status.toLowerCase().replace(/_/g, " "),
+        flags,
+        match: canSignIn(u) ? match : "inactive",
+        person,
+        linked: false,
+      };
+    });
+    const order: Record<PersonMatch, number> = { leaver: 0, unknown: 1, matched: 2, dismissed: 3, bot: 4, inactive: 5 };
+    rows.sort((a, b) => order[a.match] - order[b.match] || a.account.localeCompare(b.account));
+    view.people = { rows, note: "Matched to Personnel by email. Locked-out and password-expired accounts still count — their access comes back. Deactivated and suspended ones don't.", blindSpot: x.truncated ? "Okta has more users than one scan reads" : null, linkable: false };
+  }
+
+  if (entry.key === "cloudflare" && scan) {
+    const x = scan.extra as CloudflareExtra;
+    view.unread = x.unread;
+    view.scan!.summary = [`${x.zones.length} zones${x.zonesTruncated ? " (more not read)" : ""}`, `${x.accounts.length} ${x.accounts.length === 1 ? "account" : "accounts"}`];
+    const rows: PersonRowView[] = x.accounts.flatMap((acc) =>
+      (acc.members ?? []).map((m) => {
+        const { match, person } = matchOf(m.email, [m.email]);
+        return {
+          account: m.email,
+          subject: m.email,
+          name: m.name,
+          role: m.roles.join(", ") || "Member",
+          where: acc.name,
+          flags: m.twoFactor === false && !acc.enforceTwoFactor ? [{ label: "no 2FA", bad: true }] : [],
+          match,
+          person,
+          linked: false,
+        };
+      }),
+    );
+    if (rows.length) view.people = { rows, note: "Everyone who can sign in to your Cloudflare accounts, matched to Personnel by email.", blindSpot: x.accounts.some((a) => a.members === null) ? "some accounts' members couldn't be read" : null, linkable: false };
+  }
+
+  if (entry.key === "gcp" && scan) {
+    const x = scan.extra as GcpExtra;
+    view.settings = settingsOf(meta, GCP_DEFAULTS);
+    view.account = x.projects[0]?.id ?? null;
+    view.unread = x.unread;
+    view.scan!.summary = [`${x.projects.length} ${x.projects.length === 1 ? "project" : "projects"}${x.projectsTruncated ? " (more not read)" : ""}`, `as ${x.serviceAccount}`];
+  }
+
   return view;
+}
+
+async function loadChanges(
+  db: SupabaseClient,
+  companyId: string,
+  provider: "github" | "gitlab",
+  exceptions: ProviderView["exceptions"],
+  resourceIdOf: (repo: string, n: number) => string,
+  windowDays: number,
+  sep: string,
+  note: string,
+): Promise<NonNullable<ProviderView["changes"]>> {
+  const checkKey = `${provider}.unreviewed_merges`;
+  const since = new Date(Date.now() - 90 * DAY).toISOString();
+  const { data } = await db
+    .from("code_changes")
+    .select("id, repo, number, title, url, author, merged_by, merged_at, approvers, independent_approval, ticket")
+    .eq("company_id", companyId)
+    .eq("provider", provider)
+    .gte("merged_at", since)
+    .order("merged_at", { ascending: false })
+    .limit(500);
+  const reasons = new Map(exceptions.filter((e) => e.checkKey === checkKey).map((e) => [e.resourceId, e.reason]));
+  return {
+    windowDays,
+    note,
+    checkKey,
+    sep,
+    rows: ((data ?? []) as Record<string, unknown>[]).map((c) => {
+      const resourceId = resourceIdOf(c.repo as string, c.number as number);
+      return {
+        id: c.id as string,
+        resourceId,
+        repo: c.repo as string,
+        number: c.number as number,
+        title: c.title as string,
+        url: (c.url as string | null) ?? null,
+        author: (c.author as string | null) ?? null,
+        mergedBy: (c.merged_by as string | null) ?? null,
+        mergedAt: c.merged_at as string,
+        approvers: (c.approvers as string[] | null) ?? [],
+        independent: Boolean(c.independent_approval),
+        ticket: (c.ticket as string | null) ?? null,
+        reason: reasons.get(resourceId) ?? null,
+      };
+    }),
+  };
 }
 
 function devicesView(

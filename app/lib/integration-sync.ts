@@ -6,10 +6,10 @@ import { scanGoogle } from "@/lib/integrations/google/scan";
 import { scanMicrosoft } from "@/lib/integrations/microsoft/scan";
 import { scanHris } from "@/lib/integrations/hris/scan";
 import { scanMdm } from "@/lib/integrations/mdm/scan";
-import { fetchUserSecurity as fetchOktaSecurity } from "@/lib/okta";
-import { fetchProjectSecurity as fetchGcpSecurity } from "@/lib/gcp";
-import { fetchZoneSecurity as fetchCloudflareSecurity } from "@/lib/cloudflare";
-import { fetchRepoSecurity as fetchGitlabRepoSecurity } from "@/lib/gitlab";
+import { scanOkta } from "@/lib/integrations/okta/scan";
+import { scanGcp } from "@/lib/integrations/gcp/scan";
+import { scanCloudflare } from "@/lib/integrations/cloudflare/scan";
+import { scanGitLab } from "@/lib/integrations/gitlab/scan";
 
 /**
  * Providers whose posture maps to automated checks AND can be re-synced without a
@@ -83,22 +83,22 @@ export async function fetchPostureFor(
     });
   }
 
-  const secret = decryptSecret(integ.access_token);
+  // Each deep scan decrypts its own credential; this fails fast on a corrupt one.
+  decryptSecret(integ.access_token);
+  const row = { id: integ.id, company_id: integ.company_id, access_token: integ.access_token, metadata: integ.metadata ?? null };
 
   switch (integ.provider) {
     case "github":
       // The deep scan decrypts for itself: App installs store an installation id, not a token.
       return scanGitHub(db, { id: integ.id, company_id: integ.company_id, access_token: integ.access_token, metadata: integ.metadata ?? null });
-    case "okta": {
-      const { host, token } = JSON.parse(secret) as { host: string; token: string };
-      return fetchOktaSecurity(host, token);
-    }
+    case "okta":
+      return scanOkta(db, row);
     case "gcp":
-      return fetchGcpSecurity(secret);
+      return scanGcp(db, row);
     case "cloudflare":
-      return fetchCloudflareSecurity(secret);
+      return scanCloudflare(db, row);
     case "gitlab":
-      return fetchGitlabRepoSecurity(secret);
+      return scanGitLab(db, row);
     case "microsoft":
       return scanMicrosoft(db, { id: integ.id, company_id: integ.company_id, access_token: integ.access_token, metadata: integ.metadata ?? null });
     case "personio":

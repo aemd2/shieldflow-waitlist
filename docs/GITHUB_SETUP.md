@@ -8,7 +8,21 @@ is configured, "Connect with GitHub", which asks for the `repo` scope — read
 
 ---
 
-## 1. One-time setup (≈ 10 minutes, in ShieldFlow's own GitHub account)
+## 1. One-time setup
+
+**The quick way (one click):**
+
+```bash
+npx tsx scripts/github-app-setup.ts          # opens a page; click "Create GitHub App" on GitHub
+npx tsx scripts/github-app-check.ts          # confirms the keys work and lists installations
+npx tsx scripts/github-app-setup.ts --vercel # copies the five keys into Vercel (CLI logged in)
+```
+
+The script posts the App's definition (below) to GitHub as a manifest, gets the
+keys back from GitHub directly and writes them to `.env.local` and
+`.env.github-app.local` (both git-ignored). Nothing is copied by hand.
+
+**By hand (≈ 10 minutes, in ShieldFlow's own GitHub account):**
 
 1. GitHub → your organisation (or personal) **Settings → Developer settings →
    GitHub Apps → New GitHub App**.

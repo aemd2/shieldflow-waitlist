@@ -11,6 +11,8 @@ export type ConnectField = {
   name: string;
   placeholder: string;
   type?: "text" | "password" | "textarea";
+  /** May be left empty. */
+  optional?: boolean;
 };
 
 /** Token-based integrations that share IntegrationConnectCard. */
@@ -203,7 +205,7 @@ export function IntegrationConnectCard({
         f.type === "textarea" ? (
           <textarea
             key={f.name}
-            required
+            required={!f.optional}
             rows={4}
             value={values[f.name] ?? ""}
             onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
@@ -215,7 +217,7 @@ export function IntegrationConnectCard({
           <input
             key={f.name}
             type={f.type ?? "text"}
-            required
+            required={!f.optional}
             value={values[f.name] ?? ""}
             onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
             placeholder={f.placeholder}

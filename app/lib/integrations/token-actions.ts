@@ -10,6 +10,7 @@ import { recordChecksForSync } from "@/lib/checks";
 import { encryptSecret, isEncryptionConfigured, ENCRYPTION_NOT_CONFIGURED } from "@/lib/crypto";
 import type { CheckDef } from "@/lib/checks-core";
 import type { ProviderScan } from "@/lib/integrations/scan-store";
+import { csvRow } from "@/lib/evidence-population";
 
 /**
  * The connect / scan plumbing every paste-a-credential integration shares (the
@@ -108,4 +109,16 @@ export async function scanWithCredentials<X>(
   const counts = { pass: 0, fail: 0, inconclusive: 0 };
   for (const x of result.results) if (!informational.has(x.key)) counts[x.result]++;
   return { ok: true, ...counts, summary: r.summary };
+}
+
+/** The evidence CSV every deep scan files: each check, its verdict and the resources behind it. */
+export function checksReportCsv(title: string, company: string, scan: ProviderScan<unknown>, catalog: CheckDef[], extra: string[] = []): string {
+  const byKey = new Map(catalog.map((c) => [c.key, c]));
+  return [
+    csvRow(`# ${title} security report`, new Date().toISOString(), company),
+    "",
+    csvRow("check", "result", "detail", "resources"),
+    ...scan.results.map((r) => csvRow(byKey.get(r.key)?.title ?? r.key, r.result, r.detail, r.resources.map((x) => x.label).join("; "))),
+    ...(extra.length ? ["", ...extra] : []),
+  ].join("\n");
 }

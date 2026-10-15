@@ -10,6 +10,11 @@ import { createVendor } from "@/app/actions/vendors";
 import { syncMicrosoft, updateMicrosoftSettings } from "@/app/actions/microsoft";
 import { syncPersonio, syncHiBob, syncBambooHR, updatePersonioSettings, updateHiBobSettings, updateBambooHRSettings } from "@/app/actions/hris";
 import { syncKandji, syncJamf, updateKandjiSettings, updateJamfSettings } from "@/app/actions/mdm";
+import { syncOkta } from "@/app/actions/okta";
+import { syncGitLab } from "@/app/actions/gitlab";
+import { syncCloudflare } from "@/app/actions/cloudflare";
+import { syncGcp } from "@/app/actions/gcp";
+import { updateProviderSettings } from "@/app/actions/provider-settings";
 import { createCheckException } from "@/app/actions/check-exceptions";
 import { dismissIdentityAccount, restoreIdentityAccount, linkIdentity, unlinkIdentity } from "@/app/actions/identity";
 import type { CheckDef } from "@/lib/checks-core";
@@ -36,6 +41,10 @@ const SCAN: Partial<Record<string, Action>> = {
   bamboohr: syncBambooHR as unknown as Action,
   kandji: syncKandji as unknown as Action,
   jamf: syncJamf as unknown as Action,
+  okta: syncOkta as unknown as Action,
+  gitlab: syncGitLab as unknown as Action,
+  cloudflare: syncCloudflare as unknown as Action,
+  gcp: syncGcp as unknown as Action,
 };
 const SAVE_SETTINGS: Partial<Record<string, Action>> = {
   github: updateGitHubSettings as unknown as Action,
@@ -46,6 +55,9 @@ const SAVE_SETTINGS: Partial<Record<string, Action>> = {
   bamboohr: updateBambooHRSettings as unknown as Action,
   kandji: updateKandjiSettings as unknown as Action,
   jamf: updateJamfSettings as unknown as Action,
+  okta: ((input: unknown) => updateProviderSettings("okta", input)) as Action,
+  gitlab: ((input: unknown) => updateProviderSettings("gitlab", input)) as Action,
+  gcp: ((input: unknown) => updateProviderSettings("gcp", input)) as Action,
 };
 
 type Tab = "posture" | "people" | "apps" | "devices" | "changes" | "vulnerabilities" | "settings";
@@ -555,15 +567,15 @@ function Devices({ view }: { view: ProviderView }) {
 
 // ----------------------------------------------------------------- changes
 
-function RecordWhy({ row, onDone }: { row: ChangeRowView; onDone: () => void }) {
+function RecordWhy({ row, checkKey, sep, onDone }: { row: ChangeRowView; checkKey: string; sep: string; onDone: () => void }) {
   const toast = useToast();
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const label = `${row.repo}#${row.number} — ${row.title.slice(0, 80)}`;
-    const r = await createCheckException({ checkKey: "github.unreviewed_merges", resourceId: row.resourceId, label, reason, expiresAt: null }).catch(() => ({ error: NETWORK }));
+    const label = `${row.repo}${sep}${row.number} — ${row.title.slice(0, 80)}`;
+    const r = await createCheckException({ checkKey, resourceId: row.resourceId, label, reason, expiresAt: null }).catch(() => ({ error: NETWORK }));
     setBusy(false);
     if ("error" in r && r.error) return toast("error", r.error);
     toast("success", "Recorded — counts as reviewed from the next scan");
@@ -633,10 +645,10 @@ function Changes({ view, canWrite }: { view: ProviderView; canWrite: boolean }) 
                     <div className="flex flex-wrap items-center gap-1.5">
                       {r.url ? (
                         <a href={r.url} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline">
-                          {r.repo}#{r.number}
+                          {r.repo}{c.sep}{r.number}
                         </a>
                       ) : (
-                        <span className="font-medium">{r.repo}#{r.number}</span>
+                        <span className="font-medium">{r.repo}{c.sep}{r.number}</span>
                       )}
                       {r.ticket && <Badge variant="neutral">{r.ticket}</Badge>}
                     </div>
@@ -648,7 +660,7 @@ function Changes({ view, canWrite }: { view: ProviderView; canWrite: boolean }) 
                         ) : canWrite && open !== r.id ? (
                           <button type="button" className="text-muted-foreground underline" onClick={() => setOpen(r.id)}>Record why…</button>
                         ) : null}
-                        {open === r.id && <RecordWhy row={r} onDone={() => { setOpen(null); router.refresh(); }} />}
+                        {open === r.id && <RecordWhy row={r} checkKey={c.checkKey} sep={c.sep} onDone={() => { setOpen(null); router.refresh(); }} />}
                       </div>
                     )}
                   </td>

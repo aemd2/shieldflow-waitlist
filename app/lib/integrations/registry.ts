@@ -6,6 +6,10 @@ import { HRIS_AREAS, HRIS_META } from "@/lib/integrations/hris/catalog";
 import type { HrisProvider } from "@/lib/integrations/hris/clients";
 import { MDM_AREAS, MDM_META } from "@/lib/integrations/mdm/catalog";
 import type { MdmProvider } from "@/lib/integrations/mdm/clients";
+import { CLOUDFLARE_AREAS, CLOUDFLARE_CHECKS, CLOUDFLARE_READS } from "@/lib/integrations/cloudflare/catalog";
+import { GCP_AREAS, GCP_CHECKS, GCP_READS } from "@/lib/integrations/gcp/catalog";
+import { OKTA_AREAS, OKTA_CHECKS, OKTA_READS } from "@/lib/integrations/okta/catalog";
+import { GITLAB_AREAS, GITLAB_CHECKS, GITLAB_READS } from "@/lib/integrations/gitlab/catalog";
 
 /**
  * Every integration that has its own page (/integrations/<key>) and its own
@@ -133,6 +137,53 @@ export const PROVIDERS: ProviderEntry[] = [
       settings: [{ key: "staleDays", label: "Devices count as stale after", help: "A device that hasn't checked in for this long fails the check-in check, and its encryption counts as unknown.", min: 3, max: 90, unit: "days" }],
     }),
   ),
+  {
+    key: "okta",
+    checkPrefix: "okta",
+    title: "Okta",
+    subtitle: "A second factor for everyone (every account, not a sample), nobody on SMS alone, admins, dormant accounts, leavers, and apps that still keep a password. Read-only.",
+    checks: OKTA_CHECKS,
+    areas: OKTA_AREAS,
+    connectStory: "Create an API token as a user with the Read-Only Administrator role and paste it with your Okta address. The token inherits that role's read-only rights; revoke it any time under Security → API → Tokens.",
+    reads: OKTA_READS,
+    never: ["Passwords, factor secrets or recovery codes — only which factor types are enrolled.", "Change anything: the token's administrator role is read-only."],
+    settings: [{ key: "dormantDays", label: "Accounts count as unused after", help: "Active accounts with no sign-in for this long are listed (new accounts excepted).", min: 30, max: 365, unit: "days" }],
+  },
+  {
+    key: "gitlab",
+    checkPrefix: "gitlab",
+    title: "GitLab",
+    subtitle: "Whether every change to production went through an approved merge request, groups requiring 2FA, and projects that are public — on gitlab.com or your own server. Read-only.",
+    checks: GITLAB_CHECKS,
+    areas: GITLAB_AREAS,
+    connectStory: "Create a personal (or group) access token with only the read_api scope and paste it, with your server's address if it isn't gitlab.com. ShieldFlow can't push, comment or change a setting with it.",
+    reads: GITLAB_READS,
+    never: ["Source code or files — only project settings, merge-request metadata and approvals.", "Write anything: read_api can't."],
+    settings: [{ key: "windowDays", label: "Merged changes reviewed over the last", help: "The window of merged merge requests checked for an approval.", min: 7, max: 90, unit: "days" }],
+  },
+  {
+    key: "cloudflare",
+    checkPrefix: "cloudflare",
+    title: "Cloudflare",
+    subtitle: "Every site HTTPS-only with TLS 1.2+ and a verified origin, HSTS, DNSSEC — and whether everyone who can change Cloudflare uses 2FA. Read-only.",
+    checks: CLOUDFLARE_CHECKS,
+    areas: CLOUDFLARE_AREAS,
+    connectStory: "Create an API token (My Profile → API Tokens → Custom token) with the read permissions listed below and paste it. It can't change a DNS record or a setting.",
+    reads: CLOUDFLARE_READS,
+    never: ["DNS records, traffic, logs or certificates' private keys.", "Change anything: every permission is Read."],
+  },
+  {
+    key: "gcp",
+    checkPrefix: "gcp",
+    title: "Google Cloud",
+    subtitle: "Who owns your projects, anything granted to the whole internet, old service-account keys, public buckets, SSH open to the world, and databases without backups — across every project the service account can see. Read-only.",
+    checks: GCP_CHECKS,
+    areas: GCP_AREAS,
+    connectStory: "Create a service account with the Viewer and Security Reviewer roles (on the project, or the organisation to cover every project) and paste its JSON key. Both roles are read-only; delete the key any time to cut access.",
+    reads: GCP_READS,
+    never: ["Data inside buckets, databases or VMs — Viewer and Security Reviewer only see configuration.", "Change anything: both roles are read-only."],
+    settings: [{ key: "keyMaxDays", label: "Service-account keys rotated within", help: "User-managed keys older than this fail the key-age check.", min: 30, max: 365, unit: "days" }],
+  },
 ];
 
 export const PROVIDER_BY_KEY = new Map(PROVIDERS.map((p) => [p.key, p]));

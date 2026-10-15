@@ -15,14 +15,14 @@ export class GcpError extends Error {
   }
 }
 
-interface ServiceAccount {
+export interface ServiceAccount {
   client_email: string;
   private_key: string;
   token_uri: string;
   project_id: string;
 }
 
-function parseServiceAccount(jsonStr: string): ServiceAccount {
+export function parseServiceAccount(jsonStr: string): ServiceAccount {
   let obj: Record<string, string>;
   try {
     obj = JSON.parse(jsonStr);
@@ -47,7 +47,7 @@ function b64url(input: string): string {
   return Buffer.from(input).toString("base64url");
 }
 
-async function getAccessToken(sa: ServiceAccount): Promise<string> {
+export async function getAccessToken(sa: ServiceAccount): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const claims = b64url(
