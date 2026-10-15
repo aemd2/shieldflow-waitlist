@@ -7,6 +7,7 @@ import { RefreshCw, CircleAlert, ExternalLink, Link2, Ban } from "lucide-react";
 import { syncGitHub, updateGitHubSettings } from "@/app/actions/github";
 import { syncGoogleWorkspace, updateGoogleSettings } from "@/app/actions/integrations";
 import { createVendor } from "@/app/actions/vendors";
+import { syncMicrosoft, updateMicrosoftSettings } from "@/app/actions/microsoft";
 import { createCheckException } from "@/app/actions/check-exceptions";
 import { dismissIdentityAccount, restoreIdentityAccount, linkIdentity, unlinkIdentity } from "@/app/actions/identity";
 import type { CheckDef } from "@/lib/checks-core";
@@ -27,13 +28,15 @@ type Action = (input?: unknown) => Promise<ActionResult>;
 const SCAN: Partial<Record<string, Action>> = {
   github: syncGitHub as unknown as Action,
   google_workspace: syncGoogleWorkspace as unknown as Action,
+  microsoft: syncMicrosoft as unknown as Action,
 };
 const SAVE_SETTINGS: Partial<Record<string, Action>> = {
   github: updateGitHubSettings as unknown as Action,
   google_workspace: updateGoogleSettings as unknown as Action,
+  microsoft: updateMicrosoftSettings as unknown as Action,
 };
 
-type Tab = "posture" | "people" | "apps" | "changes" | "vulnerabilities" | "settings";
+type Tab = "posture" | "people" | "apps" | "devices" | "changes" | "vulnerabilities" | "settings";
 
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—");
 const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -56,7 +59,8 @@ export function ProviderWorkspace({
   const tabs = useMemo(() => {
     const t: { value: Tab; label: string }[] = [{ value: "posture", label: "Posture" }];
     if (view.people) t.push({ value: "people", label: "People" });
-    if (view.apps) t.push({ value: "apps", label: "Third-party apps" });
+    if (view.apps) t.push({ value: "apps", label: view.provider === "microsoft" ? "App consents" : "Third-party apps" });
+    if (view.devices) t.push({ value: "devices", label: "Devices" });
     if (view.changes) t.push({ value: "changes", label: "Changes" });
     if (view.alerts) t.push({ value: "vulnerabilities", label: "Vulnerabilities" });
     if (view.settings && settingFields.length) t.push({ value: "settings", label: "Settings" });
@@ -89,6 +93,18 @@ export function ProviderWorkspace({
   return (
     <div className="space-y-6">
       <ScanHeader view={view} title={title} canWrite={canWrite} />
+      {view.unread.length > 0 && (
+        <section className="card space-y-1 text-xs">
+          <p className="flex items-center gap-2 font-medium text-warning">
+            <CircleAlert className="h-3.5 w-3.5" /> Some areas couldn&apos;t be read, so their checks say &ldquo;can&apos;t tell&rdquo;:
+          </p>
+          <ul className="list-disc pl-8 text-muted-foreground">
+            {view.unread.map((u) => (
+              <li key={u}>{u}</li>
+            ))}
+          </ul>
+        </section>
+      )}
       {view.scan && tabs.length > 1 && <SegmentedControl options={tabs} value={tab} onChange={pick} />}
       {!view.scan ? (
         <p className="card text-sm text-muted-foreground">Not scanned yet — run a scan to see every check.</p>
@@ -96,6 +112,8 @@ export function ProviderWorkspace({
         <People view={view} canWrite={canWrite} title={title} />
       ) : tab === "apps" && view.apps ? (
         <Apps view={view} canWrite={canWrite} />
+      ) : tab === "devices" && view.devices ? (
+        <Devices view={view} />
       ) : tab === "changes" && view.changes ? (
         <Changes view={view} canWrite={canWrite} />
       ) : tab === "vulnerabilities" && view.alerts ? (
@@ -351,10 +369,10 @@ function Apps({ view, canWrite }: { view: ProviderView; canWrite: boolean }) {
   async function addVendor(r: AppRowView) {
     const res = await createVendor({
       name: r.name.slice(0, 120),
-      category: "Google Workspace app",
+      category: r.vendorCategory,
       risk_level: r.risky.length ? "high" : "medium",
       status: "under_review",
-      notes: `Found by ShieldFlow in Google Workspace: ${r.people} ${r.people === 1 ? "person" : "people"} granted it access${r.risky.length ? ` to ${r.risky.join(", ")}` : ""}. OAuth client ${r.clientId}.`,
+      notes: `Found by ShieldFlow: ${r.audience ?? `${r.people} ${r.people === 1 ? "person" : "people"}`} granted it access${r.risky.length ? ` to ${r.risky.join(", ")}` : ""}. App ID ${r.clientId}.`,
       soc2_status: "none",
       data_sensitivity: r.risky.length ? "pii" : "internal",
     }).catch(() => ({ error: NETWORK }));
@@ -401,7 +419,7 @@ function Apps({ view, canWrite }: { view: ProviderView; canWrite: boolean }) {
                   {r.approved && <Badge variant="success">approved</Badge>}
                   {r.inVendors && <Badge variant="neutral">in Vendors</Badge>}
                   <span className="ml-auto text-xs text-muted-foreground">
-                    {r.people} {r.people === 1 ? "person" : "people"} · last granted {day(r.lastAuthorized)}
+                    {r.audience ?? `${r.people} ${r.people === 1 ? "person" : "people"} · last granted ${day(r.lastAuthorized)}`}
                   </span>
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -444,7 +462,7 @@ function ApproveApp({ row, onDone }: { row: AppRowView; onDone: () => void }) {
     setBusy(true);
     const label = `${row.name} — ${row.risky.join(", ")}`;
     const expiresAt = new Date(Date.now() + 365 * 86_400_000).toISOString();
-    const r = await createCheckException({ checkKey: "google.oauth_apps", resourceId: row.resourceId, label, reason, expiresAt }).catch(() => ({ error: NETWORK }));
+    const r = await createCheckException({ checkKey: row.checkKey, resourceId: row.resourceId, label, reason, expiresAt }).catch(() => ({ error: NETWORK }));
     setBusy(false);
     if ("error" in r && r.error) return toast("error", r.error);
     toast("success", "Approved for a year — from the next scan");
@@ -463,6 +481,63 @@ function ApproveApp({ row, onDone }: { row: AppRowView; onDone: () => void }) {
       <Button type="submit" size="sm" disabled={busy}>{busy ? "Saving…" : "Approve"}</Button>
       <button type="button" className="text-xs text-muted-foreground underline" onClick={onDone}>Cancel</button>
     </form>
+  );
+}
+
+// ----------------------------------------------------------------- devices
+
+function Devices({ view }: { view: ProviderView }) {
+  const d = view.devices!;
+  if (d.missing) return <p className="card text-sm text-muted-foreground">{d.missing}</p>;
+  const unencrypted = d.rows.filter((r) => r.encrypted === false).length;
+  const stale = d.rows.filter((r) => r.stale).length;
+  const coverage = view.scan?.results.find((r) => r.key.endsWith(".device_coverage"));
+  return (
+    <div className="space-y-4">
+      <section className="card space-y-2 text-sm">
+        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+          <div><span className="text-2xl font-semibold">{d.rows.length}</span> <span className="text-muted-foreground">devices in {d.mdm}</span></div>
+          <div><span className="text-2xl font-semibold text-destructive">{unencrypted}</span> <span className="text-muted-foreground">not encrypted</span></div>
+          <div><span className="text-2xl font-semibold">{stale}</span> <span className="text-muted-foreground">not seen for {d.staleDays}+ days</span></div>
+        </div>
+        {coverage && <p className="text-xs">{coverage.result === "fail" ? <span className="text-destructive">{coverage.detail}</span> : <span className="text-muted-foreground">{coverage.detail}</span>}</p>}
+        <p className="text-xs text-muted-foreground">{d.note}</p>
+      </section>
+      {d.rows.length ? (
+        <section className="card overflow-x-auto p-0">
+          <table className="w-full text-sm">
+            <thead className="border-b border-border text-left text-xs text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2 font-medium">Device</th>
+                <th className="px-4 py-2 font-medium">Owner</th>
+                <th className="px-4 py-2 font-medium">Encrypted</th>
+                <th className="px-4 py-2 font-medium">Last check-in</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {d.rows.map((r) => (
+                <tr key={r.id}>
+                  <td className="px-4 py-2 align-top">
+                    <div className="font-medium">{r.name}</div>
+                    <div className="text-xs text-muted-foreground">{r.os}{r.osVersion ? ` ${r.osVersion}` : ""}</div>
+                  </td>
+                  <td className="px-4 py-2 align-top text-xs">
+                    {r.person ?? r.owner ?? <span className="text-muted-foreground">nobody</span>}
+                    {r.leaver && <div className="text-destructive">has left</div>}
+                  </td>
+                  <td className="px-4 py-2 align-top text-xs">
+                    {r.encrypted === false ? <span className="text-destructive">No</span> : r.encrypted ? "Yes" : <span className="text-muted-foreground">unknown</span>}
+                  </td>
+                  <td className={`px-4 py-2 align-top text-xs ${r.stale ? "text-warning" : "text-muted-foreground"}`}>{r.lastSeen ? day(r.lastSeen) : "never"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : (
+        <p className="card text-sm text-muted-foreground">No devices enrolled yet.</p>
+      )}
+    </div>
   );
 }
 

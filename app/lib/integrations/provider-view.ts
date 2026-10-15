@@ -7,6 +7,9 @@ import { prResourceId } from "@/lib/integrations/github/evaluate";
 import { GOOGLE_DEFAULTS, type GoogleExtra } from "@/lib/integrations/google/scan";
 import { appResource, isLive } from "@/lib/integrations/google/evaluate";
 import { riskyScopes } from "@/lib/integrations/google/catalog";
+import { MICROSOFT_DEFAULTS, type MicrosoftExtra } from "@/lib/integrations/microsoft/scan";
+import { msAppResource } from "@/lib/integrations/microsoft/evaluate";
+import { deviceResource, type Device } from "@/lib/integrations/devices";
 
 /**
  * Everything one integration page shows, built on the server from the last scan
@@ -71,9 +74,29 @@ export interface AppRowView {
   people: number;
   sample: string[];
   lastAuthorized: string;
-  /** Recorded approval reason (an exception on google.oauth_apps). */
+  /** Recorded approval reason (an exception on the app check). */
   approved: string | null;
   inVendors: boolean;
+  /** The check an approval is recorded against. */
+  checkKey: string;
+  /** Who holds it, when not a count of people ("whole organisation"). */
+  audience: string | null;
+  vendorCategory: string;
+}
+
+export interface DeviceRowView {
+  id: string;
+  resourceId: string;
+  name: string;
+  os: string;
+  osVersion: string | null;
+  encrypted: boolean | null;
+  lastSeen: string | null;
+  stale: boolean;
+  owner: string | null;
+  /** The Personnel record it belongs to, if any. */
+  person: string | null;
+  leaver: boolean;
 }
 
 export interface ProviderView {
@@ -86,6 +109,9 @@ export interface ProviderView {
   exceptions: { id: string; checkKey: string; resourceId: string; label: string | null; reason: string; expiresAt: string | null; createdAt: string }[];
   people: { rows: PersonRowView[]; note: string; blindSpot: string | null; linkable: boolean } | null;
   apps: { rows: AppRowView[]; note: string; missing: string | null } | null;
+  devices: { rows: DeviceRowView[]; note: string; missing: string | null; staleDays: number; mdm: string } | null;
+  /** Areas a scan couldn't read, and the permission to add. */
+  unread: string[];
   changes: { rows: ChangeRowView[]; windowDays: number; note: string } | null;
   alerts: { rows: AlertRowView[]; note: string } | null;
   settings: Record<string, number> | null;
@@ -161,6 +187,8 @@ export async function loadProviderView(db: SupabaseClient, companyId: string, en
     exceptions,
     people: null,
     apps: null,
+    devices: null,
+    unread: [],
     changes: null,
     alerts: null,
     settings: null,
@@ -356,11 +384,120 @@ export async function loadProviderView(db: SupabaseClient, companyId: string, en
             lastAuthorized: a.lastAuthorized,
             approved: approvals.get(resourceId) ?? null,
             inVendors: vendorNames.has(norm(a.name)),
+            checkKey: "google.oauth_apps",
+            audience: null,
+            vendorCategory: "Google Workspace app",
           };
         })
         .sort((a, b) => b.risky.length - a.risky.length || b.people - a.people),
     };
   }
 
+  if (entry.key === "microsoft" && scan) {
+    const x = scan.extra as MicrosoftExtra;
+    const settings = settingsOf(meta, MICROSOFT_DEFAULTS);
+    view.settings = settings;
+    view.account = (meta.org as string | undefined) ?? x.tenant;
+    view.unread = x.unread;
+    const members = x.users.filter((u) => u.enabled && !u.guest);
+    view.scan!.summary = [
+      `${members.length} active accounts${x.truncated ? " (more not read)" : ""}`,
+      `MFA required by ${x.securityDefaults ? "Security Defaults" : x.enforcing ? `“${x.enforcing}”` : x.securityDefaults === false ? "nothing" : "— (not readable)"}`,
+      x.devices ? `${x.devices.length} Intune devices` : "no Intune",
+    ];
+
+    const rows: PersonRowView[] = x.users.map((u) => {
+      const addresses = [u.mail, u.upn].filter((a): a is string => Boolean(a));
+      const { match, person } = matchOf(u.mail ?? u.upn, addresses);
+      const flags: PersonRowView["flags"] = [];
+      if (u.enabled && !u.guest && u.mfa === false) flags.push({ label: "no MFA registered", bad: true });
+      if (u.roles.length) flags.push({ label: u.roles.join(", "), bad: false });
+      if (!u.enabled) flags.push({ label: "sign-in blocked", bad: false });
+      return {
+        account: u.upn,
+        subject: u.mail ?? u.upn,
+        name: u.name,
+        role: u.guest ? "Guest" : u.roles.length ? "Admin" : "Member",
+        where: u.guest ? "other organisation" : x.tenant,
+        flags,
+        match: !u.enabled ? "inactive" : u.guest && match === "unknown" ? "bot" : match,
+        person,
+        linked: false,
+      };
+    });
+    const order: Record<PersonMatch, number> = { leaver: 0, unknown: 1, matched: 2, dismissed: 3, bot: 4, inactive: 5 };
+    rows.sort((a, b) => order[a.match] - order[b.match] || a.account.localeCompare(b.account));
+    view.people = {
+      rows,
+      note: "Matched to Personnel by email and sign-in name (they often differ in Microsoft 365). Guests from other organisations are listed but never count as unknown accounts. Blocked accounts can't sign in, so they never count as a leaver's access.",
+      blindSpot: x.truncated ? "the directory is larger than one scan reads" : null,
+      linkable: false,
+    };
+
+    const { data: vendors } = await db.from("vendors").select("name").eq("company_id", companyId);
+    const vendorNames = new Set(((vendors ?? []) as { name: string }[]).map((v) => norm(v.name)));
+    const approvals = new Map(exceptions.filter((e) => e.checkKey === "microsoft.app_consents").map((e) => [e.resourceId, e.reason]));
+    view.apps = {
+      missing: x.consents === null ? "App consents couldn't be read — grant the app registration Directory.Read.All (application, with admin consent) to see which apps can read mail or files." : null,
+      note: "Third-party apps that people or an admin allowed to read mail, files or SharePoint. Microsoft's own apps are left out. These are vendors holding your data.",
+      rows: (x.consents ?? []).map((c) => {
+        const resourceId = msAppResource(x.tenant, c.clientId, c.app).id;
+        return {
+          clientId: c.clientId,
+          resourceId,
+          name: c.app,
+          risky: [...new Set(c.scopes.filter((s) => /Mail\.|Files\.|Sites\.|ReadWrite\.All/.test(s)))].slice(0, 4),
+          scopes: c.scopes,
+          people: 0,
+          sample: [],
+          lastAuthorized: "",
+          approved: approvals.get(resourceId) ?? null,
+          inVendors: vendorNames.has(norm(c.app)),
+          checkKey: "microsoft.app_consents",
+          audience: c.tenantWide ? "whole organisation" : "some people",
+          vendorCategory: "Microsoft 365 app",
+        };
+      }),
+    };
+
+    view.devices = x.devices
+      ? devicesView("microsoft", "Intune", x.devices, settings.staleDays, byEmail)
+      : { rows: [], note: "", missing: "Intune isn't set up in this tenant (or the app registration lacks DeviceManagementManagedDevices.Read.All). Connect Kandji or Jamf instead, if that's where your laptops are.", staleDays: settings.staleDays, mdm: "Intune" };
+  }
+
   return view;
+}
+
+function devicesView(
+  prefix: string,
+  mdm: string,
+  devices: Device[],
+  staleDays: number,
+  byEmail: Map<string, { name: string; status: string }>,
+): NonNullable<ProviderView["devices"]> {
+  const now = Date.now();
+  const rows: DeviceRowView[] = devices.map((d) => {
+    const p = d.owner ? byEmail.get(norm(d.owner)) : undefined;
+    return {
+      id: d.id,
+      resourceId: deviceResource(prefix, d).id,
+      name: d.name,
+      os: d.os,
+      osVersion: d.osVersion,
+      encrypted: d.encrypted,
+      lastSeen: d.lastSeen,
+      stale: !d.lastSeen || now - Date.parse(d.lastSeen) > staleDays * DAY,
+      owner: d.owner,
+      person: p?.name ?? null,
+      leaver: p?.status === "offboarded",
+    };
+  });
+  rows.sort((a, b) => Number(b.encrypted === false) - Number(a.encrypted === false) || Number(b.stale) - Number(a.stale) || a.name.localeCompare(b.name));
+  return {
+    rows,
+    note: `Every device ${mdm} manages, its disk encryption and last check-in. Devices not seen for ${staleDays}+ days are stale: their state is old news. Each day's list is filed as evidence on “Protect company devices”.`,
+    missing: null,
+    staleDays,
+    mdm,
+  };
 }

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { RefreshCw, Unplug } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, RefreshCw, Unplug } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 
@@ -61,7 +62,7 @@ function syncToastFor(provider: TokenIntegrationProvider, res: any): string {
     case "cloudflare":
       return `Synced: ${s.zones} zones`;
     case "microsoft":
-      return `Synced: ${s.total} accounts, ${s.enabled} enabled`;
+      return res.fail !== undefined ? `Scanned: ${res.fail} failing, ${res.pass} passing, ${res.inconclusive} can't tell` : `Synced: ${s.total} accounts, ${s.enabled} enabled`;
   }
 }
 
@@ -80,6 +81,7 @@ export function IntegrationConnectCard({
   disconnectAction,
   setupHint,
   disconnectConfirm,
+  page,
 }: {
   provider: TokenIntegrationProvider;
   status: "connected" | "error" | "disconnected" | null;
@@ -94,6 +96,8 @@ export function IntegrationConnectCard({
   disconnectAction: () => Promise<any>;
   setupHint: React.ReactNode;
   disconnectConfirm: string;
+  /** The integration's own page, when it has one: { href, label }. */
+  page?: { href: string; label: string };
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -148,12 +152,18 @@ export function IntegrationConnectCard({
       <div className="space-y-2">
         {identityLabel && <p className="text-xs text-muted-foreground">{identityLabel}</p>}
         <div className="flex flex-wrap items-center gap-2">
+          {page && (
+            <Link href={page.href} className="btn-accent inline-flex items-center gap-1.5">
+              {page.label} <ArrowRight className="h-4 w-4" />
+            </Link>
+          )}
           <Button
             onClick={sync}
+            variant={page ? "outline" : undefined}
             disabled={busy !== null}
             leftIcon={<RefreshCw className={`h-4 w-4 ${busy === "sync" ? "animate-spin" : ""}`} />}
           >
-            {busy === "sync" ? "Syncing..." : "Sync now"}
+            {busy === "sync" ? "Syncing..." : page ? "Scan now" : "Sync now"}
           </Button>
           <Button variant="outline" onClick={disconnect} disabled={busy !== null} leftIcon={<Unplug className="h-4 w-4" />}>
             Disconnect

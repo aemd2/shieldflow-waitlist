@@ -1,6 +1,7 @@
 import type { CheckDef } from "@/lib/checks-core";
 import { GITHUB_AREAS, GITHUB_CHECKS, GITHUB_APP_PERMISSIONS } from "@/lib/integrations/github/catalog";
 import { GOOGLE_AREAS, GOOGLE_CHECKS, GOOGLE_READS } from "@/lib/integrations/google/catalog";
+import { MICROSOFT_AREAS, MICROSOFT_CHECKS, MICROSOFT_READS } from "@/lib/integrations/microsoft/catalog";
 
 /**
  * Every integration that has its own page (/integrations/<key>) and its own
@@ -78,6 +79,26 @@ export const PROVIDERS: ProviderEntry[] = [
     ],
     settings: [
       { key: "dormantDays", label: "Accounts count as unused after", help: "Active accounts with no sign-in for this long are listed (new joiners excepted).", min: 30, max: 365, unit: "days" },
+    ],
+  },
+  {
+    key: "microsoft",
+    checkPrefix: "microsoft",
+    title: "Microsoft 365",
+    subtitle:
+      "Whether MFA is actually required at sign-in, who has registered, who holds admin, guests, apps that can read everyone's mail, and — with Intune — whether every laptop is encrypted. Read-only.",
+    checks: MICROSOFT_CHECKS,
+    areas: MICROSOFT_AREAS,
+    connectStory:
+      "You register an app in your own Entra ID tenant, give it read-only application permissions and grant admin consent; ShieldFlow signs in with its client ID and secret, which you can rotate or delete at any time. Only User.Read.All is required — every other permission adds checks, and a missing one shows as \"can't tell\", never as a pass.",
+    reads: MICROSOFT_READS,
+    never: [
+      "Mail, files, chats or calendars — no Mail, Files, Sites or Chat permission is asked for.",
+      "Change anything: every permission is a Read permission.",
+      "Passwords or authentication secrets — only which methods are registered.",
+    ],
+    settings: [
+      { key: "staleDays", label: "Devices count as stale after", help: "An Intune device that hasn't checked in for this long fails the check-in check, and its encryption counts as unknown.", min: 3, max: 90, unit: "days" },
     ],
   },
 ];

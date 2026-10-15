@@ -1,9 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decryptSecret } from "@/lib/crypto";
-import { fetchDirectorySecurity as fetchMicrosoftDirectory } from "@/lib/microsoft";
 import { scanWorkspace } from "@/lib/aws/scan";
 import { scanGitHub } from "@/lib/integrations/github/scan";
 import { scanGoogle } from "@/lib/integrations/google/scan";
+import { scanMicrosoft } from "@/lib/integrations/microsoft/scan";
 import { fetchUserSecurity as fetchOktaSecurity } from "@/lib/okta";
 import { fetchProjectSecurity as fetchGcpSecurity } from "@/lib/gcp";
 import { fetchZoneSecurity as fetchCloudflareSecurity } from "@/lib/cloudflare";
@@ -93,7 +93,7 @@ export async function fetchPostureFor(
     case "gitlab":
       return fetchGitlabRepoSecurity(secret);
     case "microsoft":
-      return fetchMicrosoftDirectory(JSON.parse(secret));
+      return scanMicrosoft(db, { id: integ.id, company_id: integ.company_id, access_token: integ.access_token, metadata: integ.metadata ?? null });
     default:
       throw new Error(`provider ${integ.provider} is not syncable`);
   }

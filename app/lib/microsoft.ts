@@ -145,17 +145,24 @@ function nextPage(link: unknown): string | null {
   }
 }
 
-/** Validate credentials by reading the tenant. Returns its display name. */
+/**
+ * Validate credentials by reading one user — the only permission connecting
+ * needs (User.Read.All). The tenant's name is a nicety: /organization needs
+ * Organization.Read.All or Directory.Read.All, so its absence mustn't fail the connect.
+ */
 export async function validateCredentials(creds: MicrosoftCredentials): Promise<string> {
   const token = await getAppToken(creds);
-  const res = await fetch(`https://${GRAPH_HOST}/v1.0/organization?$select=displayName`, {
-    headers: { Authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(15_000),
-  }).catch(() => {
-    throw new MicrosoftError("unavailable", "Couldn't reach Microsoft. Please try again.");
-  });
-  check(res);
-  const json = (await res.json()) as { value?: { displayName?: string }[] };
+  const get = (path: string) =>
+    fetch(`https://${GRAPH_HOST}/v1.0/${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000),
+    }).catch(() => {
+      throw new MicrosoftError("unavailable", "Couldn't reach Microsoft. Please try again.");
+    });
+  check(await get("users?$top=1&$select=id"));
+  const org = await get("organization?$select=displayName");
+  if (!org.ok) return creds.tenantId;
+  const json = (await org.json().catch(() => ({}))) as { value?: { displayName?: string }[] };
   return json.value?.[0]?.displayName || creds.tenantId;
 }
 

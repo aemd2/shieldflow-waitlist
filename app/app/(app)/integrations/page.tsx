@@ -152,13 +152,16 @@ export default async function IntegrationsPage() {
             connectAction={connectMicrosoft}
             syncAction={syncMicrosoft}
             disconnectAction={disconnectMicrosoft}
+            page={{ href: "/integrations/microsoft", label: "Open Microsoft 365" }}
             disconnectConfirm="Disconnect Microsoft 365? Collected evidence stays in the vault."
             setupHint={
               <>
                 Entra admin centre → App registrations → New registration. Then API permissions →
-                Microsoft Graph → <b>Application permissions</b> → <b>User.Read.All</b> → Grant admin
-                consent. Finally Certificates &amp; secrets → New client secret, and paste the
-                secret <b>Value</b> (not the Secret ID) above.
+                Microsoft Graph → <b>Application permissions</b> → <b>User.Read.All</b> (required), plus for the
+                deeper checks <b>AuditLog.Read.All</b>, <b>Policy.Read.All</b>, <b>RoleManagement.Read.Directory</b>,{" "}
+                <b>Directory.Read.All</b> and, with Intune, <b>DeviceManagementManagedDevices.Read.All</b> — all read-only →
+                Grant admin consent. Finally Certificates &amp; secrets → New client secret, and paste the secret{" "}
+                <b>Value</b> (not the Secret ID) above. <a href="/checks/microsoft" className="underline">What each one is for</a>.
               </>
             }
           />

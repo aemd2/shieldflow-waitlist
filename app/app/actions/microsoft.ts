@@ -8,7 +8,6 @@ import { assertFeature, assertIntegrationSlot } from "@/lib/plan-server";
 import {
   normalizeTenantId,
   validateCredentials,
-  fetchDirectorySecurity,
   MicrosoftError,
   type MicrosoftCredentials,
 } from "@/lib/microsoft";
@@ -18,7 +17,11 @@ import { csvSafe } from "@/lib/csv";
 import { logEvent } from "@/lib/audit";
 import { fileIntegrationCsv, disconnectProvider, INTEGRATION_LABELS } from "@/lib/integration-evidence";
 import { recordChecksForSync } from "@/lib/checks";
-import { encryptSecret, decryptSecret, isEncryptionConfigured, ENCRYPTION_NOT_CONFIGURED } from "@/lib/crypto";
+import { z } from "zod";
+import { scanMicrosoft, type MicrosoftIntegrationRow } from "@/lib/integrations/microsoft/scan";
+import { MICROSOFT_CHECK_BY_KEY } from "@/lib/integrations/microsoft/catalog";
+import { csvRow, fileMeasureCsv } from "@/lib/evidence-population";
+import { encryptSecret, isEncryptionConfigured, ENCRYPTION_NOT_CONFIGURED } from "@/lib/crypto";
 
 const DB_ERROR = "We couldn't reach the database. Please try again in a moment.";
 
@@ -112,7 +115,7 @@ export async function syncMicrosoft() {
 
   const { data: integ } = await supabase
     .from("integrations")
-    .select("id, access_token, status")
+    .select("id, company_id, access_token, status, metadata")
     .eq("company_id", company.id)
     .eq("provider", "microsoft")
     .maybeSingle();
@@ -120,26 +123,32 @@ export async function syncMicrosoft() {
     return { error: "Microsoft 365 isn't connected yet." };
   }
 
-  let creds: MicrosoftCredentials;
   try {
-    creds = JSON.parse(decryptSecret(integ.access_token));
-  } catch {
-    return { error: "Stored credentials are corrupt — please reconnect." };
-  }
-
-  try {
-    const r = await fetchDirectorySecurity(creds);
-    const csv = [
-      `# Microsoft 365 / Entra ID directory report`,
+    const scan = await scanMicrosoft(supabase, integ as MicrosoftIntegrationRow);
+    const x = scan.extra;
+    const enabled = x.users.filter((u) => u.enabled);
+    const lines = [
+      `# Microsoft 365 / Entra ID security report`,
       `# Generated: ${new Date().toISOString()}`,
       `# Company: ${company.name}`,
-      `# Summary: ${r.totalUsers} accounts (${r.enabled} enabled, ${r.disabled} disabled)` +
-        (r.truncated ? ` | TRUNCATED — more accounts exist than were read` : ``),
+      `# Summary: ${x.users.length} accounts (${enabled.length} enabled, ${x.users.filter((u) => u.guest).length} guests)` +
+        ` | MFA required by: ${x.securityDefaults ? "Security Defaults" : x.enforcing ? `Conditional Access “${x.enforcing}”` : "nothing found"}` +
+        (x.truncated ? ` | TRUNCATED — more accounts exist than were read` : ``),
+      ...(x.unread.length ? [`# Not read: ${x.unread.join("; ")}`] : []),
       ``,
-      `email,display_name,account_enabled`,
-      ...r.roster.map(
-        (u) => `${csvSafe(u.email)},${csvSafe(u.name ?? "")},${u.enabled ? "yes" : "no"}`,
+      `user_principal_name,email,display_name,enabled,guest,mfa_registered,admin_roles`,
+      ...x.users.map((u) =>
+        [csvSafe(u.upn), csvSafe(u.mail ?? ""), csvSafe(u.name ?? ""), u.enabled ? "yes" : "no", u.guest ? "yes" : "no", u.mfa === null ? "unknown" : u.mfa ? "yes" : "no", csvSafe(u.roles.join("; "))].join(","),
       ),
+      ...(x.devices
+        ? [
+            ``,
+            `device,os,os_version,encrypted,last_check_in,owner`,
+            ...x.devices.map((d) =>
+              [csvSafe(d.name), csvSafe(d.os), csvSafe(d.osVersion ?? ""), d.encrypted === null ? "unknown" : d.encrypted ? "yes" : "no", d.lastSeen ?? "never", csvSafe(d.owner ?? "")].join(","),
+            ),
+          ]
+        : []),
     ].join("\n");
 
     const filed = await fileIntegrationCsv({
@@ -147,19 +156,39 @@ export async function syncMicrosoft() {
       companyId: company.id,
       userId: user.id,
       integrationId: integ.id,
-      fileBase: "microsoft-directory",
-      csv,
-      note: `Automated Microsoft 365 sync: ${r.totalUsers} accounts, ${r.enabled} enabled.`,
+      fileBase: "microsoft-security",
+      csv: lines,
+      note: `Automated Microsoft 365 scan: ${enabled.length} enabled accounts${x.devices ? `, ${x.devices.length} Intune devices` : ""}.`,
     });
     if (filed.error) return { error: filed.error };
 
-    await recordChecksForSync(supabase, company.id, "microsoft", r, filed.evidenceId ?? null);
+    if (x.devices?.length) {
+      const day = new Date().toISOString().slice(0, 10);
+      await fileMeasureCsv(
+        supabase,
+        company.id,
+        user.id,
+        "endpoint-protection",
+        `intune-devices-${day}.csv`,
+        [
+          csvRow(`# Devices managed by Intune — ${day}`),
+          csvRow("device", "os", "os_version", "encrypted", "last_check_in", "owner", "company_owned"),
+          ...x.devices.map((d) => csvRow(d.name, d.os, d.osVersion, d.encrypted ?? "unknown", d.lastSeen ?? "never", d.owner, d.corporate ?? "unknown")),
+        ].join("\n"),
+        "Generated from Microsoft Intune by ShieldFlow: every managed device, its disk encryption and last check-in.",
+      );
+    }
+
+    await recordChecksForSync(supabase, company.id, "microsoft", scan, filed.evidenceId ?? null);
 
     revalidatePath("/integrations");
+    revalidatePath("/integrations/microsoft");
     revalidatePath("/evidence");
     revalidatePath("/personnel");
     revalidatePath("/dashboard");
-    return { ok: true, summary: { total: r.totalUsers, enabled: r.enabled, disabled: r.disabled } };
+    const counts = { pass: 0, fail: 0, inconclusive: 0 };
+    for (const r of scan.results) if (!MICROSOFT_CHECK_BY_KEY.get(r.key)?.informational) counts[r.result]++;
+    return { ok: true, ...counts, summary: { total: x.users.length, enabled: enabled.length, disabled: x.users.length - enabled.length } };
   } catch (err) {
     if (err instanceof MicrosoftError) {
       if (err.kind === "auth") {
@@ -170,6 +199,29 @@ export async function syncMicrosoft() {
     }
     return { error: "Sync failed. Please try again." };
   }
+}
+
+const settingsSchema = z.object({ staleDays: z.number().int().min(3).max(90) }).partial();
+
+/** Change the Microsoft settings (device check-in window); the rest stay as they were. */
+export async function updateMicrosoftSettings(input: unknown) {
+  const parsed = settingsSchema.safeParse(input);
+  if (!parsed.success) return { error: "The check-in window must be 3–90 days." };
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const company = await getCompanyForUser(supabase, user.id).catch(() => null);
+  if (!company) return { error: "No company found." };
+  const denied = await assertCanWrite(supabase, company.id, user.id);
+  if (denied) return { error: denied };
+  const { data: integ } = await supabase.from("integrations").select("id, metadata").eq("company_id", company.id).eq("provider", "microsoft").maybeSingle();
+  if (!integ) return { error: "Microsoft 365 isn't connected yet." };
+  const meta = (integ.metadata as Record<string, unknown> | null) ?? {};
+  const current = (meta.settings as Record<string, unknown> | undefined) ?? {};
+  const { error } = await supabase.from("integrations").update({ metadata: { ...meta, settings: { ...current, ...parsed.data } } }).eq("id", integ.id);
+  if (error) return { error: DB_ERROR };
+  revalidatePath("/integrations/microsoft");
+  return { ok: true };
 }
 
 export async function disconnectMicrosoft() {

@@ -14,6 +14,7 @@ import { awsRosters, peopleBlindSpot, type WorkspacePeople } from "@/lib/aws/ros
 import { isProviderScan, outcomesToRaw, type ProviderRoster } from "@/lib/integrations/scan-store";
 import { GITHUB_CHECKS } from "@/lib/integrations/github/catalog";
 import { GOOGLE_CHECKS } from "@/lib/integrations/google/catalog";
+import { MICROSOFT_CHECKS } from "@/lib/integrations/microsoft/catalog";
 
 // Continuous control checks: turn the security posture each integration already
 // computes (root MFA, branch protection, 2FA %, TLS…) into pass/fail results
@@ -126,6 +127,11 @@ export const EVALUATORS: Record<string, (p: any) => RawCheck[]> = {
             : "No public repositories.",
     });
     return checks;
+  },
+
+  microsoft(p) {
+    // The identity checks (leavers, unknown accounts) come from ASYNC_EVALUATORS.
+    return isProviderScan(p) ? outcomesToRaw(p.results, MICROSOFT_CHECKS) : [];
   },
 
   okta(p) {
@@ -428,7 +434,9 @@ export const ASYNC_EVALUATORS: Record<
       ? rosterChecks(db, companyId, "google", posture.roster ?? null)
       : identityChecks(db, companyId, "google", googleAccounts(posture), Boolean(posture?.truncated)),
   microsoft: (posture, db, companyId) =>
-    identityChecks(db, companyId, "microsoft", microsoftAccounts(posture), Boolean(posture?.truncated)),
+    isProviderScan(posture)
+      ? rosterChecks(db, companyId, "microsoft", posture.roster ?? null)
+      : identityChecks(db, companyId, "microsoft", microsoftAccounts(posture), Boolean(posture?.truncated)),
   aws: (posture: AwsWorkspaceScan, db, companyId) => awsIdentityChecks(db, companyId, posture?.people ?? null),
   // A personal account (no organisation) has no members to reconcile: no checks at all.
   github: (posture, db, companyId) =>
