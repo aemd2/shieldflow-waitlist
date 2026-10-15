@@ -53,10 +53,11 @@ export function SubprocessorManager({ subprocessors }: { subprocessors: Subproce
     });
   }
 
-  function remove(id: string) {
+  async function remove(id: string) {
+    // Ask before the transition: a dialog opened inside an async transition can't render until the transition ends.
+    const ok = await confirm({ title: "Delete subprocessor", message: "This removes it from your public Trust Center.", confirmLabel: "Delete", danger: true });
+    if (!ok) return;
     start(async () => {
-      const ok = await confirm({ title: "Delete subprocessor", message: "This removes it from your public Trust Center.", confirmLabel: "Delete", danger: true });
-      if (!ok) return;
       const res = await deleteSubprocessor(id).catch(() => ({ error: NETWORK }));
       if (res?.error) return toast("error", res.error);
       toast("success", "Deleted");

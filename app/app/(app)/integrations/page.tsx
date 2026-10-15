@@ -111,7 +111,7 @@ export default async function IntegrationsPage() {
       <PageSection title="Identity & workspace" columns={2}>
         <IntegrationCard
           name="Google Workspace"
-          description="Pulls a user-security report (2FA enrollment, admins, suspended accounts) into your evidence vault."
+          description="2-step verification enforced (not just on), admins, unused accounts, leavers — and the third-party apps that can read your mail and Drive."
           icon={<Building2 className="h-5 w-5 text-muted-foreground" />}
           status={cardStatus(gws)}
         >
@@ -130,7 +130,7 @@ export default async function IntegrationsPage() {
 
         <IntegrationCard
           name="Okta"
-          description="Identity posture — user status breakdown, MFA enrollment, and password policy — filed as evidence."
+          description="A second factor on every account, nobody on SMS alone, admins, dormant accounts, leavers, and apps that still keep a password."
           icon={<KeyRound className="h-5 w-5 text-muted-foreground" />}
           status={cardStatus(okta)}
         >
@@ -339,7 +339,7 @@ export default async function IntegrationsPage() {
       <PageSection title="Notifications" columns={2}>
         <IntegrationCard
           name="Slack"
-          description="Sends a compliance digest — score, framework progress, and top alerts — to a channel of your choice."
+          description="A message when a check starts failing, and a digest every Monday — score, frameworks, top alerts — in the channel you choose."
           icon={<MessageSquare className="h-5 w-5 text-muted-foreground" />}
           status={cardStatus(slack)}
         >
@@ -357,7 +357,7 @@ export default async function IntegrationsPage() {
       <PageSection title="Source control" columns={2}>
         <IntegrationCard
           name="GitHub"
-          description="Audits your repositories — branch protection, public exposure, archived repos — and files the report as evidence."
+          description="Whether every change to production was reviewed, who can push, 2FA, and how long known vulnerabilities stay open — read-only."
           icon={<GitBranch className="h-5 w-5 text-muted-foreground" />}
           status={cardStatus(github)}
         >
@@ -373,7 +373,7 @@ export default async function IntegrationsPage() {
 
         <IntegrationCard
           name="GitLab"
-          description="Audits your projects — visibility and branch protection — and files the report as evidence."
+          description="Every merge request approved by someone else, default branches only via merge requests, group 2FA, public projects — gitlab.com or your own server."
           icon={<GitBranch className="h-5 w-5 text-muted-foreground" />}
           status={cardStatus(gitlab)}
         >
@@ -399,7 +399,7 @@ export default async function IntegrationsPage() {
       <PageSection title="Project & ticketing" columns={2}>
         <IntegrationCard
           name="Jira"
-          description="Inventories your projects as change-management evidence."
+          description="Each merged change traced to its ticket, the incident log kept as evidence — and, if you turn it on, a ticket for any failing check."
           icon={<Ticket className="h-5 w-5 text-muted-foreground" />}
           status={cardStatus(jira)}
         >
@@ -424,7 +424,7 @@ export default async function IntegrationsPage() {
 
         <IntegrationCard
           name="Linear"
-          description="Summarizes teams and recent issue activity for change-tracking evidence."
+          description="Each merged change traced to its issue, the incident log kept as evidence — and, if you turn it on, an issue for any failing check."
           icon={<Ticket className="h-5 w-5 text-muted-foreground" />}
           status={cardStatus(linear)}
         >
@@ -447,7 +447,7 @@ export default async function IntegrationsPage() {
       <PageSection title="Cloud infrastructure" columns={2}>
         <IntegrationCard
           name="AWS"
-          description="Around 30 read-only checks across every account and region you use — identity, logging, exposure, encryption, patching, backups — each naming the resource and the fix."
+          description="39 read-only checks across every account and region you use — identity, logging, exposure, encryption, patching, backups — each naming the resource and the fix."
           icon={<Cloud className="h-5 w-5 text-muted-foreground" />}
           status={cardStatus(aws)}
         >
@@ -460,7 +460,7 @@ export default async function IntegrationsPage() {
 
         <IntegrationCard
           name="Google Cloud"
-          description="Reads project IAM exposure — how many accounts hold owner/editor — as evidence."
+          description="Owners, anything open to the whole internet, old service-account keys, public buckets, SSH open to the world, databases without backups — every project."
           icon={<Cloud className="h-5 w-5 text-muted-foreground" />}
           status={cardStatus(gcp)}
         >
@@ -485,7 +485,7 @@ export default async function IntegrationsPage() {
 
         <IntegrationCard
           name="Cloudflare"
-          description="Captures per-zone edge security — SSL/TLS mode, min TLS version, always-use-HTTPS — as evidence."
+          description="Every site HTTPS-only with TLS 1.2+ and a verified origin, HSTS, DNSSEC — and 2FA for everyone who can change it."
           icon={<Cloud className="h-5 w-5 text-muted-foreground" />}
           status={cardStatus(cloudflare)}
         >

@@ -204,7 +204,7 @@ function ScanHeader({ view, title, canWrite }: { view: ProviderView; title: stri
         </div>
         <p className="text-xs text-muted-foreground">
           {view.scan
-            ? `Scanned ${when(view.scan.scannedAt)} in ${Math.max(1, Math.round(view.scan.durationMs / 1000))}s${view.scan.summary.length ? ` · ${view.scan.summary.join(" · ")}` : ""}`
+            ? `Scanned ${when(view.scan.scannedAt)} in ${Math.max(1, Math.round(view.scan.durationMs / 1000))}s${view.scan.summary.length ? ` · ${view.scan.summary.join(" · ")}` : ""}.`
             : "Not scanned yet."}{" "}
           Scans run every morning; run one now after a fix.
         </p>

@@ -307,7 +307,17 @@ export function PostureChecks({
             ))}
           </ol>
         ) : (
-          <p className="card text-sm text-muted-foreground">{emptyText}</p>
+          (() => {
+            // Nothing failing isn't the same as all clear: say so when checks couldn't be read.
+            const unknown = catalog.filter((d) => !d.informational && byKey.get(d.key)?.result === "inconclusive").length;
+            return unknown ? (
+              <p className="card text-sm text-muted-foreground">
+                Nothing failing — but {unknown} {unknown === 1 ? "check" : "checks"} can&apos;t tell yet. Each one below says what it couldn&apos;t read.
+              </p>
+            ) : (
+              <p className="card text-sm text-muted-foreground">{emptyText}</p>
+            );
+          })()
         )}
       </section>
 

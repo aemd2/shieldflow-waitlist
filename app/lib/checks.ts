@@ -632,7 +632,8 @@ async function identityChecks(
 }
 
 /** Evaluate a provider's posture into raw checks (null if the provider has no evaluator). */
-async function rawChecksFor(
+/** The checks a posture produces, without recording them (also used by the seed/smoke scripts). */
+export async function rawChecksFor(
   provider: string,
   posture: unknown,
   db: SupabaseClient,

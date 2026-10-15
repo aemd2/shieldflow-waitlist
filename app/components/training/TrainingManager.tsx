@@ -95,15 +95,16 @@ export function TrainingManager({
     });
   }
 
-  function remove(id: string) {
+  async function remove(id: string) {
+    // Ask before the transition: a dialog opened inside an async transition can't render until the transition ends.
+    const ok = await confirm({
+      title: "Delete training record",
+      message: "This removes the record permanently.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     start(async () => {
-      const ok = await confirm({
-        title: "Delete training record",
-        message: "This removes the record permanently.",
-        confirmLabel: "Delete",
-        danger: true,
-      });
-      if (!ok) return;
       const res = await deleteTraining(id).catch(() => ({
         error: "Network problem — check your connection and try again.",
       }));

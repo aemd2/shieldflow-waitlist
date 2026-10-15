@@ -92,12 +92,20 @@ export async function createTicketForCheck(input: unknown) {
     .filter(Boolean)
     .join("\n\n");
 
+  const name = tracker.provider === "jira" ? "Jira" : "Linear";
+  let secret: string;
+  let jiraCreds: JiraCreds | null = null;
+  try {
+    secret = decryptSecret(tracker.access_token as string);
+    if (tracker.provider === "jira") jiraCreds = JSON.parse(secret) as JiraCreds;
+  } catch {
+    return { error: `The stored ${name} credentials are unreadable — reconnect ${name}.` };
+  }
   let created;
   try {
-    const secret = decryptSecret(tracker.access_token as string);
-    created = tracker.provider === "jira" ? await jiraCreate(JSON.parse(secret) as JiraCreds, meta.ticketing.target, title, body) : await linearCreate(secret, meta.ticketing.target, title, body);
+    created = jiraCreds ? await jiraCreate(jiraCreds, meta.ticketing.target, title, body) : await linearCreate(secret, meta.ticketing.target, title, body);
   } catch (err) {
-    return { error: (err as { userMessage?: string }).userMessage ?? "Couldn't create the ticket." };
+    return { error: (err as { userMessage?: string }).userMessage ?? `${name} didn't create the ticket — try again.` };
   }
   await s.supabase
     .from("integrations")

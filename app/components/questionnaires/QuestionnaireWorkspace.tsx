@@ -123,15 +123,16 @@ export function QuestionnaireWorkspace({
     })();
   }
 
-  function removeQuestionnaire(id: string) {
+  async function removeQuestionnaire(id: string) {
+    // Ask before the transition: a dialog opened inside an async transition can't render until the transition ends.
+    const ok = await confirm({
+      title: "Delete questionnaire",
+      message: "This removes the questionnaire and its questions. This cannot be undone.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     start(async () => {
-      const ok = await confirm({
-        title: "Delete questionnaire",
-        message: "This removes the questionnaire and its questions. This cannot be undone.",
-        confirmLabel: "Delete",
-        danger: true,
-      });
-      if (!ok) return;
       const res = await deleteQuestionnaire(id).catch(() => ({ error: NETWORK }));
       if (res?.error) return toast("error", res.error);
       toast("success", "Deleted");

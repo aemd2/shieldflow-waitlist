@@ -163,15 +163,16 @@ export function TaskManager({
     });
   }
 
-  function remove(id: string) {
+  async function remove(id: string) {
+    // Ask before the transition: a dialog opened inside an async transition can't render until the transition ends.
+    const ok = await confirm({
+      title: "Delete task",
+      message: "This removes the task. This cannot be undone.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     start(async () => {
-      const ok = await confirm({
-        title: "Delete task",
-        message: "This removes the task. This cannot be undone.",
-        confirmLabel: "Delete",
-        danger: true,
-      });
-      if (!ok) return;
       const res = await deleteTask(id).catch(() => ({ error: NETWORK }));
       if (res?.error) toast("error", res.error);
       else {

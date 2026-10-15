@@ -158,15 +158,16 @@ export function RiskManager({
     });
   }
 
-  function remove(id: string) {
+  async function remove(id: string) {
+    // Ask before the transition: a dialog opened inside an async transition can't render until the transition ends.
+    const ok = await confirm({
+      title: "Delete risk",
+      message: "This removes the risk from your register. This cannot be undone.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     start(async () => {
-      const ok = await confirm({
-        title: "Delete risk",
-        message: "This removes the risk from your register. This cannot be undone.",
-        confirmLabel: "Delete",
-        danger: true,
-      });
-      if (!ok) return;
       const res = await deleteRisk(id).catch(() => ({ error: NETWORK }));
       if (res?.error) toast("error", res.error);
       else {
