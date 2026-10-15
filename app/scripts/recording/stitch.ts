@@ -15,7 +15,8 @@
  *   walkthrough  the pitch — clips 1–6
  *   aws          ShieldFlow for AWS — clips 16–20
  *   full-tour    every clip, 1–20
- *   one-minute/  eight videos under a minute, one per selling point
+ *   one-minute/  eight videos under a minute, one per selling point, each in
+ *                its own folder (one-minute/1-do-the-work-once/…)
  *
  *   npx tsx scripts/recording/stitch.ts one-minute   just those (or any cut name)
  *
@@ -271,7 +272,7 @@ const CUTS: { name: string; title: string; segments: Segment[]; dir?: string; ma
   { name: "walkthrough", title: "Walkthrough — the pitch (clips 1–6)", segments: [TITLE, ...PITCH, END], dir: "walkthrough" },
   { name: "aws", title: "ShieldFlow for AWS (clips 16–20)", segments: [TITLE_AWS, ...AWS, END], dir: "aws" },
   { name: "full-tour", title: "Full tour — every feature (clips 1–20)", segments: [TITLE, ...PITCH, ...MORE, ...AWS, END], dir: "full-tour" },
-  ...SHORTS.map((s) => ({ ...s, title: `One minute: ${s.title}`, dir: "one-minute", max: SHORT_MAX })),
+  ...SHORTS.map((s) => ({ ...s, title: `One minute: ${s.title}`, dir: `one-minute/${s.name}`, max: SHORT_MAX })),
 ];
 
 // ------------------------------------------------------------------ helpers
@@ -522,7 +523,7 @@ async function main() {
 
   // `stitch.ts one-minute` (or any cut name) builds just those.
   const only = process.argv.slice(2);
-  const chosen = only.length ? CUTS.filter((c) => only.some((o) => c.name.includes(o) || c.dir === o)) : CUTS;
+  const chosen = only.length ? CUTS.filter((c) => only.some((o) => c.name.includes(o) || c.dir === o || c.dir?.startsWith(`${o}/`))) : CUTS;
   const sections: string[] = [];
   for (const cut of chosen) sections.push(...(await buildCut(cut)));
   if (only.length) {
