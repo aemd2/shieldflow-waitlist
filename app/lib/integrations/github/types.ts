@@ -19,6 +19,8 @@ export interface GhProtection {
   enforceAdmins: boolean | null;
   /** Where the rule came from. */
   source: "branch-protection" | "ruleset" | "both" | "none";
+  /** Branch protection isn't available for this repository on the owner's GitHub plan (private repo, free plan). */
+  planBlocked?: boolean;
 }
 
 export interface GhRepo {

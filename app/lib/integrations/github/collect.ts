@@ -91,6 +91,10 @@ async function protectionOf(ctx: GhCtx, repo: GhRepo): Promise<GhProtection | nu
     // "Branch not protected" is a real answer; anything else (no permission) is not.
     if (err instanceof GhHttpError && err.status === 404 && /not protected/i.test(err.message)) classic = "none";
     else if (err instanceof GhHttpError && err.rateLimited) throw err;
+    // Private repository on a free plan: GitHub won't protect it at all — a definite "unprotected".
+    else if (err instanceof GhHttpError && err.status === 403 && /upgrade to github pro|make this repository public/i.test(err.message)) {
+      return { prRequired: false, approvals: 0, dismissStale: false, forcePushBlocked: false, enforceAdmins: null, source: "none", planBlocked: true };
+    }
   }
 
   type Rule = { type: string; parameters?: { required_approving_review_count?: number; dismiss_stale_reviews_on_push?: boolean } };

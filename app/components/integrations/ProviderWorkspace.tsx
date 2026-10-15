@@ -122,7 +122,7 @@ export function ProviderWorkspace({
 
   return (
     <div className="space-y-6">
-      <ScanHeader view={view} title={title} canWrite={canWrite} />
+      <ScanHeader view={view} title={title} canWrite={canWrite} catalog={catalog} />
       {view.unread.length > 0 && (
         <section className="card space-y-1 text-xs">
           <p className="flex items-center gap-2 font-medium text-warning">
@@ -170,7 +170,7 @@ export function ProviderWorkspace({
 
 // ------------------------------------------------------------------ header
 
-function ScanHeader({ view, title, canWrite }: { view: ProviderView; title: string; canWrite: boolean }) {
+function ScanHeader({ view, title, canWrite, catalog }: { view: ProviderView; title: string; canWrite: boolean; catalog: CheckDef[] }) {
   const router = useRouter();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -193,7 +193,8 @@ function ScanHeader({ view, title, canWrite }: { view: ProviderView; title: stri
     router.refresh();
   }
   const counts = { pass: 0, fail: 0, inconclusive: 0 };
-  for (const r of view.scan?.results ?? []) counts[r.result]++;
+  const informational = new Set(catalog.filter((c) => c.informational).map((c) => c.key));
+  for (const r of view.scan?.results ?? []) if (!informational.has(r.key)) counts[r.result]++;
   return (
     <section className="card flex flex-wrap items-center gap-x-6 gap-y-2">
       <div className="min-w-0 flex-1 space-y-1">

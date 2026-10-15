@@ -93,7 +93,13 @@ export function evaluateGitHub(p: GitHubPosture, opts: GitHubEvaluateOptions): C
         unread.push(r.fullName);
         continue;
       }
-      const why = !r.protection.prRequired ? "no pull request required" : r.protection.approvals < 1 ? "0 approvals required" : null;
+      const why = r.protection.planBlocked
+        ? "private repositories can't be protected on GitHub Free — needs GitHub Pro or Team"
+        : !r.protection.prRequired
+          ? "no pull request required"
+          : r.protection.approvals < 1
+            ? "0 approvals required"
+            : null;
       if (why) v.flag(repoResource(r.fullName, `${r.fullName} (${r.defaultBranch}: ${why})`), tagsOf(r));
     }
     if (unread.length) v.gap(unreadNote(unread));
@@ -136,7 +142,13 @@ export function evaluateGitHub(p: GitHubPosture, opts: GitHubEvaluateOptions): C
     for (const r of active) {
       if (r.protection && r.protection.enforceAdmins === false && r.protection.prRequired) v.flag(repoResource(r.fullName), tagsOf(r));
     }
-    out.push(v.settle("Branch protection applies to admins too.", (n) => `Admins can bypass branch protection on ${n} ${n === 1 ? "repository" : "repositories"}.`));
+    const guarded = active.filter((r) => r.protection?.prRequired).length;
+    out.push(
+      v.settle(
+        guarded ? `Branch protection applies to admins too on all ${guarded} protected ${guarded === 1 ? "branch" : "branches"}.` : "No default branch is protected yet, so there's no protection to bypass.",
+        (n) => `Admins can bypass branch protection on ${n} ${n === 1 ? "repository" : "repositories"}.`,
+      ),
+    );
   }
 
   // ------------------------------------------------------------- vulnerabilities
@@ -154,6 +166,9 @@ export function evaluateGitHub(p: GitHubPosture, opts: GitHubEvaluateOptions): C
   {
     const v = V("github.dependabot_sla");
     const alerts = v.read(p.dependabot, "Dependabot alerts") ?? [];
+    // A repository with alerts switched off has no alerts to be late on — that's unknown, not clean.
+    const dark = active.filter((r) => r.dependabot === false && !r.topics.includes(OUT_OF_SCOPE_TOPIC)).map((r) => r.fullName);
+    if (dark.length) v.gap(`Dependabot alerts are off on ${dark.length === 1 ? dark[0] : `${dark.length} repositories`}, so their vulnerabilities aren't known`);
     let open = 0;
     for (const a of alerts) {
       if (a.severity !== "critical" && a.severity !== "high") continue;

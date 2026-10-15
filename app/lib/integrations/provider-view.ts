@@ -245,7 +245,8 @@ export async function loadProviderView(db: SupabaseClient, companyId: string, en
     const x = scan.extra as GitHubExtra;
     const settings = settingsOf(meta, GITHUB_DEFAULTS);
     view.settings = settings;
-    const active = x.repos.filter((r) => !r.archived);
+    // Same set the checks look at: not archived, not forks.
+    const active = x.repos.filter((r) => !r.archived && !r.fork);
     view.scan!.summary = [
       `${active.length} ${active.length === 1 ? "repository" : "repositories"}${x.reposTruncated ? " (more not read)" : ""}`,
       `${active.filter((r) => r.protection?.prRequired).length} protected`,

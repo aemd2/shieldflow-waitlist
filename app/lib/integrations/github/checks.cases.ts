@@ -131,6 +131,15 @@ const depOff = run(posture({ repos: ok([repo("api", { dependabot: false })]) }))
 expect("Dependabot off fails", get(depOff, "github.dependabot_enabled").result, "fail");
 const depUnknown = run(posture({ repos: ok([repo("api", { dependabot: null })]) }));
 expect("Dependabot switch unreadable → must NOT pass", get(depUnknown, "github.dependabot_enabled").result, "inconclusive");
+const darkRepo = run(posture({ repos: ok([repo("api"), repo("web", { dependabot: false })]), dependabot: ok([]) }));
+expect("Dependabot off on a repo → SLA must NOT pass (its alerts aren't known)", get(darkRepo, "github.dependabot_sla").result, "inconclusive");
+const darkButLate = run(posture({ repos: ok([repo("api"), repo("web", { dependabot: false })]), dependabot: ok([alert("critical", "2026-10-01T00:00:00Z")]) }));
+expect("…but a late critical elsewhere still fails", get(darkButLate, "github.dependabot_sla").result, "fail");
+const darkOutOfScope = run(posture({ repos: ok([repo("api"), repo("sandbox", { dependabot: false, topics: [OUT_OF_SCOPE_TOPIC] })]), dependabot: ok([]) }));
+expect("Dependabot off on an out-of-scope repo doesn't block the SLA", get(darkOutOfScope, "github.dependabot_sla").result, "pass");
+const freePlan = run(posture({ repos: ok([repo("api"), repo("secret-sauce", { protection: { prRequired: false, approvals: 0, dismissStale: false, forcePushBlocked: false, enforceAdmins: null, source: "none", planBlocked: true } })]) }));
+expect("private repo on GitHub Free (can't be protected) fails, not can't tell", get(freePlan, "github.branch_protection").result, "fail");
+expect("…and says it needs a paid plan", get(freePlan, "github.branch_protection").resources[0]?.label.includes("GitHub Pro") ? "yes" : "no", "yes");
 const alertsDenied = run(posture({ dependabot: denied("Dependabot alerts") }));
 expect("alerts unreadable → must NOT pass", get(alertsDenied, "github.dependabot_sla").result, "inconclusive");
 const secrets = run(posture({ secretScanning: ok([{ id: "acme/api#1", repo: "acme/api", severity: "critical", title: "AWS key exposed", createdAt: "2026-10-10T00:00:00Z", url: "" }]) }));
