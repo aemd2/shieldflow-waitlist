@@ -59,8 +59,14 @@ export async function createCheckException(input: unknown) {
     label: parsed.data.label ?? parsed.data.resourceId,
     metadata: { reason: parsed.data.reason, expires_at: parsed.data.expiresAt ?? null },
   });
-  revalidatePath("/integrations/aws");
+  revalidatePath(pageFor(parsed.data.checkKey));
   return { ok: true };
+}
+
+/** The integration page a check lives on: "google.2fa" → /integrations/google_workspace. */
+function pageFor(checkKey: string): string {
+  const prefix = checkKey.split(".")[0];
+  return `/integrations/${prefix === "google" ? "google_workspace" : prefix}`;
 }
 
 export async function deleteCheckException(id: string) {
@@ -80,6 +86,6 @@ export async function deleteCheckException(id: string) {
     id: (row?.check_key as string | undefined) ?? undefined,
     label: (row?.label as string | undefined) ?? (row?.resource_id as string | undefined),
   });
-  revalidatePath("/integrations/aws");
+  revalidatePath(pageFor((row?.check_key as string | undefined) ?? "aws."));
   return { ok: true };
 }

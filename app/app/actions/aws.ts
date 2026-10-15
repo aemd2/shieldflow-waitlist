@@ -11,6 +11,7 @@ import { awsCredentialsSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { csvSafe } from "@/lib/csv";
 import { productionGrants } from "@/lib/aws/roster";
+import { fileMeasureCsv as fileMeasureCsvShared } from "@/lib/evidence-population";
 import { logEvent } from "@/lib/audit";
 import { INTEGRATION_LABELS } from "@/lib/integration-evidence";
 import { recordChecksForSync, clearChecksForProvider } from "@/lib/checks";
@@ -257,7 +258,7 @@ function reportCsv(company: Company, scan: AwsWorkspaceScan): string {
 
 /** File the asset inventory once a day, on the asset-inventory measure (counts for every framework). */
 /** Attach a generated CSV to a measure, at most once a day per file name. */
-async function fileMeasureCsv(
+function fileMeasureCsv(
   supabase: SupabaseClient,
   company: Company,
   userId: string,
@@ -266,27 +267,7 @@ async function fileMeasureCsv(
   csv: string,
   note: string,
 ) {
-  const { data: measure } = await supabase.from("measures").select("id").eq("key", measureKey).maybeSingle();
-  if (!measure) return;
-  const { count } = await supabase
-    .from("evidence")
-    .select("id", { count: "exact", head: true })
-    .eq("company_id", company.id)
-    .eq("file_name", fileName);
-  if (count) return;
-  const path = `${company.id}/integrations/${newUuid()}-${fileName}`;
-  const { error } = await supabase.storage.from("evidence").upload(path, new Blob([csv], { type: "text/csv" }), { contentType: "text/csv" });
-  if (error) return;
-  await supabase.from("evidence").insert({
-    company_id: company.id,
-    measure_id: measure.id,
-    file_name: fileName,
-    storage_path: path,
-    mime_type: "text/csv",
-    size_bytes: csv.length,
-    note,
-    uploaded_by: userId,
-  });
+  return fileMeasureCsvShared(supabase, company.id, userId, measureKey, fileName, csv, note);
 }
 
 /**

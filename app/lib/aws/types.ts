@@ -7,14 +7,9 @@
  * false pass or fail.
  */
 
-export type SectionFailure = {
-  ok: false;
-  reason: "denied" | "timeout" | "error";
-  /** The AWS action that failed, e.g. "ec2:DescribeSecurityGroups". */
-  action: string;
-  message: string;
-};
-export type Section<T> = { ok: true; data: T } | SectionFailure;
+export type { Section, SectionFailure } from "@/lib/checks-core";
+import type { CheckOutcome, Section } from "@/lib/checks-core";
+
 
 export type Tags = Record<string, string>;
 
@@ -310,20 +305,9 @@ export type CheckArea =
   | "residency"
   | "hygiene";
 
-export type Severity = "high" | "medium" | "low";
+export type { Severity } from "@/lib/checks-core";
 
-export interface AwsCheckResult {
-  key: string;
-  result: "pass" | "fail" | "inconclusive";
-  detail: string;
-  /** Failing resources not accepted as out of scope (capped). */
-  resources: AwsResource[];
-  failingCount: number;
-  /** Resources excluded by a tag or a recorded exception, with the reason. */
-  accepted: (AwsResource & { reason: string })[];
-  /** Extra AWS spend this finding is costing, per month (estimate), if any. */
-  costPerMonth?: number;
-}
+export type AwsCheckResult = CheckOutcome<AwsResource>;
 
 export interface AccountScan {
   accountId: string;

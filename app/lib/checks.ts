@@ -33,7 +33,7 @@ export interface RawCheck {
    */
   subjects?: string[];
   /** The failing resources, account-qualified (AWS). Stored on the finding. */
-  resources?: { id: string; label: string; region: string | null; accountId: string }[];
+  resources?: { id: string; label: string; region: string | null; accountId?: string }[];
   /** How many resources fail, when more than are listed. */
   failingCount?: number;
   /** Extra AWS spend the finding is costing per month, estimated. */

@@ -624,10 +624,4 @@ export const AWS_CHECKS: AwsCheckDef[] = [
 
 export const AWS_CHECK_BY_KEY = new Map(AWS_CHECKS.map((c) => [c.key, c]));
 
-/** Fill a fix template for one resource. */
-export function fillFix(template: string, vars: { id?: string; region?: string | null; account?: string }): string {
-  return template
-    .replaceAll("{id}", vars.id ?? "<RESOURCE>")
-    .replaceAll("{region}", vars.region ?? "<REGION>")
-    .replaceAll("{account}", vars.account ?? "<ACCOUNT_ID>");
-}
+export { fillFix } from "@/lib/checks-core";

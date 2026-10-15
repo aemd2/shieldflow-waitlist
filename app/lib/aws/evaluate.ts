@@ -1,3 +1,4 @@
+import { exceptionMap, resourceKey, Verdict, type ExceptionRow } from "@/lib/checks-core";
 import { runtimeStatus } from "@/lib/aws/runtimes";
 import { majorVersion } from "@/lib/aws/majors";
 import { allowedRegion, dataStores, RESIDENCY_LABEL, STORE_LABEL, type Residency } from "@/lib/aws/stores";
@@ -25,12 +26,8 @@ import type {
  *  - a real failure still fails even if some other region couldn't be read.
  */
 
-export interface ExceptionRow {
-  checkKey: string;
-  resourceId: string;
-  reason: string;
-  expiresAt: string | null;
-}
+export type { ExceptionRow } from "@/lib/checks-core";
+export { SCOPE_TAG } from "@/lib/checks-core";
 
 export interface EvaluateOptions {
   now: Date;
@@ -48,90 +45,12 @@ export interface EvaluateOptions {
 }
 
 const DAY = 86_400_000;
-const MAX_RESOURCES = 50;
-export const SCOPE_TAG = "shieldflow:scope";
 
 export function resourceId(account: string, region: string | null, type: string, id: string): string {
-  return `${account}:${region ?? "global"}:${type}/${id}`;
-}
-
-function outOfScopeTag(tags: Tags | undefined): boolean {
-  const v = (tags?.[SCOPE_TAG] ?? "").toLowerCase();
-  return v === "out" || v === "out-of-scope";
+  return resourceKey(account, region, type, id);
 }
 
 const daysAgo = (iso: string | null, now: Date) => (iso ? (now.getTime() - Date.parse(iso)) / DAY : Infinity);
-
-/** Collects a check's candidates, then settles them into a verdict. */
-class Verdict {
-  failing: AwsResource[] = [];
-  accepted: (AwsResource & { reason: string })[] = [];
-  gaps: string[] = [];
-  costPerMonth = 0;
-
-  constructor(
-    private key: string,
-    private exceptions: Map<string, string>,
-  ) {}
-
-  /** A resource that fails the check — unless tagged out of scope or excepted. */
-  flag(res: AwsResource, tags?: Tags) {
-    const excepted = this.exceptions.get(`${this.key}|${res.id}`);
-    if (excepted) this.accepted.push({ ...res, reason: excepted });
-    else if (outOfScopeTag(tags)) this.accepted.push({ ...res, reason: `tagged ${SCOPE_TAG}=out` });
-    else this.failing.push(res);
-  }
-
-  accept(res: AwsResource, reason: string) {
-    this.accepted.push({ ...res, reason });
-  }
-
-  gap(text: string) {
-    this.gaps.push(text.replace(/\.$/, ""));
-  }
-
-  /** Read a section, or record why it couldn't be. */
-  read<T>(s: Section<T>, where: string): T | null {
-    if (s.ok) return s.data;
-    this.gap(`${where}: ${s.message}`);
-    return null;
-  }
-
-  settle(pass: string, fail: (n: number) => string): AwsCheckResult {
-    const acceptedNote = this.accepted.length
-      ? ` ${this.accepted.length} accepted as out of scope.`
-      : "";
-    if (this.failing.length) {
-      return {
-        key: this.key,
-        result: "fail",
-        detail: fail(this.failing.length) + acceptedNote,
-        resources: this.failing.slice(0, MAX_RESOURCES),
-        failingCount: this.failing.length,
-        accepted: this.accepted.slice(0, MAX_RESOURCES),
-        ...(this.costPerMonth ? { costPerMonth: Math.round(this.costPerMonth) } : {}),
-      };
-    }
-    if (this.gaps.length) {
-      return {
-        key: this.key,
-        result: "inconclusive",
-        detail: `Couldn't check everything — ${this.gaps.slice(0, 3).join("; ")}${this.gaps.length > 3 ? ` (+${this.gaps.length - 3} more)` : ""}.`,
-        resources: [],
-        failingCount: 0,
-        accepted: this.accepted.slice(0, MAX_RESOURCES),
-      };
-    }
-    return {
-      key: this.key,
-      result: "pass",
-      detail: pass + acceptedNote,
-      resources: [],
-      failingCount: 0,
-      accepted: this.accepted.slice(0, MAX_RESOURCES),
-    };
-  }
-}
 
 /** The regions a regional check covers, with gaps recorded for ones not scanned. */
 function eachRegion(p: AccountPosture, v: Verdict, fn: (region: string, r: RegionalPosture) => void) {
@@ -152,12 +71,8 @@ export function vcpusOf(instanceClass: string | null): number {
 export function evaluateAccount(p: AccountPosture, opts: EvaluateOptions): AwsCheckResult[] {
   const { now } = opts;
   const acct = p.accountId;
-  const exceptions = new Map<string, string>();
-  for (const e of opts.exceptions) {
-    if (e.expiresAt && Date.parse(e.expiresAt) < now.getTime()) continue;
-    exceptions.set(`${e.checkKey}|${e.resourceId}`, e.reason);
-  }
-  const V = (key: string) => new Verdict(key, exceptions);
+  const exceptions = exceptionMap(opts.exceptions, now);
+  const V = (key: string) => new Verdict<AwsResource>(key, exceptions);
   // An account with nothing running anywhere passes the regional checks on
   // nothing — say so plainly instead of "every database is encrypted".
   const nothing = !Object.keys(p.regional).length && !p.regions.unscanned.length;
