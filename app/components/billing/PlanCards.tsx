@@ -189,7 +189,7 @@ export function PlanCards({
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-semibold text-foreground">
-                  Founding offer — {discount.percent}% off, locked for life
+                  Founding offer — {discount.percent}% off, and your price never goes up
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full bg-[var(--brand-emerald)]/15 px-2 py-0.5 text-[11px] font-semibold text-[var(--brand-emerald)]">
                   <Lock className="h-3 w-3" /> Forever
@@ -274,7 +274,7 @@ export function PlanCards({
               </div>
               {discount && (
                 <div className="mt-1 text-xs font-medium text-[var(--brand-emerald)]">
-                  {discount.percent}% founding discount applied · locked for life
+                  {discount.percent}% founding discount applied · your price never goes up
                 </div>
               )}
 

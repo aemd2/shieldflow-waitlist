@@ -1,0 +1,142 @@
+name: CI
+
+# A prospect assessing us asked what security scanning runs in CI. The honest
+# answer was "there is no CI", which is a poor look for a compliance product and
+# is also evidence we need for our own SOC 2 later. This is that pipeline.
+#
+# Deliberately not included: container scanning. Nothing here is containerised,
+# so a container scan would report "0 findings" on nothing at all. Saying that
+# plainly is worth more than theatre.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  # Run it by hand from the Actions tab. Needed the first time the Supabase
+  # secrets were added: without this there was no way to re-run CI except by
+  # pushing an empty commit.
+  workflow_dispatch:
+  schedule:
+    # Dependency advisories land after a commit does, so re-run weekly on main.
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Typecheck, lint & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npx eslint .
+      - name: Check logic branch cases
+        # Pure decision logic for the identity checks — the branches that must
+        # never wrongly PASS. No database or network needed.
+        run: npx tsx lib/identity-checks.cases.ts
+      - name: Build
+        # Build last: it is the slowest step, so failing fast on types and lint
+        # gives a quicker signal.
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+
+  dependencies:
+    name: Dependency advisories
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - name: npm audit (critical blocks)
+        # Blocks on critical only, deliberately, and this threshold is temporary.
+        #
+        # When this pipeline was first written the tree had 3 critical and 8 high
+        # advisories, including a Next.js App Router middleware bypass — which
+        # matters here because the auth gate IS middleware (lib/supabase/
+        # middleware.ts). `npm audit fix` closed 16 of 17 without a breaking
+        # change.
+        #
+        # The one left is zod < 4.6.6 (memory exhaustion on oversized
+        # collections). Fixing it means the zod 3 -> 4 migration across every
+        # validation schema, which is a real piece of work and not something to
+        # do inside a CI change. Blocking on `high` today would leave the
+        # pipeline permanently red, and a permanently red pipeline gets ignored —
+        # which is worse than a narrower gate that people trust.
+        #
+        # Tighten this to --audit-level=high the moment zod is migrated.
+        run: npm audit --audit-level=critical
+      - name: Report high and below (non-blocking)
+        if: always()
+        run: npm audit || true
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: a secret committed and later removed is still exposed,
+          # and a shallow clone would miss it.
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  isolation:
+    name: Tenant isolation
+    runs-on: ubuntu-latest
+    # Needs real credentials, so it cannot run on a fork's pull request.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - name: Prove one workspace cannot read another
+        # Creates two throwaway workspaces, signs in as both through the ANON
+        # key (never the service role, which would bypass RLS and pass
+        # regardless), tries to read and write across the boundary, then deletes
+        # them. Skipped with a warning rather than silently passing if the
+        # secrets are absent.
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::warning::Supabase secrets not configured — tenant isolation test skipped"
+            exit 0
+          fi
+          node scripts/tenant-isolation.test.mjs
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

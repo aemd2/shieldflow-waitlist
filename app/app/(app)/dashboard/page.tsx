@@ -25,7 +25,7 @@ import { computeAlerts } from "@/lib/monitoring";
 import { ScoreCard } from "@/components/dashboard/ScoreCard";
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
 import { ControlsExplorer } from "@/components/dashboard/ControlsExplorer";
-import { AddFrameworkButton } from "@/components/dashboard/AddFrameworkButton";
+import { FrameworkManager } from "@/components/dashboard/FrameworkManager";
 import { SprintBanner } from "@/components/setup/SprintBanner";
 import { PageShell } from "@/components/ui/page";
 
@@ -152,7 +152,11 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <AddFrameworkButton available={availableFrameworks} canManage={canManageFrameworks} />
+      <FrameworkManager
+        available={availableFrameworks}
+        selected={frameworks.map((f) => ({ id: f.id, name: f.name }))}
+        canManage={canManageFrameworks}
+      />
 
       {checkResults.length > 0 && (
         <div className="card">

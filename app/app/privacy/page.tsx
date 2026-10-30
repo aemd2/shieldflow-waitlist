@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { Alert } from "@/components/ui/Alert";
 
 export const metadata = { title: "Privacy Policy · ShieldFlow" };
 
-const UPDATED = "21 June 2026";
+const UPDATED = "30 October 2026";
 
 export default function PrivacyPage() {
   return (
@@ -14,11 +13,6 @@ export default function PrivacyPage() {
 
       <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">Privacy Policy</h1>
       <p className="mt-1 text-sm text-muted-foreground">Last updated: {UPDATED}</p>
-
-      <Alert variant="warning" className="mt-4">
-        <strong>Template notice:</strong> This is a starting-point policy. Have it reviewed by legal
-        counsel and tailored to your actual data practices before you collect data from real customers.
-      </Alert>
 
       <div className="prose-legal mt-8 space-y-6 text-sm leading-relaxed text-foreground">
         <Section title="1. Who we are">

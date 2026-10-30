@@ -1,0 +1,32 @@
+version: 2
+
+# Advisories land after a commit does. CI audits what is in the tree today;
+# Dependabot is what moves the tree. Without it, the audit step just reports the
+# same findings every week.
+updates:
+  - package-ecosystem: npm
+    directory: /app
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # Security fixes arrive as their own PRs regardless of grouping, so group the
+    # routine noise and leave the urgent ones alone.
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        update-types: ["minor", "patch"]
+      production-minor-patch:
+        dependency-type: production
+        update-types: ["minor", "patch"]
+    # Majors are opened individually: next, react and zod all need a human
+    # looking at a changelog, not a merge button.
+    labels:
+      - dependencies
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies

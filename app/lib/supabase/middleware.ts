@@ -27,6 +27,10 @@ const PUBLIC_PATHS = [
   "/checks",
   "/privacy",
   "/terms",
+  // How we hold a customer's evidence and tokens. The whole point is that a
+  // prospect can vet us as a vendor BEFORE signing up, so this must be reachable
+  // without an account.
+  "/security",
   "/thanks",
 ];
 

@@ -160,10 +160,14 @@ stakes if asked; never as reasons to switch. A technical evaluator will catch it
 > True. That's why the price is flat and the contract is monthly — you're not
 > locked in if I disappoint you. And it's why I answer the phone.
 
-**"Only seven integrations?"**
-> Seven that cover the SMB stack and are tested end to end. Breadth matters at 500
-> employees; at your size, depth on AWS, GitHub and your IdP is what an auditor
-> samples.
+**"How many integrations?"**
+> Fifteen, covering the SMB stack end to end: AWS, GCP, GitHub, GitLab,
+> Cloudflare, Okta, Google Workspace, Microsoft 365, Jira, Linear, three HRIS
+> (Personio, HiBob, BambooHR) and two MDM (Kandji, Jamf Pro). Still fewer than
+> Vanta's 400+, and still not the thing to lead with — but it now covers identity,
+> cloud, code, people and devices, which is what an auditor actually samples.
+> Point them at **shieldflow.cloud/checks**: every check, the exact API calls
+> behind it, and what we never read, per provider. Nobody else publishes that.
 
 **"How do I know my auditor will accept this?"**
 > The honest answer: ask them. Every control maps to a recognised requirement with
@@ -184,6 +188,28 @@ stakes if asked; never as reasons to switch. A technical evaluator will catch it
 > catches that. If your obligations require nothing leaves the EU, we can disable
 > AI for your workspace and the rest of the product is unaffected.
 
+**"No laptop agent — so how do you get identity data? And what about endpoint evidence?"**
+> Two different questions, and the answer to the first is that an agent reads the
+> *endpoint* while we read the *directory*. Okta and Entra already know who has an
+> account, whether it's deprovisioned and whether MFA is on — that lives in their
+> database, not on anyone's laptop. Our server calls their API read-only. Nothing
+> is installed anywhere.
+>
+> For endpoint evidence — disk encryption, patch state — we read it from the
+> device manager you already run (Kandji or Jamf Pro), with a token scoped to the
+> device list. So you get the FileVault and check-in evidence an auditor asks for
+> *without* us putting software on your team's machines. If you run no MDM at all,
+> those controls are attested with uploaded evidence instead, and I'd say so
+> plainly.
+
+**"Is your AWS access read-only, or does it need write permissions?"**
+> The first question anyone in infrastructure asks, and the answer is good. You
+> don't hand us a key at all — we assume a role in your account with an
+> ExternalId, so there's no long-lived credential to leak and you can revoke it in
+> one click. The permissions are read-only and enumerated at
+> **shieldflow.cloud/aws-checks**. Everything shows up in your CloudTrail, so you
+> can verify rather than trust me.
+
 **"What if you retire a framework / go out of business?"**
 > Everything exports, and cancelling is a month's notice. You keep your evidence.
 
@@ -192,14 +218,24 @@ stakes if asked; never as reasons to switch. A technical evaluator will catch it
 - **No customers, no logos, no auditor relationships.** The real one. Vanta's actual
   moat is that auditors already know Vanta.
 - **No Type II evidence retention** (§7).
-- **Seven integrations.**
-- **No Microsoft 365 / Entra ID.** The identity checks (leavers who still have
-  access, accounts with nobody behind them) read Okta or Google Workspace. A
-  Microsoft shop gets the access-review cadence check and nothing else from that
-  set. Given how much of the EU mid-market runs Microsoft, this is the most
-  commercially expensive gap on the list after the auditor relationships — and
-  the cheapest to close, because the logic is provider-agnostic already; it needs
-  a Graph API reader, not a redesign.
+- **No SOC 2 report of our own, and no penetration test.** Raised by a reviewer
+  who went through the public site: customers have to vet us as a vendor because
+  we hold their evidence and their tokens. Partly answered now by
+  **shieldflow.cloud/security**, which publishes the encryption, residency,
+  tenant isolation and audit-trail detail along with what we don't do yet. The
+  real answer is putting ShieldFlow through ShieldFlow and publishing our own
+  trust centre.
+- **One known dependency advisory.** zod below 4.6.6, which needs the zod 3 → 4
+  migration across every validation schema. CI blocks on critical and reports
+  high, so this is visible rather than hidden. Say so if asked; it's a better
+  answer than pretending the tree is clean.
+- **No audit-trail export.** The trail is readable and filterable in-app, but you
+  can't yet hand an auditor a file of it.
+
+*Closed since this was written:* Microsoft 365 / Entra ID shipped, so the identity
+checks now cover Okta, Google and Microsoft; integrations went from seven to
+fifteen, adding HRIS and MDM; AWS moved from access keys to cross-account role
+assumption with an ExternalId.
 
 **The highest-leverage fix isn't a feature — it's two or three named partner
 auditors** who'll accept ShieldFlow output at a quoted fee. That converts the
