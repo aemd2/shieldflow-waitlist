@@ -286,7 +286,10 @@ function Comparison() {
     ["Priced by headcount", "Yes — cross a band, price jumps", "No — per company"],
     ["Frameworks", "Priced one at a time", "All 8 included"],
     ["NIS2 · DORA · Cyber Resilience Act", "Not supported", "Native"],
-    ["Agent on employee laptops", "Required", "None"],
+    // "None" on its own invited the obvious question — then how do you evidence
+    // disk encryption? — with no answer attached. The answer is that we read it
+    // from the MDM they already run, which is a better position than an agent.
+    ["Agent on employee laptops", "Required", "None — we read your MDM instead"],
     ["Data residency", "US-hosted", "EU-hosted"],
     ["Contract", "1 – 2 year lock-in", "Month to month"],
     ["Implementation fee", "$5k – $15k", "$0"],

@@ -96,3 +96,75 @@ export async function addFramework(input: unknown) {
   revalidatePath("/controls");
   return { ok: true, name: framework.name, credited };
 }
+
+/**
+ * Drop a framework from the workspace.
+ *
+ * Frameworks were add-only until now: `addFramework` had no counterpart, so a
+ * wrong pick during onboarding was permanent. It inflated the control count,
+ * sank the compliance percentage and reopened the Sprint forever, with no way
+ * out — a reviewer went looking for the edit path and reported it as
+ * "convoluted" because there wasn't one.
+ *
+ * Deliberately non-destructive: this deletes only the `company_frameworks` row.
+ * `control_status`, evidence and `measure_status` are keyed by control or
+ * measure, not by framework, so nothing is lost and re-adding restores every bit
+ * of prior progress (addFramework's own propagation step re-credits it). That
+ * property is the whole reason this is safe to offer as a one-click action
+ * instead of a scary irreversible one, and the confirm dialog says so.
+ *
+ * Same owner/admin gate as addFramework — workspace configuration, not routine
+ * member work.
+ */
+export async function removeFramework(input: unknown) {
+  const parsed = addFrameworkSchema.safeParse(input);
+  if (!parsed.success) return { error: "Pick a framework." };
+
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const company = await getCompanyForUser(supabase, user.id);
+  if (!company) return { error: "No company found." };
+
+  const access = await getCallerAccess(supabase, company.id, user.id);
+  if (access?.role !== "owner" && access?.role !== "admin") {
+    return { error: "Only the workspace owner or an admin can remove a framework." };
+  }
+
+  const { data: existing } = await supabase
+    .from("company_frameworks")
+    .select("framework_id")
+    .eq("company_id", company.id);
+  const owned = (existing ?? []) as { framework_id: string }[];
+
+  if (!owned.some((f) => f.framework_id === parsed.data.frameworkId)) {
+    return { error: "That framework isn't in this workspace." };
+  }
+  // A workspace with no frameworks has no controls, so the dashboard, the Sprint
+  // and the score all become meaningless. Refuse rather than render an empty app.
+  if (owned.length <= 1) {
+    return { error: "This is your only framework. Add another one before removing it." };
+  }
+
+  const frameworks = await listFrameworks(supabase).catch(() => []);
+  const framework = frameworks.find((f) => f.id === parsed.data.frameworkId);
+
+  const { error } = await supabase
+    .from("company_frameworks")
+    .delete()
+    .eq("company_id", company.id)
+    .eq("framework_id", parsed.data.frameworkId);
+  if (error) return { error: "Could not remove that framework. Please try again." };
+
+  await logEvent(supabase, company.id, "framework.removed", {
+    type: "framework",
+    id: parsed.data.frameworkId,
+    label: framework?.name,
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/getting-started");
+  revalidatePath("/controls");
+  return { ok: true, name: framework?.name ?? "Framework" };
+}
