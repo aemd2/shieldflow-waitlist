@@ -12,6 +12,10 @@ on:
   push:
     branches: ["**"]
   pull_request:
+  # Run it by hand from the Actions tab. Needed the first time the Supabase
+  # secrets were added: without this there was no way to re-run CI except by
+  # pushing an empty commit.
+  workflow_dispatch:
   schedule:
     # Dependency advisories land after a commit does, so re-run weekly on main.
     - cron: "0 6 * * 1"
