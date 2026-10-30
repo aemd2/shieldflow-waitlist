@@ -514,8 +514,13 @@ function Footer() {
           <span className="font-bold text-foreground">ShieldFlow</span>
         </div>
         <div>© {new Date().getFullYear()} ShieldFlow. AI-native GRC for founders.</div>
-        <div className="flex gap-5">
+        {/* Security and What we check were both unlinked from the public site. The
+            pages existed and nobody could find them, which is a large part of why a
+            reviewer called the site opaque. */}
+        <div className="flex flex-wrap gap-5">
           <a href={LOGIN_URL} className="hover:text-foreground">Log in</a>
+          <Link href="/security" className="hover:text-foreground">Security</Link>
+          <Link href="/checks" className="hover:text-foreground">What we check</Link>
           <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
           <Link href="/terms" className="hover:text-foreground">Terms</Link>
         </div>
