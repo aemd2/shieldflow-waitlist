@@ -68,7 +68,7 @@ async function sendEmails(emails: string[], payload: NotifyPayload): Promise<voi
     <a href="${link}" style="display:inline-block;background:#0b1f3a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">Open ShieldFlow</a>
   </div>`;
 
-  await Promise.allSettled(
+  const results = await Promise.allSettled(
     emails.map((to) =>
       fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -77,6 +77,29 @@ async function sendEmails(emails: string[], payload: NotifyPayload): Promise<voi
       }),
     ),
   );
+
+  // fetch() resolves on 4xx, and every caller of this function swallows errors
+  // by design — so without this block a revoked key, an unverified sending
+  // domain or a malformed From address fails silently and permanently. That is
+  // how the signup email outage went unnoticed for two months, and this path
+  // was worse: it had no way of ever being noticed at all.
+  //
+  // Still never throws. It just leaves a trace in the platform logs, which is
+  // the difference between a bug you can find and one you can't.
+  //
+  // Recipient addresses are deliberately not logged — the status code is what
+  // tells you what to fix, and logs are a poor place for customer PII.
+  for (const r of results) {
+    if (r.status === "rejected") {
+      console.error("[notify] email request never completed:", r.reason);
+      continue;
+    }
+    if (r.value.ok) continue;
+    const detail = await r.value.text().catch(() => "");
+    console.error(
+      `[notify] Resend rejected the send: ${r.value.status} ${r.value.statusText}. ${detail.slice(0, 200)}`,
+    );
+  }
 }
 
 function escapeHtml(s: string): string {
