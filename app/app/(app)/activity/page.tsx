@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { createServerSupabase, getRequestUser } from "@/lib/supabase/server";
 import { getCompanyForUser, listAuditEvents } from "@/lib/db/queries";
 import { PageShell, FilterChips } from "@/components/ui/page";
@@ -80,11 +80,20 @@ export default async function ActivityPage({
       </div>
     ) : undefined;
 
+  // Exports whatever the filter is currently showing, not just this page —
+  // an auditor asking for the trail means all of it.
+  const exportHref = activeType ? `/api/activity/export?type=${activeType}` : "/api/activity/export";
+
   return (
     <PageShell
       layout="feed"
       title="Activity log"
       subtitle="Every change in your workspace — who did it and when. Append-only: nobody on your team can edit or delete an entry."
+      actions={
+        <a href={exportHref} className={buttonClasses("outline", "sm")} download>
+          <Download className="mr-1.5 h-3.5 w-3.5" /> Export CSV
+        </a>
+      }
       toolbar={<FilterChips items={filterChips} activeValue={activeType} />}
       footer={pagination}
     >
