@@ -106,7 +106,9 @@ function Hero() {
           {" "}
           <b className="text-foreground">71 things to actually do.</b>
           <br className="hidden sm:block" />
-          {"$7,000/year flat — and the price never moves."}
+          {/* Leading space matters: the <br> above is hidden below `sm`, so without
+              it the line reads "…to actually do.$7,000/year" on a phone. */}
+          {" $7,000/year flat — and the price never moves."}
         </p>
 
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -130,7 +132,7 @@ function Hero() {
 
         <div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-muted-foreground">
           <Stat icon={<Zap className="h-4 w-4 text-primary" />} label="Type I ready in 14 days" />
-          <Stat icon={<ShieldCheck className="h-4 w-4 text-primary" />} label="Price locked for life" />
+          <Stat icon={<ShieldCheck className="h-4 w-4 text-primary" />} label="Your price never goes up" />
           <Stat icon={<Clock className="h-4 w-4 text-primary" />} label="$33,000 saved per year" />
         </div>
       </div>
@@ -224,7 +226,7 @@ function Offer() {
     "The 14-Day Sprint — a finishable path, not a 300-item checklist",
     "No agent on your employees' laptops. Ever.",
     "Priced per company, never per headcount — grow without a price rise",
-    "Lifetime price lock — $7,000/yr, for as long as you stay",
+    "Your price never goes up — $7,000/yr for as long as your subscription runs",
   ];
   return (
     <section className="border-b border-border bg-[color:var(--navy-deep)] py-24">
@@ -280,7 +282,7 @@ function Offer() {
 function Comparison() {
   const rows: [string, string, string][] = [
     ["Annual cost", "$25k – $55k", "$7,000 flat"],
-    ["Price at renewal", "Up 40 – 100%", "Locked. Forever."],
+    ["Price at renewal", "Up 40 – 100%", "Never increases"],
     ["Priced by headcount", "Yes — cross a band, price jumps", "No — per company"],
     ["Frameworks", "Priced one at a time", "All 8 included"],
     ["NIS2 · DORA · Cyber Resilience Act", "Not supported", "Native"],
@@ -384,21 +386,26 @@ function Guarantee() {
           Two Guarantees, In Writing
         </p>
         <h2 className="text-balance text-4xl font-black tracking-tight md:text-5xl">
-          Ready in 90 days — or the year is free.
+          Ready in 90 days — or we work for free until you are.
         </h2>
         <p className="mt-6 text-lg text-muted-foreground">
-          Work the 14-Day Sprint and connect your stack. If you&rsquo;re not{" "}
-          <b className="text-foreground">Type&nbsp;I ready within 90 days</b>, we refund the full
-          year. Not credits. Cash.
+          Connect your cloud, your code host and your identity provider, and finish the 14-Day
+          Sprint. If you&rsquo;re not{" "}
+          <b className="text-foreground">Type&nbsp;I ready 90 days later</b>, we keep working at no
+          charge until you are — and we sit on the call with your auditor. It&rsquo;s in our{" "}
+          <a href="/terms" className="underline">
+            Terms
+          </a>
+          , not just on this page.
         </p>
 
         <div className="mx-auto mt-10 grid max-w-3xl gap-4 text-left md:grid-cols-2">
           <div className="rounded-2xl border border-border bg-card p-6">
             <div className="text-sm font-bold">The Readiness Guarantee</div>
             <p className="mt-2 text-sm text-muted-foreground">
-              Type&nbsp;I ready in 90 days or your money back. Type&nbsp;II needs an observation
-              window of 3–12 months — nobody can compress that, and anyone who says otherwise is
-              selling you a problem.
+              Not ready in 90 days? We keep working for free until you are. Type&nbsp;II needs an
+              observation window of 3–12 months — nobody can compress that, and anyone who says
+              otherwise is selling you a problem.
             </p>
           </div>
           <div className="rounded-2xl border border-border bg-card p-6">
@@ -491,7 +498,7 @@ function FinalCTA() {
           <ArrowRight className="h-5 w-5" strokeWidth={3} />
         </a>
         <div className="mt-5 text-sm text-muted-foreground">
-          Type I ready in 90 days or free • Price locked for life • No credit card
+          Type I ready in 90 days or we work free until you are • Your price never goes up • No credit card
         </div>
       </div>
     </section>
