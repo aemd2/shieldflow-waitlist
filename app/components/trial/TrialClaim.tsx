@@ -34,6 +34,7 @@ export function TrialClaim({
       }
       // Full navigation, not router.push — the plan is resolved in the app
       // shell, so we want a clean server render rather than a cached one.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = "/dashboard?trial=started";
     } catch {
       setError("Network problem — please try again.");
@@ -44,6 +45,9 @@ export function TrialClaim({
   async function switchAccount() {
     const supabase = createBrowserSupabase();
     await supabase.auth.signOut();
+    // Hard navigation on purpose: we just signed out, so the whole shell has to
+    // be re-rendered by the server rather than reused from the client cache.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = `/login?next=${encodeURIComponent(`/trial/${code}`)}`;
   }
 

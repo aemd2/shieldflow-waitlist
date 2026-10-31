@@ -61,6 +61,9 @@ export function Chat({
         const data = await res.json().catch(() => ({}));
         // 401 mid-session = logged out in another tab; send them back to login.
         if (res.status === 401) {
+          // Hard navigation on purpose: the session is already dead, and a
+          // client transition would keep this tree and the router cache alive.
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
           window.location.assign("/login?reason=expired");
           return;
         }

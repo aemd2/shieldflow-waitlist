@@ -93,6 +93,9 @@ export function PolicyWorkspace({
       const data = await res.json();
       if (!res.ok) {
         if (res.status === 401) {
+          // Hard navigation on purpose: the session is already dead, and a
+          // client transition would keep this tree and the router cache alive.
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
           window.location.href = "/login?reason=expired";
           return;
         }
