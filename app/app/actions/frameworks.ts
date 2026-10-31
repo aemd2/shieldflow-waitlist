@@ -150,12 +150,21 @@ export async function removeFramework(input: unknown) {
   const frameworks = await listFrameworks(supabase).catch(() => []);
   const framework = frameworks.find((f) => f.id === parsed.data.frameworkId);
 
-  const { error } = await supabase
+  // .select() so we can see what was actually deleted. Under RLS a DELETE that
+  // matches no permitted row is NOT an error — it removes nothing and reports
+  // success. This shipped without a DELETE policy on company_frameworks, so
+  // every removal silently did nothing while the UI said it had worked. Trust
+  // the row count, never the absence of an error.
+  const { data: deleted, error } = await supabase
     .from("company_frameworks")
     .delete()
     .eq("company_id", company.id)
-    .eq("framework_id", parsed.data.frameworkId);
+    .eq("framework_id", parsed.data.frameworkId)
+    .select("framework_id");
   if (error) return { error: "Could not remove that framework. Please try again." };
+  if (!deleted || deleted.length === 0) {
+    return { error: "That change wasn't saved — you may not have permission to remove a framework." };
+  }
 
   await logEvent(supabase, company.id, "framework.removed", {
     type: "framework",
@@ -166,5 +175,13 @@ export async function removeFramework(input: unknown) {
   revalidatePath("/dashboard");
   revalidatePath("/getting-started");
   revalidatePath("/controls");
-  return { ok: true, name: framework?.name ?? "Framework" };
+
+  // Can this actually be undone? addFramework enforces the plan's framework
+  // cap, so on a workspace sitting at or above its allowance the Undo button
+  // in the removal toast fails with a billing error — after we just promised
+  // the removal was reversible. Work out now whether putting it back would be
+  // permitted (one fewer framework than we have at this moment) and let the
+  // client offer Undo only when it would succeed.
+  const blocked = await assertWithinLimit(supabase, company.id, "frameworks", owned.length - 1);
+  return { ok: true, name: framework?.name ?? "Framework", canUndo: blocked === null };
 }

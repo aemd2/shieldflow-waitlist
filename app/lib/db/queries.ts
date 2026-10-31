@@ -313,13 +313,26 @@ export async function getControlsWithStatus(
   supabase: SupabaseClient,
   companyId: string,
 ): Promise<ControlWithStatus[]> {
-  const [{ data, error }, counts] = await Promise.all([
+  const [{ data, error }, counts, selectedIds] = await Promise.all([
     supabase.from("control_status").select(CONTROL_SELECT).eq("company_id", companyId),
     evidenceCounts(supabase, companyId),
+    listSelectedFrameworkIds(supabase, companyId),
   ]);
   if (error) throw error;
 
+  // Removing a framework deliberately KEEPS its control_status rows, so that
+  // re-adding it restores the work rather than resetting it. Those rows must
+  // stop counting the moment the framework leaves scope, though — otherwise a
+  // removed framework goes on dragging the compliance score down and padding
+  // "Not started" while appearing nowhere on the page to explain why.
+  //
+  // Scoped here rather than at each call site so the dashboard, the controls
+  // list, evidence, reports and the Sprint can never disagree about which
+  // controls count.
+  const inScope = new Set(selectedIds);
+
   return (data ?? [])
+    .filter((row: any) => inScope.has((row.controls as Control).framework_id))
     .map((row: any) => mapControlRow(row, counts[(row.controls as Control).id] ?? 0))
     .sort((a, b) => compareControlCodes(a.code, b.code));
 }
