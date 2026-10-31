@@ -75,10 +75,19 @@ export default async function DashboardPage() {
     approvedPolicies: policies.filter((p) => p.status === "final").length,
   });
 
-  // Per-framework progress (for monitoring rule + display).
+  // Per-framework progress — one computation, used by both the monitoring rule
+  // and the cards in FrameworkManager. It used to be rendered here as a
+  // separate grid of bars while FrameworkManager drew its own chips from the
+  // same list, which is how the dashboard ended up showing one framework in
+  // scope above three progress bars.
   const frameworkProgress = frameworks.map((f) => {
-    const subset = controls.filter((c) => c.framework_id === f.id).map((c) => c.status);
-    return { name: f.name, pct: computeScore(subset) };
+    const subset = controls.filter((c) => c.framework_id === f.id);
+    return {
+      id: f.id,
+      name: f.name,
+      controlCount: subset.length,
+      pct: computeScore(subset.map((c) => c.status)),
+    };
   });
 
   const alerts = computeAlerts(
@@ -133,28 +142,9 @@ export default async function DashboardPage() {
         <StatCard label="Not started" value={counts.not_started} color="muted" />
       </div>
 
-      {frameworkProgress.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {frameworkProgress.map((fp) => (
-            <div key={fp.name} className="card">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium text-foreground">{fp.name}</span>
-                <span className="text-muted-foreground">{fp.pct}%</span>
-              </div>
-              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-secondary">
-                <div
-                  className="h-full bg-[var(--brand-emerald)] transition-all"
-                  style={{ width: `${fp.pct}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
       <FrameworkManager
         available={availableFrameworks}
-        selected={frameworks.map((f) => ({ id: f.id, name: f.name }))}
+        selected={frameworkProgress}
         canManage={canManageFrameworks}
       />
 

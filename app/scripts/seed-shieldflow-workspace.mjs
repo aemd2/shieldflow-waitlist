@@ -166,6 +166,30 @@ async function main() {
         { company_id: companyId, framework_id: fw.id },
         { onConflict: "company_id,framework_id" },
       );
+      // add_framework_to_company() does TWO things: the company_frameworks row
+      // and a control_status row per control. It can't be called from here
+      // because it derives the actor from auth.uid() and this runs as the
+      // service role — so both halves have to be done by hand.
+      //
+      // Doing only the first half is what happened the first time this ran:
+      // SOC 2 and GDPR appeared in scope with zero controls and a bar stuck at
+      // 0%, because a framework with no control_status rows has nothing to
+      // measure. A framework in scope without its controls is not a framework.
+      const { data: ctrls } = await db.from("controls").select("id").eq("framework_id", fw.id);
+      const rows = (ctrls ?? []).map((c) => ({
+        company_id: companyId,
+        control_id: c.id,
+        status: "not_started",
+        updated_by: owner.id,
+      }));
+      if (rows.length > 0) {
+        // ignoreDuplicates so a re-run never resets work already done.
+        const { error } = await db
+          .from("control_status")
+          .upsert(rows, { onConflict: "company_id,control_id", ignoreDuplicates: true });
+        if (error) console.log(`    ! control_status: ${error.message}`);
+        else console.log(`      ${rows.length} controls`);
+      }
     }
   }
 
