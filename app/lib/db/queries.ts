@@ -1457,6 +1457,6 @@ export async function getUnmatchedAccounts(
 
   return {
     emails: [...emails].sort(),
-    dismissed: ((exceptions ?? []) as { email: string; reason: string | null }[]) ?? [],
+    dismissed: (exceptions ?? []) as { email: string; reason: string | null }[],
   };
 }
