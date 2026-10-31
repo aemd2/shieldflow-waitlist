@@ -48,13 +48,13 @@
     "@types/node": "^22.9.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "autoprefixer": "^10.4.20",
-    "eslint": "^9.39.5",
-    "eslint-config-next": "^16.2.7",
-    "playwright-core": "^1.56.1",
-    "postcss": "^8.4.49",
+    "autoprefixer": "^10.6.2",
+    "eslint": "^10.14.0",
+    "eslint-config-next": "^16.4.3",
+    "playwright-core": "^1.64.1",
+    "postcss": "^8.5.32",
     "tailwindcss": "^3.4.15",
     "tsx": "^4.23.15",
-    "typescript": "^5.6.3"
+    "typescript": "^5.9.3"
   }
 }
