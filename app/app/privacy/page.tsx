@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PublicPage, PublicSection as Section } from "@/components/public/PublicPage";
 
 export const metadata = { title: "Privacy Policy · ShieldFlow" };
 
@@ -6,15 +7,7 @@ const UPDATED = "30 October 2026";
 
 export default function PrivacyPage() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/" className="text-sm text-muted-foreground underline">
-        ← Back
-      </Link>
-
-      <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">Privacy Policy</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Last updated: {UPDATED}</p>
-
-      <div className="prose-legal mt-8 space-y-6 text-sm leading-relaxed text-foreground">
+    <PublicPage eyebrow="Legal" title="Privacy Policy" updated={UPDATED}>
         <Section title="1. Who we are">
           ShieldFlow (&quot;ShieldFlow&quot;, &quot;we&quot;, &quot;us&quot;) provides an AI-powered
           governance, risk and compliance platform. This policy explains what personal data we
@@ -103,20 +96,10 @@ export default function PrivacyPage() {
           We may update this policy and will revise the date above. Questions? Email{" "}
           <a className="underline" href="mailto:privacy@shieldflow.cloud">privacy@shieldflow.cloud</a>.
         </Section>
-      </div>
 
-      <p className="mt-10 text-xs text-muted-foreground">
+      <p className="pt-4 text-xs text-muted-foreground">
         See also our <Link href="/terms" className="underline">Terms of Service</Link>.
       </p>
-    </main>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <h2 className="mb-1 text-base font-semibold text-foreground">{title}</h2>
-      <div className="text-muted-foreground">{children}</div>
-    </section>
+    </PublicPage>
   );
 }

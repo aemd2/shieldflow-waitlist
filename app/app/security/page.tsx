@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PublicPage, PublicSection as Section } from "@/components/public/PublicPage";
 
 export const metadata: Metadata = {
   title: "Security at ShieldFlow — how we hold your evidence",
@@ -30,23 +31,18 @@ const UPDATED = "30 October 2026";
  */
 export default function SecurityPage() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/" className="text-sm text-muted-foreground underline">
-        ← Back
-      </Link>
-
-      <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
-        Security at ShieldFlow
-      </h1>
-      <p className="mt-1 text-sm text-muted-foreground">Last updated: {UPDATED}</p>
-
-      <p className="mt-6 text-sm leading-relaxed text-foreground">
-        We hold your compliance evidence and read-only tokens into your cloud, code and identity
-        systems. That makes us a vendor you have to assess, so this page is written to be
-        assessed — specific enough to check, including the parts we haven&rsquo;t built yet.
-      </p>
-
-      <div className="mt-8 space-y-6 text-sm leading-relaxed text-foreground">
+    <PublicPage
+      eyebrow="Trust"
+      title="Security at ShieldFlow"
+      updated={UPDATED}
+      lede={
+        <>
+          We hold your compliance evidence and read-only tokens into your cloud, code and identity
+          systems. That makes us a vendor you have to assess, so this page is written to be
+          assessed — specific enough to check, including the parts we haven&rsquo;t built yet.
+        </>
+      }
+    >
         <Section title="1. Where your data lives">
           All compliance data — controls, evidence files, policies, personnel, registers — is
           stored in Postgres hosted in the <b>European Union (eu-west-1)</b>, encrypted at rest by
@@ -182,24 +178,14 @@ export default function SecurityPage() {
           </Link>
           . We keep that list current rather than maintaining a second copy here.
         </Section>
-      </div>
 
-      <p className="mt-10 text-xs text-muted-foreground">
+      <p className="pt-4 text-xs text-muted-foreground">
         Questions an assessment needs answered that this page doesn&rsquo;t cover? Email{" "}
         <a className="underline" href="mailto:security@shieldflow.cloud">
           security@shieldflow.cloud
         </a>{" "}
         and we&rsquo;ll answer directly — and add it here.
       </p>
-    </main>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <h2 className="mb-1 text-base font-semibold text-foreground">{title}</h2>
-      <div className="text-muted-foreground">{children}</div>
-    </section>
+    </PublicPage>
   );
 }
