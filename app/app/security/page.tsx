@@ -119,8 +119,9 @@ export default function SecurityPage() {
           acted on, when, and a snapshot of the change. The actor is derived <b>server-side</b>{" "}
           from the authenticated session inside the logging function itself, which means a
           tampered client cannot attribute its actions to someone else. The trail is readable in
-          the app, filterable by actor and type. One-click export of the trail itself is not built
-          yet (section 8).
+          the app, filterable by actor and type, and exportable as a CSV you keep &mdash; the whole
+          trail, not the page you happen to be looking at, with the actor and timestamp on every
+          row. Taking that export is itself recorded in the trail.
         </Section>
 
         <Section title="6. Access to your data by us">
@@ -170,10 +171,6 @@ export default function SecurityPage() {
             </li>
             <li>
               <b>No penetration test report.</b> We have not commissioned an external test yet.
-            </li>
-            <li>
-              <b>No audit-trail export.</b> The trail is readable and filterable in the app, but
-              you can&rsquo;t yet download it as a file to hand to an auditor.
             </li>
           </ul>
         </Section>
