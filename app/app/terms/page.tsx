@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PublicPage, PublicSection as Section } from "@/components/public/PublicPage";
 
 export const metadata = { title: "Terms of Service · ShieldFlow" };
 
@@ -6,15 +7,7 @@ const UPDATED = "30 October 2026";
 
 export default function TermsPage() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/" className="text-sm text-muted-foreground underline">
-        ← Back
-      </Link>
-
-      <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">Terms of Service</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Last updated: {UPDATED}</p>
-
-      <div className="mt-8 space-y-6 text-sm leading-relaxed text-foreground">
+    <PublicPage eyebrow="Legal" title="Terms of Service" updated={UPDATED}>
         <Section title="1. Agreement">
           By creating an account or using ShieldFlow (the &quot;Service&quot;) you agree to these Terms.
           If you use the Service on behalf of an organisation, you represent that you may bind it.
@@ -106,20 +99,10 @@ export default function TermsPage() {
           Questions about these Terms? Email{" "}
           <a className="underline" href="mailto:legal@shieldflow.cloud">legal@shieldflow.cloud</a>.
         </Section>
-      </div>
 
-      <p className="mt-10 text-xs text-muted-foreground">
+      <p className="pt-4 text-xs text-muted-foreground">
         See also our <Link href="/privacy" className="underline">Privacy Policy</Link>.
       </p>
-    </main>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <h2 className="mb-1 text-base font-semibold text-foreground">{title}</h2>
-      <div className="text-muted-foreground">{children}</div>
-    </section>
+    </PublicPage>
   );
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PublicPage } from "@/components/public/PublicPage";
 import { notFound } from "next/navigation";
 import { PROVIDERS, PROVIDER_BY_KEY } from "@/lib/integrations/registry";
 
@@ -25,17 +26,14 @@ export default async function ProviderChecksPage({ params }: { params: Promise<{
   const entry = PROVIDER_BY_KEY.get((await params).provider);
   if (!entry) notFound();
   return (
-    <main className="mx-auto max-w-3xl space-y-10 px-6 py-12">
-      <header className="space-y-3">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">
-          <Link href="/checks" className="hover:underline">ShieldFlow checks</Link> · {entry.title}
-        </p>
-        <h1 className="text-3xl font-semibold">What we check in {entry.title} — and what we never read</h1>
-        <p className="text-muted-foreground">{entry.connectStory}</p>
-      </header>
+    <PublicPage
+      eyebrow={<><Link href="/checks" className="hover:underline">What we check</Link> · {entry.title}</>}
+      title={`What we check in ${entry.title} — and what we never read`}
+      lede={entry.connectStory}
+    >
 
       <section className="space-y-2">
-        <h2 className="text-lg font-semibold">How results work</h2>
+        <h2 className="text-base font-semibold text-foreground">How results work</h2>
         <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
           <li>Every failure names the exact thing — the repository, the account, the pull request — and gives the fix.</li>
           <li>
@@ -52,7 +50,7 @@ export default async function ProviderChecksPage({ params }: { params: Promise<{
         if (!checks.length) return null;
         return (
           <section key={area} className="space-y-3">
-            <h2 className="text-lg font-semibold">{title}</h2>
+            <h2 className="text-base font-semibold text-foreground">{title}</h2>
             <ul className="space-y-3">
               {checks.map((c) => (
                 <li key={c.key} className="rounded-lg border border-border p-4">
@@ -70,7 +68,7 @@ export default async function ProviderChecksPage({ params }: { params: Promise<{
       })}
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">What we read</h2>
+        <h2 className="text-base font-semibold text-foreground">What we read</h2>
         <ul className="space-y-1 text-sm">
           {entry.reads.map(([perm, why]) => (
             <li key={perm}>
@@ -81,7 +79,7 @@ export default async function ProviderChecksPage({ params }: { params: Promise<{
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">What we never read or do</h2>
+        <h2 className="text-base font-semibold text-foreground">What we never read or do</h2>
         <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
           {entry.never.map((n) => (
             <li key={n}>{n}</li>
@@ -93,6 +91,6 @@ export default async function ProviderChecksPage({ params }: { params: Promise<{
         <Link className="underline" href="/checks">Other integrations</Link> · <Link className="underline" href="/demo">See the product</Link> ·{" "}
         <Link className="underline" href="/signup">Start free</Link>
       </p>
-    </main>
+    </PublicPage>
   );
 }
