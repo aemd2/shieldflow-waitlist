@@ -35,6 +35,9 @@ export function JoinClient({ token, email }: { token: string; email: string }) {
   async function switchAccount() {
     const supabase = createBrowserSupabase();
     await supabase.auth.signOut();
+    // Hard navigation on purpose: we just signed out, so the whole shell has to
+    // be re-rendered by the server rather than reused from the client cache.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = `/login?next=${encodeURIComponent(`/join?token=${token}`)}`;
   }
 
