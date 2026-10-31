@@ -108,23 +108,27 @@ async function main() {
     process.exit(1);
   }
 
-  const { data: existingMembership } = await db
+  const { data: already } = await db.from("companies").select("id").eq("name", COMPANY_NAME).maybeSingle();
+  let companyId = already?.id;
+
+  // Refuse only if the owner belongs to a DIFFERENT workspace. Owning the
+  // ShieldFlow one already is the normal state on every run after the first —
+  // treating that as a conflict would make the "idempotent" claim above false.
+  const { data: memberships } = await db
     .from("company_members")
     .select("company_id, companies(name)")
     .eq("user_id", owner.id);
-  if ((existingMembership ?? []).length > 0) {
-    const names = existingMembership.map((m) => m.companies?.name).join(", ");
+  const elsewhere = (memberships ?? []).filter((m) => m.company_id !== companyId);
+  if (elsewhere.length > 0) {
+    const names = elsewhere.map((m) => m.companies?.name ?? m.company_id).join(", ");
     console.error(
-      `${ownerEmail} already belongs to a workspace (${names}).\n` +
+      `${ownerEmail} already belongs to a different workspace (${names}).\n` +
         "getCompanyForUser resolves one company per user by oldest membership, so\n" +
         "adding a second would be ambiguous. Use a dedicated address for ShieldFlow's\n" +
         "own workspace.",
     );
     process.exit(1);
   }
-
-  const { data: already } = await db.from("companies").select("id").eq("name", COMPANY_NAME).maybeSingle();
-  let companyId = already?.id;
 
   if (!companyId) {
     console.log(`  + company "${COMPANY_NAME}" owned by ${ownerEmail}`);
@@ -146,13 +150,17 @@ async function main() {
   }
 
   const { data: frameworks } = await db.from("frameworks").select("id, name");
+  const { data: selected } = companyId
+    ? await db.from("company_frameworks").select("framework_id").eq("company_id", companyId)
+    : { data: [] };
+  const selectedIds = new Set((selected ?? []).map((r) => r.framework_id));
   for (const want of ["SOC 2", "GDPR"]) {
     const fw = frameworks.find((f) => f.name === want);
     if (!fw) {
       console.log(`  ! framework "${want}" not found — skipped`);
       continue;
     }
-    console.log(`  + framework ${want}`);
+    console.log(`  ${selectedIds.has(fw.id) ? "=" : "+"} framework ${want}`);
     if (apply && companyId) {
       await db.from("company_frameworks").upsert(
         { company_id: companyId, framework_id: fw.id },
