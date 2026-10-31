@@ -72,25 +72,27 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
       - run: npm ci
-      - name: npm audit (critical blocks)
-        # Blocks on critical only, deliberately, and this threshold is temporary.
+      - name: npm audit (high and above blocks)
+        # This started at `critical` only, because the tree had 3 critical and 8
+        # high advisories — including a Next.js App Router middleware bypass,
+        # which mattered here because the auth gate IS middleware
+        # (lib/supabase/middleware.ts). `npm audit fix` closed 16 of 17, leaving
+        # zod < 4.6.6, whose fix meant the zod 3 -> 4 major migration. Blocking
+        # on `high` then would have left the pipeline permanently red, and a
+        # permanently red pipeline gets ignored.
         #
-        # When this pipeline was first written the tree had 3 critical and 8 high
-        # advisories, including a Next.js App Router middleware bypass — which
-        # matters here because the auth gate IS middleware (lib/supabase/
-        # middleware.ts). `npm audit fix` closed 16 of 17 without a breaking
-        # change.
+        # zod 4.6.7 is in (#7). The tree is now clean at every level, so the
+        # gate moves to `high` as planned.
         #
-        # The one left is zod < 4.6.6 (memory exhaustion on oversized
-        # collections). Fixing it means the zod 3 -> 4 migration across every
-        # validation schema, which is a real piece of work and not something to
-        # do inside a CI change. Blocking on `high` today would leave the
-        # pipeline permanently red, and a permanently red pipeline gets ignored —
-        # which is worse than a narrower gate that people trust.
-        #
-        # Tighten this to --audit-level=high the moment zod is migrated.
-        run: npm audit --audit-level=critical
-      - name: Report high and below (non-blocking)
+        # Deliberately not `moderate` or `low`, even though both would pass
+        # today: a transitive low advisory lands in a Next.js tree often, and
+        # most are unreachable from this code. The point of the gate is that red
+        # means stop — a threshold that cries wolf stops being read, which is
+        # how the gate fails rather than how it protects.
+        run: npm audit --audit-level=high
+      - name: Report moderate and below (non-blocking)
+        # Everything under the gate still gets printed, so nothing is hidden —
+        # it just doesn't fail the build.
         if: always()
         run: npm audit || true
 
