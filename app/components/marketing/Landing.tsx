@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
 import { Faq } from "@/components/marketing/Faq";
-import { LOGIN_URL, testimonials } from "@/lib/site";
+import { LOGIN_URL, SIGNUP_URL, testimonials } from "@/lib/site";
 
 // Founding-cohort scarcity. ← Set SPOTS_LEFT to the real number; it drives every
 // "X of 40 spots left" badge on the page.
@@ -60,10 +60,10 @@ function Nav() {
             Log in
           </a>
           <a
-            href={LOGIN_URL}
+            href={SIGNUP_URL}
             className="rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition hover:brightness-110"
           >
-            Sign in &amp; claim your spot →
+            Claim your spot →
           </a>
         </div>
       </div>
@@ -113,10 +113,10 @@ function Hero() {
 
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
           <a
-            href={LOGIN_URL}
+            href={SIGNUP_URL}
             className="group relative inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-8 py-4 text-base font-bold text-primary-foreground shadow-[var(--shadow-glow)] transition hover:scale-[1.02] sm:w-auto"
           >
-            Sign in &amp; claim your spot
+            Claim your spot
             <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" strokeWidth={3} />
           </a>
           <Link
@@ -267,10 +267,10 @@ function Offer() {
               </div>
             </div>
             <a
-              href={LOGIN_URL}
+              href={SIGNUP_URL}
               className="w-full rounded-xl bg-primary px-8 py-4 text-center text-base font-bold text-primary-foreground transition hover:scale-[1.02] sm:w-auto"
             >
-              Sign in &amp; claim your spot →
+              Claim your spot →
             </a>
           </div>
         </div>
@@ -494,10 +494,10 @@ function FinalCTA() {
           {" founding spots left. Once they’re gone, founding pricing closes — for good."}
         </p>
         <a
-          href={LOGIN_URL}
+          href={SIGNUP_URL}
           className="mt-10 inline-flex items-center gap-2 rounded-xl bg-primary px-10 py-5 text-lg font-bold text-primary-foreground transition hover:scale-[1.02]"
         >
-          Sign in &amp; claim your spot
+          Claim your spot
           <ArrowRight className="h-5 w-5" strokeWidth={3} />
         </a>
         <div className="mt-5 text-sm text-muted-foreground">
