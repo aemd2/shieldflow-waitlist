@@ -32,7 +32,7 @@
     "@aws-sdk/client-securityhub": "^3.1160.0",
     "@aws-sdk/client-sso-admin": "^3.1160.0",
     "@aws-sdk/client-sts": "^3.1160.0",
-    "@sentry/nextjs": "^10.57.0",
+    "@sentry/nextjs": "^11.10.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.45.0",
     "lucide-react": "^1.65.0",
