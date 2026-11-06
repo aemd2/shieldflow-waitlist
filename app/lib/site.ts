@@ -1,6 +1,9 @@
 // Marketing/site constants. The product app and the public marketing page are
 // one app now, so the login link is just a same-origin path.
 export const LOGIN_URL = "/login";
+// New visitors need the create-account page: "/login" greets them with "Welcome
+// back" and a password they do not have yet.
+export const SIGNUP_URL = "/signup";
 
 export type Testimonial = {
   quote: string;
