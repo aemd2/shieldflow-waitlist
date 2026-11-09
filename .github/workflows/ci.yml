@@ -50,6 +50,13 @@ jobs:
         # Pure decision logic for the identity checks — the branches that must
         # never wrongly PASS. No database or network needed.
         run: npx tsx lib/identity-checks.cases.ts
+      - name: Check the personnel CSV parser
+        # Runs the parser against docs/test-fixtures/personnel-csv — reordered
+        # columns, EU semicolon+BOM, NFC/NFD and case-variant duplicate emails,
+        # CSV-injection attempts, mixed encodings, the 500-row cap. It existed
+        # before this step and nothing ran it, so its fixtures were deleted for
+        # months without anyone noticing. A test no job runs is not a test.
+        run: npx tsx scripts/check-personnel-csv.mts
       - name: Build
         # Build last: it is the slowest step, so failing fast on types and lint
         # gives a quicker signal.
