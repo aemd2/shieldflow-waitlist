@@ -1,0 +1,24 @@
+# Secret-scanning config for CI (.github/workflows/ci.yml, "Secret scan").
+#
+# useDefault keeps gitleaks' entire built-in ruleset. Without it, supplying a
+# config REPLACES the defaults, which would silently turn the scan into a
+# no-op — the worst possible failure for a repo that sells secret hygiene.
+[extend]
+useDefault = true
+
+# One allowance, matched on the secret itself rather than on a path, so this
+# cannot hide a real credential that lands in the same file later.
+#
+# AKIAABCDEFGHIJKLMNOP is "AKIA" followed by the alphabet. It lives in the case
+# in app/lib/aws/checks.cases.ts that asserts we MASK access key IDs in
+# CloudTrail resource names - the test has to hold one in order to prove it
+# masks it. Access key IDs are identifiers, not secrets; the secret access key
+# is the paired value, and none is present here.
+#
+# This has to live in config rather than an inline gitleaks:allow comment:
+# the scheduled run checks out with fetch-depth 0 and scans every historical
+# commit, including f5d9816 which introduced the line before any comment
+# existed. History cannot be annotated after the fact.
+[allowlist]
+description = "Dummy AWS access key ID in the test that proves key IDs are masked"
+regexes = ['''AKIAABCDEFGHIJKLMNOP''']
