@@ -283,7 +283,7 @@ expect("failed call is dropped", toChange(ev({ sessionCredentialFromConsole: "tr
 expect("console sign-in is not a change", toChange(ev({ eventName: "ConsoleLogin", eventSource: "signin.amazonaws.com", sessionCredentialFromConsole: "true", userIdentity: sso }), ACCT, "us-east-1") ? "kept" : "dropped", "dropped");
 expect(
   "access key IDs are masked in resource names",
-  toChange({ CloudTrailEvent: JSON.stringify({ eventID: "k", eventTime: "2026-10-12T07:08:00Z", eventName: "CreateAccessKey", eventSource: "iam.amazonaws.com", userIdentity: { type: "Root", arn: "arn:aws:iam::1:root" } }), Resources: [{ ResourceName: "AKIAABCDEFGHIJKLMNOP" }, { ResourceName: "shieldflow-scanner" }] }, ACCT, "us-east-1")?.resources ?? "none",  // gitleaks:allow - a dummy key id (AKIA + the alphabet); this case proves we mask key ids, so it has to hold one
+  toChange({ CloudTrailEvent: JSON.stringify({ eventID: "k", eventTime: "2026-10-12T07:08:00Z", eventName: "CreateAccessKey", eventSource: "iam.amazonaws.com", userIdentity: { type: "Root", arn: "arn:aws:iam::1:root" } }), Resources: [{ ResourceName: "AKIAABCDEFGHIJKLMNOP" }, { ResourceName: "shieldflow-scanner" }] }, ACCT, "us-east-1")?.resources ?? "none",  // Dummy key id (AKIA + the alphabet), allowlisted in .gitleaks.toml
   "AKIA…MNOP, shieldflow-scanner",
 );
 expect("root activity is kept", toChange(ev({ userIdentity: { type: "Root", arn: "arn:aws:iam::1:root" } }), ACCT, "us-east-1")?.via ?? "none", "root");
