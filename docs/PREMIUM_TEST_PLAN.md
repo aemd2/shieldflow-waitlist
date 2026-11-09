@@ -265,7 +265,9 @@ chosen systems + quarter until edited; Reviewer defaults to the current user.
       excluded; a row with a bad email is flagged red and excluded until fixed via the
       **Pencil** inline-edit. "Add N people" only counts clean, non-duplicate rows. ✅
       **tested extensively** (7/8–7/9/2026) — full pull/CSV/paste → save round-trip
-      confirmed against 21 fixture CSVs (see `docs/test-fixtures/personnel-csv/`)
+      confirmed against 21 fixture CSVs (see `docs/test-fixtures/personnel-csv/`;
+      fixtures 01–09 are now asserted automatically in CI by
+      `app/scripts/check-personnel-csv.mts`, the rest were manual)
       covering reordered columns, first/last split, semicolon+BOM EU-Excel, quoted
       commas, in-batch + cross-session duplicates (incl. NFC/NFD Unicode and
       case-variant emails), no-header inference, mixed date formats, oversized
